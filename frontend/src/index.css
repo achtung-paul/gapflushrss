@@ -1,0 +1,131 @@
+/* Base styles only. Full light/dark theme switch is Phase 8 — this just
+   seeds the palette decision from the brief (green headings). */
+:root {
+  --color-heading: #2e7d32;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  color: #111;
+}
+
+.app-header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #ddd;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-header h1 {
+  color: var(--color-heading);
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.app-header h1 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+main {
+  padding: 1.5rem;
+}
+
+.page-form {
+  max-width: 320px;
+}
+
+.page-form form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.page-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.form-error {
+  color: #c62828;
+}
+
+.inline-form {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.inline-form input {
+  max-width: 160px;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.5rem 1rem 0.5rem 0;
+  border-bottom: 1px solid #ddd;
+}
+
+.annotator-wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+/* Visible frame marking the draw area, so it's clear the image is an
+   interactive annotation surface and not just a static picture. */
+.annotator-image-container {
+  display: inline-block;
+  line-height: 0;
+  border: 2px solid var(--color-heading);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.annotator-wrap img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  /* Belt-and-braces alongside imageEl.draggable = false in
+     ImageAnnotator.jsx -- stops native image dragging in browsers
+     (notably Safari) that don't fully honor the DOM property. */
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* Numbered "balloon" marker: red circle with a number, per the brief's
+   reference image. Positioned via inline left/top (% of image size),
+   set in ImageAnnotator.jsx. */
+.balloon-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #d32f2f;
+  color: #fff;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  font-size: 0.75rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+}
