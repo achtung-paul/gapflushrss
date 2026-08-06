@@ -76,23 +76,50 @@ export const updateProcessType = (processTypeId, name) =>
 export const deleteProcessType = (processTypeId) =>
   apiFetch(`/process-types/${processTypeId}`, { method: 'DELETE' })
 
-export const listToleranceClasses = (processTypeId) =>
-  apiFetch(`/process-types/${processTypeId}/tolerance-classes`)
+export const listToleranceGroups = (processTypeId) =>
+  apiFetch(`/process-types/${processTypeId}/tolerance-groups`)
 
-export const createToleranceClass = (processTypeId, className, value) =>
-  apiFetch(`/process-types/${processTypeId}/tolerance-classes`, {
+export const createToleranceGroup = (processTypeId, name) =>
+  apiFetch(`/process-types/${processTypeId}/tolerance-groups`, {
     method: 'POST',
-    body: JSON.stringify({ class_name: className, value }),
+    body: JSON.stringify({ name }),
   })
 
-export const updateToleranceClass = (toleranceClassId, className, value) =>
-  apiFetch(`/tolerance-classes/${toleranceClassId}`, {
+export const updateToleranceGroup = (toleranceGroupId, name) =>
+  apiFetch(`/tolerance-groups/${toleranceGroupId}`, {
     method: 'PUT',
-    body: JSON.stringify({ class_name: className, value }),
+    body: JSON.stringify({ name }),
   })
 
-export const deleteToleranceClass = (toleranceClassId) =>
-  apiFetch(`/tolerance-classes/${toleranceClassId}`, { method: 'DELETE' })
+export const deleteToleranceGroup = (toleranceGroupId) =>
+  apiFetch(`/tolerance-groups/${toleranceGroupId}`, { method: 'DELETE' })
+
+export const listDimensionRanges = (processTypeId) =>
+  apiFetch(`/process-types/${processTypeId}/dimension-ranges`)
+
+export const createDimensionRange = (processTypeId, minValue, maxValue) =>
+  apiFetch(`/process-types/${processTypeId}/dimension-ranges`, {
+    method: 'POST',
+    body: JSON.stringify({ min_value: minValue, max_value: maxValue }),
+  })
+
+export const updateDimensionRange = (dimensionRangeId, minValue, maxValue) =>
+  apiFetch(`/dimension-ranges/${dimensionRangeId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ min_value: minValue, max_value: maxValue }),
+  })
+
+export const deleteDimensionRange = (dimensionRangeId) =>
+  apiFetch(`/dimension-ranges/${dimensionRangeId}`, { method: 'DELETE' })
+
+export const listToleranceValues = (processTypeId) =>
+  apiFetch(`/process-types/${processTypeId}/tolerance-values`)
+
+export const setToleranceValueCell = (toleranceGroupId, dimensionRangeId, toolValue, nonToolValue) =>
+  apiFetch(`/tolerance-groups/${toleranceGroupId}/dimension-ranges/${dimensionRangeId}/value`, {
+    method: 'PUT',
+    body: JSON.stringify({ tool_value: toolValue, non_tool_value: nonToolValue }),
+  })
 
 export const listImages = (analysisId) => apiFetch(`/analyses/${analysisId}/images`)
 

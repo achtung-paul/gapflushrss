@@ -10,7 +10,9 @@ from app.models.commodity import Commodity  # noqa: F401
 from app.models.analysis import Analysis  # noqa: F401
 from app.models.analysis_entry import AnalysisEntry  # noqa: F401
 from app.models.process_type import ProcessType  # noqa: F401
-from app.models.tolerance_class import ToleranceClass  # noqa: F401
+from app.models.tolerance_group import ToleranceGroup  # noqa: F401
+from app.models.dimension_range import DimensionRange  # noqa: F401
+from app.models.tolerance_value import ToleranceValue  # noqa: F401
 from app.models.image import Image  # noqa: F401
 from app.models.marker import Marker  # noqa: F401
 from app.models.chain_component import ChainComponent  # noqa: F401

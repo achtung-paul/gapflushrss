@@ -11,11 +11,11 @@
 # upper/lower like AnalysisEntry) -- that's the standard shape for RSS
 # stack-up inputs, and it's what the user confirmed for this feature.
 #
-# tolerance_class_id is optional provenance only: if the value was
-# prefilled from the admin reference table (Phase 3), we record which
-# class it came from, but tolerance_value is still its own snapshotted
-# column so a later edit to the class doesn't silently change a saved
-# analysis.
+# tolerance_value_id is optional provenance only: if the value was
+# prefilled from a cell in the admin tolerance matrix (Phase 3), we
+# record which cell it came from, but tolerance_value is still its own
+# snapshotted column so a later edit to that cell doesn't silently
+# change a saved analysis.
 
 import enum
 from datetime import datetime, timezone
@@ -45,8 +45,8 @@ class ChainComponent(Base):
     )
     description: Mapped[str] = mapped_column(String(255), nullable=False)
     tolerance_value: Mapped[float] = mapped_column(Numeric(10, 3), nullable=False)
-    tolerance_class_id: Mapped[int | None] = mapped_column(
-        ForeignKey("tolerance_classes.tolerance_class_id", ondelete="SET NULL"), nullable=True
+    tolerance_value_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tolerance_values.tolerance_value_id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)

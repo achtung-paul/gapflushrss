@@ -76,7 +76,7 @@ def create_chain_component(
         contributor_type=body.contributor_type,
         description=body.description,
         tolerance_value=body.tolerance_value,
-        tolerance_class_id=body.tolerance_class_id,
+        tolerance_value_id=body.tolerance_value_id,
     )
     db.add(component)
     db.commit()

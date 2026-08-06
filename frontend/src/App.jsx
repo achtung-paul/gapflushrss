@@ -11,7 +11,7 @@ import CommodityListPage from './pages/CommodityListPage.jsx'
 import AnalysisListPage from './pages/AnalysisListPage.jsx'
 import AnalysisDetailPage from './pages/AnalysisDetailPage.jsx'
 import ProcessTypesPage from './pages/ProcessTypesPage.jsx'
-import ToleranceClassesPage from './pages/ToleranceClassesPage.jsx'
+import ToleranceMatrixPage from './pages/ToleranceMatrixPage.jsx'
 
 // Nav: Project List -> Commodity List -> Analysis List -> Gap/Flush.
 // A dropdown-based header nav (per the brief's UX section) is Phase 8;
@@ -75,10 +75,10 @@ function App() {
             }
           />
           <Route
-            path="/admin/process-types/:processTypeId/tolerance-classes"
+            path="/admin/process-types/:processTypeId/tolerance-matrix"
             element={
               <ProtectedRoute requireRootAdmin>
-                <ToleranceClassesPage />
+                <ToleranceMatrixPage />
               </ProtectedRoute>
             }
           />

@@ -15,7 +15,7 @@ function AdminPage() {
   return (
     <div>
       <p>
-        <Link to="/admin/process-types">Manage process types &amp; tolerance classes</Link>
+        <Link to="/admin/process-types">Manage process types &amp; tolerance matrix</Link>
       </p>
       <h2>Users</h2>
       {error && <p className="form-error">{error}</p>}

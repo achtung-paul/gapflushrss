@@ -10,9 +10,9 @@ class ChainComponentCreate(BaseModel):
     # app/core/simulation.py for how this gets combined with the rest
     # of the chain.
     tolerance_value: float
-    # Optional: which admin-editable tolerance class (Phase 3) this
+    # Optional: which cell of the admin tolerance matrix (Phase 3) this
     # value was prefilled from, purely for traceability.
-    tolerance_class_id: int | None = None
+    tolerance_value_id: int | None = None
 
     @field_validator("tolerance_value")
     @classmethod
@@ -38,7 +38,7 @@ class ChainComponentOut(BaseModel):
     contributor_type: ContributorType
     description: str
     tolerance_value: float
-    tolerance_class_id: int | None
+    tolerance_value_id: int | None
 
 
 class SimulationResultRow(BaseModel):

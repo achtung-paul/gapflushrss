@@ -4,8 +4,10 @@ import {
   deleteChainComponent,
   getSimulation,
   listChainComponents,
+  listDimensionRanges,
   listProcessTypes,
-  listToleranceClasses,
+  listToleranceGroups,
+  listToleranceValues,
 } from '../api/client.js'
 import RssDistributionChart from './RssDistributionChart.jsx'
 
@@ -27,8 +29,12 @@ function ToleranceChainSection({ entryId, nominal, upperLimit, lowerLimit }) {
 
   const [processTypes, setProcessTypes] = useState([])
   const [selectedProcessTypeId, setSelectedProcessTypeId] = useState('')
-  const [toleranceClasses, setToleranceClasses] = useState([])
-  const [selectedToleranceClassId, setSelectedToleranceClassId] = useState('')
+  const [groups, setGroups] = useState([])
+  const [selectedGroupId, setSelectedGroupId] = useState('')
+  const [ranges, setRanges] = useState([])
+  const [selectedRangeId, setSelectedRangeId] = useState('')
+  const [cells, setCells] = useState([])
+  const [selectedVariant, setSelectedVariant] = useState('')
 
   const refresh = useCallback(() => {
     listChainComponents(entryId).then(setComponents).catch((err) => setError(err.message))
@@ -43,21 +49,44 @@ function ToleranceChainSection({ entryId, nominal, upperLimit, lowerLimit }) {
 
   useEffect(() => {
     if (!selectedProcessTypeId) {
-      setToleranceClasses([])
+      setGroups([])
+      setRanges([])
+      setCells([])
       return
     }
-    listToleranceClasses(selectedProcessTypeId)
-      .then(setToleranceClasses)
-      .catch((err) => setError(err.message))
+    listToleranceGroups(selectedProcessTypeId).then(setGroups).catch((err) => setError(err.message))
+    listDimensionRanges(selectedProcessTypeId).then(setRanges).catch((err) => setError(err.message))
+    listToleranceValues(selectedProcessTypeId).then(setCells).catch((err) => setError(err.message))
   }, [selectedProcessTypeId])
 
-  function handleSelectToleranceClass(classId) {
-    setSelectedToleranceClassId(classId)
-    const chosen = toleranceClasses.find((tc) => String(tc.tolerance_class_id) === classId)
-    if (chosen) {
-      setToleranceValue(String(chosen.value))
+  // The matrix cell for whichever group + range are currently picked,
+  // if one exists -- a blank "-" cell in the admin matrix has no row at
+  // all (see backend/app/api/reference_data.py), so no match just means
+  // "nothing to prefill, enter the value manually".
+  const matchedCell = cells.find(
+    (cell) =>
+      String(cell.tolerance_group_id) === selectedGroupId &&
+      String(cell.dimension_range_id) === selectedRangeId,
+  )
+  const hasBothVariants =
+    matchedCell && matchedCell.tool_value !== null && matchedCell.non_tool_value !== null
+
+  useEffect(() => {
+    if (!matchedCell) {
+      return
     }
-  }
+    if (hasBothVariants) {
+      if (selectedVariant === 'tool') {
+        setToleranceValue(String(matchedCell.tool_value))
+      } else if (selectedVariant === 'non_tool') {
+        setToleranceValue(String(matchedCell.non_tool_value))
+      }
+    } else if (matchedCell.tool_value !== null) {
+      setToleranceValue(String(matchedCell.tool_value))
+    } else if (matchedCell.non_tool_value !== null) {
+      setToleranceValue(String(matchedCell.non_tool_value))
+    }
+  }, [matchedCell, hasBothVariants, selectedVariant])
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -67,12 +96,14 @@ function ToleranceChainSection({ entryId, nominal, upperLimit, lowerLimit }) {
         contributor_type: contributorType,
         description,
         tolerance_value: Number(toleranceValue),
-        tolerance_class_id: selectedToleranceClassId ? Number(selectedToleranceClassId) : null,
+        tolerance_value_id: matchedCell ? matchedCell.tolerance_value_id : null,
       })
       setDescription('')
       setToleranceValue('')
       setSelectedProcessTypeId('')
-      setSelectedToleranceClassId('')
+      setSelectedGroupId('')
+      setSelectedRangeId('')
+      setSelectedVariant('')
       refresh()
     } catch (err) {
       setError(err.message)
@@ -141,7 +172,9 @@ function ToleranceChainSection({ entryId, nominal, upperLimit, lowerLimit }) {
           value={selectedProcessTypeId}
           onChange={(e) => {
             setSelectedProcessTypeId(e.target.value)
-            setSelectedToleranceClassId('')
+            setSelectedGroupId('')
+            setSelectedRangeId('')
+            setSelectedVariant('')
           }}
         >
           <option value="">(manual value)</option>
@@ -152,17 +185,46 @@ function ToleranceChainSection({ entryId, nominal, upperLimit, lowerLimit }) {
           ))}
         </select>
         {selectedProcessTypeId && (
-          <select
-            value={selectedToleranceClassId}
-            onChange={(e) => handleSelectToleranceClass(e.target.value)}
-          >
-            <option value="">Select class...</option>
-            {toleranceClasses.map((toleranceClass) => (
-              <option key={toleranceClass.tolerance_class_id} value={toleranceClass.tolerance_class_id}>
-                {toleranceClass.class_name} (±{toleranceClass.value})
-              </option>
-            ))}
+          <>
+            <select
+              value={selectedGroupId}
+              onChange={(e) => {
+                setSelectedGroupId(e.target.value)
+                setSelectedVariant('')
+              }}
+            >
+              <option value="">Tolerance group...</option>
+              {groups.map((group) => (
+                <option key={group.tolerance_group_id} value={group.tolerance_group_id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={selectedRangeId}
+              onChange={(e) => {
+                setSelectedRangeId(e.target.value)
+                setSelectedVariant('')
+              }}
+            >
+              <option value="">Dimension range...</option>
+              {ranges.map((range) => (
+                <option key={range.dimension_range_id} value={range.dimension_range_id}>
+                  {range.min_value} to {range.max_value}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
+        {hasBothVariants && (
+          <select value={selectedVariant} onChange={(e) => setSelectedVariant(e.target.value)}>
+            <option value="">Tool or non-tool...</option>
+            <option value="tool">Tool-specific (±{matchedCell.tool_value})</option>
+            <option value="non_tool">Non-tool-specific (±{matchedCell.non_tool_value})</option>
           </select>
+        )}
+        {selectedGroupId && selectedRangeId && !matchedCell && (
+          <span className="form-hint">No value defined for this cell -- enter manually</span>
         )}
         <input
           type="number"

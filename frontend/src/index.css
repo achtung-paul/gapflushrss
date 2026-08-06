@@ -227,3 +227,33 @@ td {
   font-size: 11px;
   fill: #555;
 }
+
+.form-hint {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.tolerance-matrix-scroll {
+  overflow-x: auto;
+}
+
+.tolerance-matrix {
+  border-collapse: collapse;
+}
+
+.tolerance-matrix th,
+.tolerance-matrix td {
+  border: 1px solid #ddd;
+  padding: 0.3rem 0.5rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.matrix-cell {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.matrix-cell input {
+  width: 3.5rem;
+}
