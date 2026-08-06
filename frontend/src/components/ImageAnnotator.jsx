@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { init as initAnnotoriousLib } from '@recogito/annotorious'
 import '@recogito/annotorious/dist/annotorious.min.css'
 
@@ -113,17 +114,23 @@ function ImageAnnotator({ imageUrl, markers, onCreateMarker, onDeleteMarker }) {
           className="marker-wrap"
           style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }}
         >
+          <Link to={`/analyses/${marker.analysis_id}`} className="balloon-marker" title={marker.analysis_code}>
+            {marker.sequence_number}
+          </Link>
           <button
             type="button"
-            className="balloon-marker"
-            title={`Marker ${marker.sequence_number} (click to remove)`}
+            className="marker-delete-btn"
+            title={`Delete ${marker.analysis_code} and its marker`}
             onClick={() => setPendingDeleteId(marker.marker_id)}
           >
-            {marker.sequence_number}
+            &times;
           </button>
           {pendingDeleteId === marker.marker_id && (
             <div className="marker-confirm-popup">
-              <p>Delete marker {marker.sequence_number}?</p>
+              <p>
+                Delete marker {marker.sequence_number} ({marker.analysis_code})? This also removes
+                its Gap/Flush and tolerance chain data.
+              </p>
               <div className="marker-confirm-buttons">
                 <button
                   type="button"

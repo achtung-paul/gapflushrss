@@ -133,6 +133,30 @@ td {
   justify-content: center;
   padding: 0;
   cursor: pointer;
+  text-decoration: none;
+}
+
+/* Small "x" badge overlapping the balloon's corner -- kept separate
+   from .balloon-marker so clicking the number navigates to the
+   analysis while this triggers the delete-confirm popup instead. */
+.marker-delete-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  color: #d32f2f;
+  border: 1px solid #d32f2f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  font-size: 0.7rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
 }
 
 /* Confirm-before-delete popup, anchored under the marker it belongs to. */
@@ -171,6 +195,27 @@ td {
   margin-top: 0.75rem;
   padding-top: 0.75rem;
   border-top: 1px solid #ddd;
+}
+
+.analysis-table-scroll {
+  overflow-x: auto;
+}
+
+.analysis-table {
+  border-collapse: collapse;
+}
+
+.analysis-table th,
+.analysis-table td {
+  border: 1px solid #ddd;
+  padding: 0.35rem 0.6rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.analysis-table input,
+.analysis-table select {
+  width: 4.5rem;
 }
 
 .rss-results {

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, field_validator
 
-from app.models.analysis_entry import EntryType
+from app.models.analysis_entry import Direction, EntryType
 
 
 class AnalysisEntryCreate(BaseModel):
@@ -10,6 +10,7 @@ class AnalysisEntryCreate(BaseModel):
     nominal_value: float
     upper_limit: float
     lower_limit: float
+    direction: Direction | None = None
 
     @field_validator("upper_limit", "lower_limit")
     @classmethod
@@ -30,3 +31,4 @@ class AnalysisEntryOut(BaseModel):
     nominal_value: float
     upper_limit: float
     lower_limit: float
+    direction: Direction | None

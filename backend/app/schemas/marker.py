@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, field_validator
 
 
 class MarkerCreate(BaseModel):
@@ -16,10 +16,14 @@ class MarkerCreate(BaseModel):
 
 
 class MarkerOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+    # Built by hand in app/api/images.py (via _marker_out), not
+    # model_validate'd straight off a Marker row -- analysis_id,
+    # analysis_code, and sequence_number all come from the Marker's
+    # linked Analysis, not from a column on Marker itself.
     marker_id: int
     image_id: int
+    analysis_id: int
+    analysis_code: str
     sequence_number: int
     x: float
     y: float

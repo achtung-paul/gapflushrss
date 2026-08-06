@@ -1,51 +1,70 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   createFlushEntry,
   createGapEntry,
-  createMarker,
-  deleteImage,
-  deleteMarker,
   getAnalysis,
-  imageFileUrl,
-  listImages,
-  listMarkers,
-  uploadImage,
+  updateFlushEntry,
+  updateGapEntry,
 } from '../api/client.js'
-import ImageAnnotator from '../components/ImageAnnotator.jsx'
 import ToleranceChainSection from '../components/ToleranceChainSection.jsx'
 
-// Shows an existing Gap or Flush entry, or a small form to create one if
-// it's not attached yet -- an Analysis can be a placeholder with neither
-// (see the brief), so both start out missing.
-function EntrySection({ title, entry, onCreate }) {
+// Shows an existing Gap or Flush entry (with an Edit button to change its
+// direction/nominal/limits), or a form to create one if it's not
+// attached yet -- an Analysis can be a placeholder with neither (see the
+// brief), so both start out missing. Create and edit share the same
+// form; which callback Save/Add invokes depends on whether an entry
+// already existed when the form opened.
+function EntrySection({ title, entry, onCreate, onUpdate }) {
+  const [editing, setEditing] = useState(false)
+  const [direction, setDirection] = useState('')
   const [nominalValue, setNominalValue] = useState('')
   const [upperLimit, setUpperLimit] = useState('')
   const [lowerLimit, setLowerLimit] = useState('')
   const [error, setError] = useState(null)
 
+  // e.g. "GAP-X" once a direction is set, or just "GAP" until it is --
+  // direction lives on the entry (see api/analyses.py), not the analysis,
+  // since Gap and Flush can be measured along different axes.
+  const heading = title.toUpperCase() + (entry?.direction ? `-${entry.direction}` : '')
+
+  function startEditing() {
+    setDirection(entry?.direction ?? '')
+    setNominalValue(entry ? String(entry.nominal_value) : '')
+    setUpperLimit(entry ? String(entry.upper_limit) : '')
+    setLowerLimit(entry ? String(entry.lower_limit) : '')
+    setError(null)
+    setEditing(true)
+  }
+
   async function handleSubmit(event) {
     event.preventDefault()
     setError(null)
+    const body = {
+      nominal_value: Number(nominalValue),
+      upper_limit: Number(upperLimit),
+      lower_limit: Number(lowerLimit),
+      direction: direction || null,
+    }
     try {
-      await onCreate({
-        nominal_value: Number(nominalValue),
-        upper_limit: Number(upperLimit),
-        lower_limit: Number(lowerLimit),
-      })
+      await (entry ? onUpdate(body) : onCreate(body))
+      setEditing(false)
     } catch (err) {
       setError(err.message)
     }
   }
 
-  if (entry) {
+  if (entry && !editing) {
     return (
       <div>
-        <h3>{title}</h3>
+        <h3>{heading}</h3>
         <p>
           {entry.entry_code}: nominal {entry.nominal_value}, band {entry.nominal_value - entry.lower_limit}
           {' to '}
-          {entry.nominal_value + entry.upper_limit} (+{entry.upper_limit} / -{entry.lower_limit})
+          {entry.nominal_value + entry.upper_limit} (+{entry.upper_limit} / -{entry.lower_limit}){' '}
+          <button type="button" onClick={startEditing}>
+            Edit
+          </button>
         </p>
         <ToleranceChainSection
           entryId={entry.entry_id}
@@ -59,9 +78,16 @@ function EntrySection({ title, entry, onCreate }) {
 
   return (
     <div>
-      <h3>{title}</h3>
-      <p>Not attached yet.</p>
+      <h3>{heading}</h3>
+      {!entry && <p>Not attached yet.</p>}
       <form onSubmit={handleSubmit} className="inline-form">
+        <select value={direction} onChange={(e) => setDirection(e.target.value)}>
+          <option value="">Direction...</option>
+          <option value="X">X</option>
+          <option value="Y">Y</option>
+          <option value="Z">Z</option>
+          <option value="OTHER">Other</option>
+        </select>
         <input
           type="number"
           step="any"
@@ -88,131 +114,14 @@ function EntrySection({ title, entry, onCreate }) {
           onChange={(e) => setLowerLimit(e.target.value)}
           required
         />
-        <button type="submit">Add {title}</button>
+        <button type="submit">{entry ? 'Save' : `Add ${title}`}</button>
+        {entry && (
+          <button type="button" onClick={() => setEditing(false)}>
+            Cancel
+          </button>
+        )}
       </form>
       {error && <p className="form-error">{error}</p>}
-    </div>
-  )
-}
-
-// Image upload + the annotation canvas for whichever image is selected.
-function ImagesSection({ analysisId }) {
-  const [images, setImages] = useState([])
-  const [selectedImageId, setSelectedImageId] = useState(null)
-  const [markers, setMarkers] = useState([])
-  const [error, setError] = useState(null)
-
-  function refreshImages() {
-    listImages(analysisId).then(setImages).catch((err) => setError(err.message))
-  }
-
-  useEffect(refreshImages, [analysisId])
-
-  useEffect(() => {
-    if (images.length > 0 && selectedImageId === null) {
-      setSelectedImageId(images[0].image_id)
-    }
-  }, [images, selectedImageId])
-
-  function refreshMarkers() {
-    if (selectedImageId === null) {
-      setMarkers([])
-      return
-    }
-    listMarkers(selectedImageId).then(setMarkers).catch((err) => setError(err.message))
-  }
-
-  useEffect(refreshMarkers, [selectedImageId])
-
-  async function handleUpload(event) {
-    event.preventDefault()
-    setError(null)
-    const file = event.target.elements.file.files[0]
-    if (!file) return
-    try {
-      await uploadImage(analysisId, file)
-      event.target.reset()
-      refreshImages()
-    } catch (err) {
-      setError(err.message)
-    }
-  }
-
-  async function handleDeleteImage(imageId) {
-    setError(null)
-    try {
-      await deleteImage(imageId)
-      if (selectedImageId === imageId) {
-        setSelectedImageId(null)
-      }
-      refreshImages()
-    } catch (err) {
-      setError(err.message)
-    }
-  }
-
-  const handleCreateMarker = useCallback(
-    async (x, y) => {
-      if (selectedImageId === null) return
-      try {
-        await createMarker(selectedImageId, x, y)
-        refreshMarkers()
-      } catch (err) {
-        setError(err.message)
-      }
-    },
-    [selectedImageId],
-  )
-
-  const handleDeleteMarker = useCallback(
-    async (markerId) => {
-      try {
-        await deleteMarker(markerId)
-        refreshMarkers()
-      } catch (err) {
-        setError(err.message)
-      }
-    },
-    [selectedImageId],
-  )
-
-  return (
-    <div>
-      <h3>Images</h3>
-      {error && <p className="form-error">{error}</p>}
-
-      <ul>
-        {images.map((image) => (
-          <li key={image.image_id}>
-            <button type="button" onClick={() => setSelectedImageId(image.image_id)}>
-              {image.original_filename}
-            </button>{' '}
-            <button type="button" onClick={() => handleDeleteImage(image.image_id)}>
-              Delete
-            </button>
-          </li>
-        ))}
-      </ul>
-
-      <form onSubmit={handleUpload} className="inline-form">
-        <input type="file" name="file" accept="image/*" required />
-        <button type="submit">Upload image</button>
-      </form>
-
-      {selectedImageId !== null && (
-        <div>
-          <p>
-            Drag a small box on the image to drop a numbered marker at its center; click a
-            marker to remove it.
-          </p>
-          <ImageAnnotator
-            imageUrl={imageFileUrl(selectedImageId)}
-            markers={markers}
-            onCreateMarker={handleCreateMarker}
-            onDeleteMarker={handleDeleteMarker}
-          />
-        </div>
-      )}
     </div>
   )
 }
@@ -237,12 +146,16 @@ function AnalysisDetailPage() {
 
   return (
     <div>
-      <h2>{analysis.analysis_code}</h2>
+      <h2>Analysis Page: {analysis.analysis_code}</h2>
       <EntrySection
         title="Gap"
         entry={analysis.gap}
         onCreate={async (body) => {
           await createGapEntry(analysisId, body)
+          refresh()
+        }}
+        onUpdate={async (body) => {
+          await updateGapEntry(analysisId, body)
           refresh()
         }}
       />
@@ -253,8 +166,11 @@ function AnalysisDetailPage() {
           await createFlushEntry(analysisId, body)
           refresh()
         }}
+        onUpdate={async (body) => {
+          await updateFlushEntry(analysisId, body)
+          refresh()
+        }}
       />
-      <ImagesSection analysisId={analysisId} />
     </div>
   )
 }

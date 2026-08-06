@@ -62,9 +62,6 @@ export const createCommodity = (projectId, name, code) =>
 
 export const listAnalyses = (commodityId) => apiFetch(`/commodities/${commodityId}/analyses`)
 
-export const createAnalysis = (commodityId) =>
-  apiFetch(`/commodities/${commodityId}/analyses`, { method: 'POST' })
-
 export const getAnalysis = (analysisId) => apiFetch(`/analyses/${analysisId}`)
 
 export const createGapEntry = (analysisId, entry) =>
@@ -72,6 +69,14 @@ export const createGapEntry = (analysisId, entry) =>
 
 export const createFlushEntry = (analysisId, entry) =>
   apiFetch(`/analyses/${analysisId}/flush`, { method: 'POST', body: JSON.stringify(entry) })
+
+export const updateGapEntry = (analysisId, entry) =>
+  apiFetch(`/analyses/${analysisId}/gap`, { method: 'PUT', body: JSON.stringify(entry) })
+
+export const updateFlushEntry = (analysisId, entry) =>
+  apiFetch(`/analyses/${analysisId}/flush`, { method: 'PUT', body: JSON.stringify(entry) })
+
+export const deleteEntry = (entryId) => apiFetch(`/entries/${entryId}`, { method: 'DELETE' })
 
 export const listProcessTypes = () => apiFetch('/process-types')
 
@@ -129,14 +134,14 @@ export const setToleranceValueCell = (toleranceGroupId, dimensionRangeId, toolVa
     body: JSON.stringify({ tool_value: toolValue, non_tool_value: nonToolValue }),
   })
 
-export const listImages = (analysisId) => apiFetch(`/analyses/${analysisId}/images`)
+export const listImages = (commodityId) => apiFetch(`/commodities/${commodityId}/images`)
 
-export async function uploadImage(analysisId, file) {
+export async function uploadImage(commodityId, file) {
   const formData = new FormData()
   formData.append('file', file)
   // No Content-Type header here -- the browser sets it (with the right
   // multipart boundary) automatically when the body is a FormData.
-  const response = await fetch(`${API_BASE}/analyses/${analysisId}/images`, {
+  const response = await fetch(`${API_BASE}/commodities/${commodityId}/images`, {
     method: 'POST',
     credentials: 'include',
     body: formData,

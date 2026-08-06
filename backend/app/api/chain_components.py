@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.api.analyses import _get_commodity_or_404
+from app.api.analyses import _get_commodity_or_404, _get_entry_or_404
 from app.api.deps import get_current_user, require_project_manager
 from app.core.simulation import run_simulation
 from app.db.session import get_db
@@ -18,13 +18,6 @@ from app.models.user import User
 from app.schemas.chain_component import ChainComponentCreate, ChainComponentOut, SimulationResultOut
 
 router = APIRouter(tags=["chain-components"])
-
-
-def _get_entry_or_404(db: Session, entry_id: int) -> AnalysisEntry:
-    entry = db.get(AnalysisEntry, entry_id)
-    if entry is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found")
-    return entry
 
 
 def _require_manager_for_entry(db: Session, user: User, entry_id: int) -> AnalysisEntry:

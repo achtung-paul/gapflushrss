@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_root_admin
 from app.core.storage import delete_image
 from app.db.session import get_db
-from app.models.analysis import Analysis
 from app.models.commodity import Commodity
 from app.models.group import CONTRIBUTORS, MANAGERS, VIEWERS, Group
 from app.models.image import Image
@@ -109,8 +108,7 @@ def delete_project(
     # only record of where the file lives in MinIO) is gone for good.
     images = (
         db.query(Image)
-        .join(Analysis, Image.analysis_id == Analysis.analysis_id)
-        .join(Commodity, Analysis.commodity_id == Commodity.commodity_id)
+        .join(Commodity, Image.commodity_id == Commodity.commodity_id)
         .filter(Commodity.project_id == project_id)
         .all()
     )

@@ -26,6 +26,13 @@ class EntryType(str, enum.Enum):
     FLUSH = "FLUSH"
 
 
+class Direction(str, enum.Enum):
+    X = "X"
+    Y = "Y"
+    Z = "Z"
+    OTHER = "OTHER"
+
+
 class AnalysisEntry(Base):
     __tablename__ = "analysis_entries"
     __table_args__ = (UniqueConstraint("analysis_id", "entry_type"),)
@@ -35,6 +42,10 @@ class AnalysisEntry(Base):
         ForeignKey("analyses.analysis_id", ondelete="CASCADE"), nullable=False, index=True
     )
     entry_type: Mapped[EntryType] = mapped_column(Enum(EntryType, name="entry_type"), nullable=False)
+
+    # Which vehicle coordinate axis this Gap/Flush is measured along --
+    # blank until set, same as every other optional field here.
+    direction: Mapped[Direction | None] = mapped_column(Enum(Direction, name="direction"), nullable=True)
 
     # e.g. nominal=3.5, upper_limit=1, lower_limit=0.2 means the
     # acceptable band is 3.3 to 4.5 (nominal - lower_limit to
