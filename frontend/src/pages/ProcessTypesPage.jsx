@@ -12,6 +12,7 @@ function ProcessTypesPage() {
   const [newName, setNewName] = useState('')
   const [editingId, setEditingId] = useState(null)
   const [editingName, setEditingName] = useState('')
+  const [pendingDeleteId, setPendingDeleteId] = useState(null)
   const [error, setError] = useState(null)
 
   function refresh() {
@@ -52,6 +53,7 @@ function ProcessTypesPage() {
     setError(null)
     try {
       await deleteProcessType(processTypeId)
+      setPendingDeleteId(null)
       refresh()
     } catch (err) {
       setError(err.message)
@@ -83,10 +85,16 @@ function ProcessTypesPage() {
               <td>
                 {editingId === processType.process_type_id ? (
                   <button onClick={() => saveEdit(processType.process_type_id)}>Save</button>
+                ) : pendingDeleteId === processType.process_type_id ? (
+                  <>
+                    <span>Delete this process type?</span>{' '}
+                    <button onClick={() => handleDelete(processType.process_type_id)}>Yes</button>{' '}
+                    <button onClick={() => setPendingDeleteId(null)}>No</button>
+                  </>
                 ) : (
                   <>
                     <button onClick={() => startEditing(processType)}>Edit</button>{' '}
-                    <button onClick={() => handleDelete(processType.process_type_id)}>Delete</button>
+                    <button onClick={() => setPendingDeleteId(processType.process_type_id)}>Delete</button>
                   </>
                 )}
               </td>
