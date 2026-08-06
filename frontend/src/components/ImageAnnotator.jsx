@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import Annotorious from '@recogito/annotorious'
+import { useEffect, useRef, useState } from 'react'
+import { init as initAnnotoriousLib } from '@recogito/annotorious'
 import '@recogito/annotorious/dist/annotorious.min.css'
 
 // Reads the drawn shape's center out of an Annotorious annotation.
@@ -39,6 +39,10 @@ function extractCenterFromAnnotation(annotation) {
 // in the effect below, entirely outside React's reconciliation.
 function ImageAnnotator({ imageUrl, markers, onCreateMarker, onDeleteMarker }) {
   const containerRef = useRef(null)
+  // Clicking a marker doesn't delete it immediately -- it opens a small
+  // confirm/cancel popup first, so a marker can't be lost to a stray
+  // click. Holds the marker_id awaiting confirmation, or null.
+  const [pendingDeleteId, setPendingDeleteId] = useState(null)
 
   useEffect(() => {
     const container = containerRef.current
@@ -79,7 +83,11 @@ function ImageAnnotator({ imageUrl, markers, onCreateMarker, onDeleteMarker }) {
     // finished loading yet, that would be 0x0. `complete` covers the
     // already-loaded/cached case; `load` covers the still-loading case.
     function initAnnotorious() {
-      anno = Annotorious.init({ image: imageEl, disableEditor: true })
+      // allowEmpty is required alongside disableEditor: true -- without
+      // it, Annotorious treats a shape with no tags/comments as
+      // incomplete and silently discards it on deselect instead of
+      // firing createAnnotation.
+      anno = initAnnotoriousLib({ image: imageEl, disableEditor: true, allowEmpty: true })
       anno.on('createAnnotation', handleCreateAnnotation)
     }
 
@@ -100,16 +108,40 @@ function ImageAnnotator({ imageUrl, markers, onCreateMarker, onDeleteMarker }) {
     <div className="annotator-wrap">
       <div ref={containerRef} className="annotator-image-container" />
       {markers.map((marker) => (
-        <button
+        <div
           key={marker.marker_id}
-          type="button"
-          className="balloon-marker"
+          className="marker-wrap"
           style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }}
-          title={`Marker ${marker.sequence_number} (click to delete)`}
-          onClick={() => onDeleteMarker(marker.marker_id)}
         >
-          {marker.sequence_number}
-        </button>
+          <button
+            type="button"
+            className="balloon-marker"
+            title={`Marker ${marker.sequence_number} (click to remove)`}
+            onClick={() => setPendingDeleteId(marker.marker_id)}
+          >
+            {marker.sequence_number}
+          </button>
+          {pendingDeleteId === marker.marker_id && (
+            <div className="marker-confirm-popup">
+              <p>Delete marker {marker.sequence_number}?</p>
+              <div className="marker-confirm-buttons">
+                <button
+                  type="button"
+                  className="marker-confirm-delete"
+                  onClick={() => {
+                    setPendingDeleteId(null)
+                    onDeleteMarker(marker.marker_id)
+                  }}
+                >
+                  Delete
+                </button>
+                <button type="button" onClick={() => setPendingDeleteId(null)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       ))}
     </div>
   )

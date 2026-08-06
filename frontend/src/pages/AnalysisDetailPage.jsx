@@ -157,15 +157,17 @@ function ImagesSection({ analysisId }) {
     [selectedImageId],
   )
 
-  const handleDeleteMarker = useCallback(async (markerId) => {
-    try {
-      await deleteMarker(markerId)
-      refreshMarkers()
-    } catch (err) {
-      setError(err.message)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const handleDeleteMarker = useCallback(
+    async (markerId) => {
+      try {
+        await deleteMarker(markerId)
+        refreshMarkers()
+      } catch (err) {
+        setError(err.message)
+      }
+    },
+    [selectedImageId],
+  )
 
   return (
     <div>

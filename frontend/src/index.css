@@ -108,12 +108,17 @@ td {
   user-select: none;
 }
 
-/* Numbered "balloon" marker: red circle with a number, per the brief's
-   reference image. Positioned via inline left/top (% of image size),
-   set in ImageAnnotator.jsx. */
-.balloon-marker {
+/* Positions a marker (and its confirm popup, if open) at the dropped
+   point -- % of image size, set via inline left/top in
+   ImageAnnotator.jsx. */
+.marker-wrap {
   position: absolute;
   transform: translate(-50%, -50%);
+}
+
+/* Numbered "balloon" marker: red circle with a number, per the brief's
+   reference image. */
+.balloon-marker {
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -128,4 +133,36 @@ td {
   justify-content: center;
   padding: 0;
   cursor: pointer;
+}
+
+/* Confirm-before-delete popup, anchored under the marker it belongs to. */
+.marker-confirm-popup {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 6px;
+  background: #fff;
+  color: #000;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  padding: 0.5rem;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+.marker-confirm-popup p {
+  margin: 0 0 0.5rem;
+}
+
+.marker-confirm-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.marker-confirm-delete {
+  background: #d32f2f;
+  color: #fff;
+  border: none;
 }
