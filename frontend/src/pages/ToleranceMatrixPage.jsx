@@ -36,7 +36,7 @@ function CellInputs({ cell, onSave }) {
       <input
         type="number"
         step="any"
-        placeholder="W"
+        placeholder="T"
         title="Tool-specific"
         value={toolValue}
         onChange={(e) => setToolValue(e.target.value)}
@@ -45,7 +45,7 @@ function CellInputs({ cell, onSave }) {
       <input
         type="number"
         step="any"
-        placeholder="NW"
+        placeholder="NT"
         title="Non-tool-specific"
         value={nonToolValue}
         onChange={(e) => setNonToolValue(e.target.value)}
@@ -163,7 +163,7 @@ function ToleranceMatrixPage() {
       </p>
       <h2>Tolerance matrix</h2>
       <p>
-        Each cell holds a tool-specific (W) and/or non-tool-specific (NW) symmetric ± value. Leave
+        Each cell holds a tool-specific (T) and/or non-tool-specific (NT) symmetric ± value. Leave
         both blank for a cell that doesn't apply to that group/range combination.
       </p>
       {error && <p className="form-error">{error}</p>}

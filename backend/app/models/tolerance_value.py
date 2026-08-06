@@ -1,9 +1,9 @@
 # One cell of the DIN 16742-style tolerance matrix: the intersection of
 # a ToleranceGroup (row) and a DimensionRange (column). tool_value and
-# non_tool_value are the "W" (tool-specific) and "NW" (non-tool-
-# specific) symmetric +/- deviations from the standard's table -- a
-# group doesn't always define both (e.g. some groups only ever use one
-# of the two), so both are nullable.
+# non_tool_value are the tool-specific (T) and non-tool-specific (NT)
+# symmetric +/- deviations from the standard's table -- a group doesn't
+# always define both (e.g. some groups only ever use one of the two),
+# so both are nullable.
 #
 # A blank cell in the matrix (the standard's "-") is represented by
 # there being no row at all for that group/range pair, rather than a

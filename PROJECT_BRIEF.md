@@ -42,7 +42,7 @@ Project
 
 Initial release targets **plastics only**, per DIN 16742 and the older DIN 16901 standard. Process type list (plastics, castings, pressings, etc.) should be admin-editable from the start so other processes can be added later without a schema change.
 
-**Tolerance data decision:** build a generic, editable admin table now (process type → tolerance class → value) rather than hardcoding DIN figures. Real DIN 16742/16901 values will be supplied and loaded into this table later — don't invent or research values in the meantime.
+**Tolerance data decision:** build a generic, editable admin structure now rather than hardcoding DIN figures. Real DIN 16742/16901 values will be typed in later — don't invent or research values in the meantime. See the tolerance matrix decision below for the actual shape of this data.
 
 ## Users, auth, and RBAC
 
@@ -91,6 +91,10 @@ These weren't specified in the source doc and are flagged rather than guessed at
 - ~~Commodity list codes~~ — see Data hierarchy: admin sets name + 2-letter code per commodity, not auto-generated.
 - ~~Asymmetric nominal tolerance~~ — see Data hierarchy: nominal stores separate upper/lower limit fields, not a single ± value.
 - ~~Password recovery mechanism~~ — see Account recovery decision under Users, auth, and RBAC: email-based reset, not admin-triggered.
+
+### Resolved (2026-08-06)
+
+- ~~Tolerance matrix structure~~ — a flat process type → class name → value table can't represent DIN 16742/16901's real shape. Replaced with a per-process-type matrix: user-configurable **tolerance groups** (rows, add/delete) × user-configurable **dimension ranges** (columns, add/delete), each cell holding an optional **tool-specific (T)** and/or **non-tool-specific (NT)** symmetric ± value — matching the standard's table exactly, still with no values pre-filled in. A blank cell (the standard's "–") is just the absence of data for that group/range pair, not a stored zero.
 
 ## Reference image (from spec)
 
