@@ -13,6 +13,7 @@ import {
   uploadImage,
 } from '../api/client.js'
 import ImageAnnotator from '../components/ImageAnnotator.jsx'
+import ToleranceChainSection from '../components/ToleranceChainSection.jsx'
 
 // Shows an existing Gap or Flush entry, or a small form to create one if
 // it's not attached yet -- an Analysis can be a placeholder with neither
@@ -46,6 +47,12 @@ function EntrySection({ title, entry, onCreate }) {
           {' to '}
           {entry.nominal_value + entry.upper_limit} (+{entry.upper_limit} / -{entry.lower_limit})
         </p>
+        <ToleranceChainSection
+          entryId={entry.entry_id}
+          nominal={entry.nominal_value}
+          upperLimit={entry.upper_limit}
+          lowerLimit={entry.lower_limit}
+        />
       </div>
     )
   }

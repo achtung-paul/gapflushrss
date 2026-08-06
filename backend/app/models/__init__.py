@@ -13,3 +13,4 @@ from app.models.process_type import ProcessType  # noqa: F401
 from app.models.tolerance_class import ToleranceClass  # noqa: F401
 from app.models.image import Image  # noqa: F401
 from app.models.marker import Marker  # noqa: F401
+from app.models.chain_component import ChainComponent  # noqa: F401

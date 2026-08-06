@@ -166,3 +166,64 @@ td {
   color: #fff;
   border: none;
 }
+
+.tolerance-chain {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #ddd;
+}
+
+.rss-results {
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+}
+
+.rss-results th,
+.rss-results td {
+  border: 1px solid #ddd;
+  padding: 0.35rem 0.6rem;
+  text-align: left;
+}
+
+.rag-badge {
+  font-weight: bold;
+  color: #fff;
+}
+
+.rag-green {
+  background: #2e7d32;
+}
+
+.rag-amber {
+  background: #b8860b;
+}
+
+.rag-red {
+  background: #d32f2f;
+}
+
+.rss-chart {
+  max-width: 600px;
+  display: block;
+}
+
+.rss-chart-band {
+  fill: #2e7d32;
+  opacity: 0.15;
+}
+
+.rss-chart-curve {
+  fill: none;
+  stroke: var(--color-heading);
+  stroke-width: 2;
+}
+
+.rss-chart-axis {
+  stroke: #999;
+  stroke-width: 1;
+}
+
+.rss-chart-label {
+  font-size: 11px;
+  fill: #555;
+}

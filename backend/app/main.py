@@ -7,7 +7,17 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, analyses, auth, commodities, health, images, projects, reference_data
+from app.api import (
+    admin,
+    analyses,
+    auth,
+    chain_components,
+    commodities,
+    health,
+    images,
+    projects,
+    reference_data,
+)
 from app.core.bootstrap import create_default_process_types_if_needed, create_root_admin_if_needed
 from app.core.config import settings
 from app.core.storage import ensure_bucket_exists
@@ -47,6 +57,7 @@ app.include_router(commodities.router)
 app.include_router(analyses.router)
 app.include_router(reference_data.router)
 app.include_router(images.router)
+app.include_router(chain_components.router)
 
 
 @app.get("/")

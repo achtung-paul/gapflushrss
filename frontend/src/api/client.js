@@ -123,3 +123,16 @@ export const createMarker = (imageId, x, y) =>
   apiFetch(`/images/${imageId}/markers`, { method: 'POST', body: JSON.stringify({ x, y }) })
 
 export const deleteMarker = (markerId) => apiFetch(`/markers/${markerId}`, { method: 'DELETE' })
+
+export const listChainComponents = (entryId) => apiFetch(`/entries/${entryId}/chain-components`)
+
+export const createChainComponent = (entryId, component) =>
+  apiFetch(`/entries/${entryId}/chain-components`, {
+    method: 'POST',
+    body: JSON.stringify(component),
+  })
+
+export const deleteChainComponent = (chainComponentId) =>
+  apiFetch(`/chain-components/${chainComponentId}`, { method: 'DELETE' })
+
+export const getSimulation = (entryId) => apiFetch(`/entries/${entryId}/simulation`)
