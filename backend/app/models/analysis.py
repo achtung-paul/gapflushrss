@@ -19,7 +19,7 @@ class Analysis(Base):
 
     analysis_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     commodity_id: Mapped[int] = mapped_column(
-        ForeignKey("commodities.commodity_id"), nullable=False, index=True
+        ForeignKey("commodities.commodity_id", ondelete="CASCADE"), nullable=False, index=True
     )
     sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
     analysis_code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)

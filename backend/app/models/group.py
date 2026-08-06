@@ -36,5 +36,9 @@ class UserGroupProject(Base):
     __tablename__ = "user_group_project"
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id"), primary_key=True)
-    group_id: Mapped[int] = mapped_column(ForeignKey("groups.group_id"), primary_key=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.project_id"), primary_key=True)
+    group_id: Mapped[int] = mapped_column(
+        ForeignKey("groups.group_id", ondelete="CASCADE"), primary_key=True
+    )
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.project_id", ondelete="CASCADE"), primary_key=True
+    )

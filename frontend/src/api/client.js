@@ -44,6 +44,14 @@ export const listProjects = () => apiFetch('/projects')
 export const createProject = (projectName) =>
   apiFetch('/projects', { method: 'POST', body: JSON.stringify({ project_name: projectName }) })
 
+export const updateProject = (projectId, projectName) =>
+  apiFetch(`/projects/${projectId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ project_name: projectName }),
+  })
+
+export const deleteProject = (projectId) => apiFetch(`/projects/${projectId}`, { method: 'DELETE' })
+
 export const listCommodities = (projectId) => apiFetch(`/projects/${projectId}/commodities`)
 
 export const createCommodity = (projectId, name, code) =>

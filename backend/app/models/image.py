@@ -15,7 +15,7 @@ class Image(Base):
 
     image_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     analysis_id: Mapped[int] = mapped_column(
-        ForeignKey("analyses.analysis_id"), nullable=False, index=True
+        ForeignKey("analyses.analysis_id", ondelete="CASCADE"), nullable=False, index=True
     )
     object_key: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)

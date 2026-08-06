@@ -32,7 +32,7 @@ class AnalysisEntry(Base):
 
     entry_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     analysis_id: Mapped[int] = mapped_column(
-        ForeignKey("analyses.analysis_id"), nullable=False, index=True
+        ForeignKey("analyses.analysis_id", ondelete="CASCADE"), nullable=False, index=True
     )
     entry_type: Mapped[EntryType] = mapped_column(Enum(EntryType, name="entry_type"), nullable=False)
 
