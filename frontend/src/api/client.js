@@ -92,6 +92,14 @@ export const updateUser = (userId, firstName, lastName, email, globalRole) =>
 
 export const deleteUser = (userId) => apiFetch(`/admin/users/${userId}`, { method: 'DELETE' })
 
+export const listLogs = (service, level, limit) => {
+  const params = new URLSearchParams()
+  if (service) params.set('service', service)
+  if (level) params.set('level', level)
+  if (limit) params.set('limit', String(limit))
+  return apiFetch(`/admin/logs?${params.toString()}`)
+}
+
 export const listProjectMembers = (projectId) => apiFetch(`/admin/projects/${projectId}/members`)
 
 export const addProjectMember = (projectId, userId, groupRole) =>

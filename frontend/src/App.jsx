@@ -15,6 +15,7 @@ import ToleranceMatrixPage from './pages/ToleranceMatrixPage.jsx'
 import PostgresServicesPage from './pages/PostgresServicesPage.jsx'
 import MinioServicesPage from './pages/MinioServicesPage.jsx'
 import StandardTolerancesPage from './pages/StandardTolerancesPage.jsx'
+import LogsPage from './pages/LogsPage.jsx'
 
 // Nav: Project List -> Commodity List -> Analysis List -> Gap/Flush.
 // A dropdown-based header nav (per the brief's UX section) is Phase 8;
@@ -106,6 +107,14 @@ function App() {
             element={
               <ProtectedRoute requireRootAdmin>
                 <MinioServicesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/logs"
+            element={
+              <ProtectedRoute requireRootAdmin>
+                <LogsPage />
               </ProtectedRoute>
             }
           />

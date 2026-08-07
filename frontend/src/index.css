@@ -392,6 +392,36 @@ td {
   background: #9e9e9e;
 }
 
+/* Log viewer (pages/LogsPage.jsx). Messages are pre-formatted because
+   tracebacks carry their own line breaks and indentation -- collapsing
+   them into a paragraph makes them unreadable. */
+/* .analysis-table centres its cells and forbids wrapping, which is right
+   for numeric analysis columns and completely wrong for log text -- a
+   centred, unwrapped traceback is unreadable. Override both here. */
+.log-table td {
+  vertical-align: top;
+  text-align: left;
+  white-space: normal;
+}
+
+.log-time {
+  white-space: nowrap;
+}
+
+.log-message {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: left;
+  /* A single traceback can run to 40+ lines. Cap it and let that one cell
+     scroll, rather than letting one error push every other entry off the
+     page -- the point of this view is scanning several at once. */
+  max-height: 16em;
+  overflow: auto;
+}
+
 .rss-chart {
   max-width: 600px;
   display: block;

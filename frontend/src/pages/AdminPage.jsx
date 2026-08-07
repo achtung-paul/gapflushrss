@@ -194,6 +194,8 @@ function AdminPage() {
         <Link to="/admin/postgres-services">Postgres services</Link>
         {' | '}
         <Link to="/admin/minio-services">MinIO services</Link>
+        {' | '}
+        <Link to="/admin/logs">Service logs</Link>
       </p>
 
       <h2>Users</h2>
