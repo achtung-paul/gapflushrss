@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.core.email import send_email
+from app.core.rate_limit import limiter
 from app.core.security import generate_token, hash_password, verify_password
 from app.db.session import get_db
 from app.models.password_reset_token import PasswordResetToken
@@ -34,11 +35,29 @@ PASSWORD_EXPIRED_ERROR = "Your password has expired. Use 'Forgot your password?'
 # account today; an OAuth account should skip this check once that's built.
 PASSWORD_EXPIRY = timedelta(days=30)
 
+# Hashed once at import. Compared against when the email doesn't match any
+# account, so a failed login costs the same bcrypt work either way --
+# without this, "no such user" returns in milliseconds while a real
+# account takes the full hashing time, which is a reliable way to
+# enumerate valid addresses despite the deliberately generic error below.
+_TIMING_EQUALIZER_HASH = hash_password("timing-equalizer-not-a-real-password")
+
 
 @router.post("/login", response_model=UserOut)
-def login(body: LoginRequest, response: Response, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(
+    request: Request,  # required by slowapi to identify the caller
+    body: LoginRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     user = db.query(User).filter(User.email == body.email).first()
-    if user is None or not verify_password(body.password, user.password_hash):
+    # Always verify against *something*, so the work done is identical
+    # whether or not the account exists -- see _TIMING_EQUALIZER_HASH.
+    password_ok = verify_password(
+        body.password, user.password_hash if user is not None else _TIMING_EQUALIZER_HASH
+    )
+    if user is None or not password_ok:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=GENERIC_LOGIN_ERROR)
 
     # Checked after the password itself, not before: telling someone who
@@ -78,7 +97,12 @@ def me(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/password-reset/request")
-def request_password_reset(body: PasswordResetRequest, db: Session = Depends(get_db)):
+@limiter.limit("3/hour")
+def request_password_reset(
+    request: Request,  # required by slowapi to identify the caller
+    body: PasswordResetRequest,
+    db: Session = Depends(get_db),
+):
     user = db.query(User).filter(User.email == body.email).first()
     if user is not None:
         reset_token = PasswordResetToken(token=generate_token(), user_id=user.user_id)

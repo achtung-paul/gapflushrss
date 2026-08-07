@@ -6,6 +6,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.api import (
     admin,
@@ -29,6 +31,7 @@ from app.core.bootstrap import (
 )
 from app.core.config import settings
 from app.core.email import validate_email_settings
+from app.core.rate_limit import limiter
 from app.db.session import SessionLocal
 
 
@@ -54,6 +57,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="GapFlushRSS API", lifespan=lifespan)
+
+# Rate limiting for the auth endpoints (see core/rate_limit.py). slowapi
+# reads the limiter off app.state, and needs its own handler registered to
+# turn an exceeded limit into a 429 instead of an unhandled exception.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Allow the React frontend (running on a different port/origin in dev) to
 # call this API from the browser.

@@ -10,3 +10,9 @@ email-validator==2.2.0
 minio==7.2.12
 python-multipart==0.0.20
 cryptography==44.0.0
+slowapi==0.1.9
+
+# Test-only, but installed in the image because it's a dev image already
+# (uvicorn runs with --reload). Split into a separate requirements-dev.txt
+# when the production command is split out.
+pytest==8.3.4

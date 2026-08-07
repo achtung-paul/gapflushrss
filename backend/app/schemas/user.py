@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
+from app.core.security import validate_password_strength
 from app.models.user import GlobalRole
 
 
@@ -28,6 +29,12 @@ class UserCreate(BaseModel):
         if not value.strip():
             raise ValueError("must not be blank")
         return value
+
+    @field_validator("password")
+    @classmethod
+    def password_must_be_strong(cls, value: str) -> str:
+        # Same rule as the password-reset flow -- see core/security.py.
+        return validate_password_strength(value)
 
 
 class UserUpdate(BaseModel):
