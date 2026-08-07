@@ -15,7 +15,12 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.analyses import _get_analysis_or_404, _get_commodity_or_404, next_analysis_sequence_number
+from app.api.analyses import (
+    _get_analysis_or_404,
+    _get_commodity_or_404,
+    delete_analysis_images_from_storage,
+    next_analysis_sequence_number,
+)
 from app.api.deps import (
     get_current_user,
     get_project_db,
@@ -232,6 +237,7 @@ def delete_marker(
     marker_id: int,
     db: Session = Depends(get_db),
     project_db: Session = Depends(get_project_db),
+    minio_service: MinioService = Depends(get_project_minio_service),
     current_user: User = Depends(get_current_user),
 ):
     marker = project_db.get(Marker, marker_id)
@@ -241,8 +247,16 @@ def delete_marker(
     analysis = _get_analysis_or_404(project_db, project_id, marker.analysis_id)
     _require_manager_for_commodity(db, project_db, current_user, project_id, analysis.commodity_id)
 
+    # The analysis's own reference-photo gallery (AnalysisImage) cascades
+    # away with it in the database, so its MinIO objects have to go first
+    # -- otherwise object_key is lost and the files are orphaned forever.
+    # The Commodity's assembly image is NOT touched: that belongs to the
+    # commodity, not to this one analysis.
+    delete_analysis_images_from_storage(project_db, minio_service, [analysis.analysis_id])
+
     # Deletes the marker (ondelete="CASCADE") along with everything else
-    # under the analysis (AnalysisEntry -> ChainComponent). Images are
-    # untouched -- only the marker/analysis pair is removed.
+    # under the analysis (AnalysisEntry -> ChainComponent, AnalysisImage).
+    # The commodity's image itself is untouched -- only the marker/analysis
+    # pair and what hangs off it is removed.
     project_db.delete(analysis)
     project_db.commit()

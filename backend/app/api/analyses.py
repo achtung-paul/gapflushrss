@@ -21,9 +21,11 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_project_db, require_project_editor, require_project_manager
+from app.core import service_storage
 from app.db.session import get_db
 from app.models.analysis import Analysis
 from app.models.analysis_entry import AnalysisEntry, EntryType
+from app.models.analysis_image import AnalysisImage
 from app.models.commodity import Commodity
 from app.models.user import User
 from app.schemas.analysis import AnalysisDetailOut
@@ -72,6 +74,32 @@ def _entry_out(analysis: Analysis, entry: AnalysisEntry) -> AnalysisEntryOut:
         created_by_name=entry.created_by_name,
         updated_by_name=entry.updated_by_name,
     )
+
+
+def delete_analysis_images_from_storage(
+    project_db: Session, minio_service, analysis_ids: list[int]
+) -> None:
+    """Remove the MinIO objects for every AnalysisImage under these analyses.
+
+    Must be called *before* the analyses (or the images themselves) are
+    deleted from the database. AnalysisImage.analysis_id cascades on
+    delete, so dropping an Analysis silently takes its image rows with it
+    -- and `object_key` is the only record of where each file actually
+    lives, so once those rows are gone the objects can never be found
+    again. MinIO has no knowledge of the database and cascades nothing.
+
+    Shared by api/images.py's delete_marker and api/projects.py's
+    delete_project so this only has to be right in one place -- it was
+    originally missed in delete_marker.
+    """
+    if not analysis_ids:
+        return
+
+    analysis_images = (
+        project_db.query(AnalysisImage).filter(AnalysisImage.analysis_id.in_(analysis_ids)).all()
+    )
+    for analysis_image in analysis_images:
+        service_storage.delete_image(minio_service, analysis_image.object_key)
 
 
 def next_analysis_sequence_number(project_db: Session, commodity_id: int) -> int:

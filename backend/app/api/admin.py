@@ -12,7 +12,7 @@ from app.core.security import hash_password
 from app.db.session import get_db
 from app.models.group import CONTRIBUTORS, MANAGERS, VIEWERS, Group, UserGroupProject
 from app.models.password_reset_token import PasswordResetToken
-from app.models.user import User
+from app.models.user import GlobalRole, User
 from app.models.user_session import UserSession
 from app.schemas.group import GroupMemberOut, GroupMembershipCreate, GroupRole
 from app.schemas.user import UserCreate, UserListOut, UserOut, UserUpdate
@@ -22,6 +22,29 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 # Fixed page size for the user list -- the admin screen shows at most
 # this many rows at once, with page/breadcrumb controls for the rest.
 USERS_PAGE_SIZE = 25
+
+
+def _refuse_if_last_root_admin(db: Session, user: User) -> None:
+    """Block removing root_admin from the only account that still has it.
+
+    There is no way back from this through the API: only a root_admin can
+    edit users, so demoting or deleting the last one leaves nobody able to
+    restore it, and recovery means editing the database by hand. Called by
+    both update_user (on a role change) and delete_user.
+    """
+    if user.global_role != GlobalRole.root_admin:
+        return
+
+    other_root_admins = (
+        db.query(User)
+        .filter(User.global_role == GlobalRole.root_admin, User.user_id != user.user_id)
+        .count()
+    )
+    if other_root_admins == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one root admin must remain",
+        )
 
 
 @router.get("/users", response_model=UserListOut)
@@ -80,7 +103,7 @@ def update_user(
     user_id: int,
     body: UserUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_root_admin),
 ):
     # Added alongside the username -> first/last name migration: existing
     # users got backfilled with a placeholder surname (see that
@@ -96,6 +119,17 @@ def update_user(
     )
     if email_taken is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use")
+
+    # Guard the two ways this endpoint could lock everyone out of user
+    # management. Only checked when the role is actually being lowered, so
+    # editing your own name or email still works normally.
+    if body.global_role != GlobalRole.root_admin:
+        if user_id == current_user.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot remove your own root admin role",
+            )
+        _refuse_if_last_root_admin(db, user)
 
     user.first_name = body.first_name
     user.last_name = body.last_name
@@ -120,6 +154,10 @@ def delete_user(
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Self-deletion is already blocked above, but deleting the *other* last
+    # root admin would leave the system with none at all.
+    _refuse_if_last_root_admin(db, user)
 
     # None of these three FKs cascade on delete (see the model files),
     # so a plain db.delete(user) would fail with a foreign key violation

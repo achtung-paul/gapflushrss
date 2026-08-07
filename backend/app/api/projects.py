@@ -12,11 +12,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.api.analyses import delete_analysis_images_from_storage
 from app.api.deps import get_current_user, get_project_db, get_project_minio_service, require_root_admin
 from app.core import service_db, service_storage
 from app.db.session import get_db
 from app.models.analysis import Analysis
-from app.models.analysis_image import AnalysisImage
 from app.models.commodity import Commodity
 from app.models.group import CONTRIBUTORS, MANAGERS, VIEWERS, Group, UserGroupProject
 from app.models.image import Image
@@ -191,11 +191,9 @@ def delete_project(
         .filter(Analysis.commodity_id.in_(commodity_ids))
         .all()
     ]
-    analysis_images = (
-        project_db.query(AnalysisImage).filter(AnalysisImage.analysis_id.in_(analysis_ids)).all()
-    )
-    for analysis_image in analysis_images:
-        service_storage.delete_image(minio_service, analysis_image.object_key)
+    # Shared with api/images.py's delete_marker -- see that helper for why
+    # this has to happen before the rows are deleted.
+    delete_analysis_images_from_storage(project_db, minio_service, analysis_ids)
 
     # Deletes every Commodity for this project, cascading *within this
     # database* to everything under it (Analysis -> AnalysisEntry ->
