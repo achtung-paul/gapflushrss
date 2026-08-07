@@ -9,10 +9,10 @@ from datetime import datetime, timezone
 from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base
+from app.db.project_base import ProjectBase
 
 
-class Image(Base):
+class Image(ProjectBase):
     __tablename__ = "images"
 
     image_id: Mapped[int] = mapped_column(Integer, primary_key=True)

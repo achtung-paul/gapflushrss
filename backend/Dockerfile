@@ -15,10 +15,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini .
+COPY alembic_project ./alembic_project
+COPY alembic_project.ini .
 
 EXPOSE 8000
 
-# Apply any pending database migrations, then start the server.
+# Apply any pending *central* database migrations, then start the
+# server. The alembic_project chain (Commodity and below -- see
+# alembic_project/env.py) is deliberately NOT run here: it has no single
+# fixed database to upgrade on every boot, since it runs per-service.
+# It's applied on demand, once per service, via the admin "Initialize"
+# button (core/service_db.py's initialize_schema()).
 # --reload watches for file changes, which is what we want in dev.
 # Phase 9 (deployment hardening) will split this into a separate,
 # non-reloading production command.

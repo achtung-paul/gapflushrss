@@ -45,7 +45,7 @@ function extractPointsFromAnnotation(annotation) {
 // renders once and never looks inside again; the <img> and everything
 // Annotorious does to it are created and torn down with plain DOM calls
 // in the effect below, entirely outside React's reconciliation.
-function ImageAnnotator({ imageUrl, markers, onCreateMarker, onDeleteMarker }) {
+function ImageAnnotator({ projectId, imageUrl, markers, onCreateMarker, onDeleteMarker }) {
   const containerRef = useRef(null)
   // Clicking a marker doesn't delete it immediately -- it opens a small
   // confirm/cancel popup first, so a marker can't be lost to a stray
@@ -143,7 +143,11 @@ function ImageAnnotator({ imageUrl, markers, onCreateMarker, onDeleteMarker }) {
           className="marker-wrap"
           style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }}
         >
-          <Link to={`/analyses/${marker.analysis_id}`} className="balloon-marker" title={marker.analysis_code}>
+          <Link
+            to={`/projects/${projectId}/analyses/${marker.analysis_id}`}
+            className="balloon-marker"
+            title={marker.analysis_code}
+          >
             {marker.sequence_number}
           </Link>
           <button

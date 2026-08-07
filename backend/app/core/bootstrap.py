@@ -9,8 +9,10 @@ import logging
 
 from sqlalchemy.orm import Session
 
+from app.core import service_db
 from app.core.config import settings
 from app.core.security import hash_password
+from app.models.postgres_service import PostgresService
 from app.models.process_type import ProcessType
 from app.models.user import GlobalRole, User
 
@@ -50,3 +52,23 @@ def create_default_process_types_if_needed(db: Session) -> None:
     db.add(ProcessType(name="Plastics"))
     db.commit()
     logger.info("Seeded default process type 'Plastics'")
+
+
+def adopt_default_service_if_needed(db: Session) -> None:
+    # The "Default" PostgresService (seeded by
+    # alembic/versions/fe5a0c40a1ce_multi_service_postgres_minio.py's
+    # one-time migration) already has commodities/analyses/etc -- they're
+    # this app's original data, created back before Commodity-and-below
+    # moved to its own Alembic chain (alembic_project/). Running this on
+    # every startup, rather than waiting for an admin to click
+    # "Initialize" on it, means an upgrade from the old single-database
+    # world keeps working immediately with no manual step. Harmless to
+    # call repeatedly -- initialize_schema no-ops once this service is
+    # no longer "legacy" (see its docstring).
+    default_service = db.query(PostgresService).filter(PostgresService.name == "Default").first()
+    if default_service is None:
+        return
+
+    if service_db.check_status(default_service) == "not_initialized":
+        service_db.initialize_schema(default_service)
+        logger.info("Adopted the Default Postgres service into the project-scoped Alembic chain")

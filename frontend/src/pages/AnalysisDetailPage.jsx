@@ -16,7 +16,7 @@ import ToleranceChainSection from '../components/ToleranceChainSection.jsx'
 // brief), so both start out missing. Create and edit share the same
 // form; which callback Save/Add invokes depends on whether an entry
 // already existed when the form opened.
-function EntrySection({ title, entry, onCreate, onUpdate }) {
+function EntrySection({ projectId, title, entry, onCreate, onUpdate }) {
   const [editing, setEditing] = useState(false)
   const [direction, setDirection] = useState('')
   const [nominalValue, setNominalValue] = useState('')
@@ -73,6 +73,7 @@ function EntrySection({ title, entry, onCreate, onUpdate }) {
           </button>
         </p>
         <ToleranceChainSection
+          projectId={projectId}
           entryId={entry.entry_id}
           nominal={entry.nominal_value}
           upperLimit={entry.upper_limit}
@@ -133,15 +134,15 @@ function EntrySection({ title, entry, onCreate, onUpdate }) {
 }
 
 function AnalysisDetailPage() {
-  const { analysisId } = useParams()
+  const { projectId, analysisId } = useParams()
   const [analysis, setAnalysis] = useState(null)
   const [error, setError] = useState(null)
 
   function refresh() {
-    getAnalysis(analysisId).then(setAnalysis).catch((err) => setError(err.message))
+    getAnalysis(projectId, analysisId).then(setAnalysis).catch((err) => setError(err.message))
   }
 
-  useEffect(refresh, [analysisId])
+  useEffect(refresh, [projectId, analysisId])
 
   if (error) {
     return <p className="form-error">{error}</p>
@@ -154,30 +155,32 @@ function AnalysisDetailPage() {
     <div>
       <h2>Analysis Page: {analysis.analysis_code}</h2>
       <EntrySection
+        projectId={projectId}
         title="Gap"
         entry={analysis.gap}
         onCreate={async (body) => {
-          await createGapEntry(analysisId, body)
+          await createGapEntry(projectId, analysisId, body)
           refresh()
         }}
         onUpdate={async (body) => {
-          await updateGapEntry(analysisId, body)
+          await updateGapEntry(projectId, analysisId, body)
           refresh()
         }}
       />
       <EntrySection
+        projectId={projectId}
         title="Flush"
         entry={analysis.flush}
         onCreate={async (body) => {
-          await createFlushEntry(analysisId, body)
+          await createFlushEntry(projectId, analysisId, body)
           refresh()
         }}
         onUpdate={async (body) => {
-          await updateFlushEntry(analysisId, body)
+          await updateFlushEntry(projectId, analysisId, body)
           refresh()
         }}
       />
-      <AnalysisImageGallery analysisId={analysisId} />
+      <AnalysisImageGallery projectId={projectId} analysisId={analysisId} />
     </div>
   )
 }

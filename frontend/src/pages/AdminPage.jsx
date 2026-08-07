@@ -158,6 +158,10 @@ function AdminPage() {
     <div>
       <p>
         <Link to="/admin/process-types">Manage process types &amp; tolerance matrix</Link>
+        {' | '}
+        <Link to="/admin/postgres-services">Postgres services</Link>
+        {' | '}
+        <Link to="/admin/minio-services">MinIO services</Link>
       </p>
 
       <h2>Users</h2>
@@ -269,8 +273,7 @@ function AdminPage() {
       <h2>Project groups</h2>
       <p>
         Add or remove users from a project&apos;s Managers/Contributors/Viewers groups -- this is
-        the only way permissions within a project are granted (per the brief, never assigned
-        directly to a user).
+        the only way permissions within a project are granted.
       </p>
       <div className="inline-form">
         <label>

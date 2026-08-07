@@ -17,7 +17,7 @@ const RAG_LABELS = { green: 'Green', amber: 'Amber', red: 'Red' }
 // (brief step 4: component tolerances + assembly-process variation),
 // then shows the computed 3/4/5 sigma simulation (brief steps 5-6)
 // against the entry's own nominal/tolerance band.
-function ToleranceChainSection({ entryId, nominal, upperLimit, lowerLimit }) {
+function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerLimit }) {
   const [components, setComponents] = useState([])
   const [simulation, setSimulation] = useState(null)
   const [error, setError] = useState(null)
@@ -37,9 +37,9 @@ function ToleranceChainSection({ entryId, nominal, upperLimit, lowerLimit }) {
   const [selectedVariant, setSelectedVariant] = useState('')
 
   const refresh = useCallback(() => {
-    listChainComponents(entryId).then(setComponents).catch((err) => setError(err.message))
-    getSimulation(entryId).then(setSimulation).catch((err) => setError(err.message))
-  }, [entryId])
+    listChainComponents(projectId, entryId).then(setComponents).catch((err) => setError(err.message))
+    getSimulation(projectId, entryId).then(setSimulation).catch((err) => setError(err.message))
+  }, [projectId, entryId])
 
   useEffect(refresh, [refresh])
 
@@ -92,7 +92,7 @@ function ToleranceChainSection({ entryId, nominal, upperLimit, lowerLimit }) {
     event.preventDefault()
     setError(null)
     try {
-      await createChainComponent(entryId, {
+      await createChainComponent(projectId, entryId, {
         contributor_type: contributorType,
         description,
         tolerance_value: Number(toleranceValue),
@@ -114,14 +114,14 @@ function ToleranceChainSection({ entryId, nominal, upperLimit, lowerLimit }) {
     async (chainComponentId) => {
       setError(null)
       try {
-        await deleteChainComponent(chainComponentId)
+        await deleteChainComponent(projectId, chainComponentId)
         setPendingDeleteId(null)
         refresh()
       } catch (err) {
         setError(err.message)
       }
     },
-    [refresh],
+    [projectId, refresh],
   )
 
   return (

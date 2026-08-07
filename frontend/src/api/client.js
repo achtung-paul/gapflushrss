@@ -65,8 +65,15 @@ export const removeProjectMember = (projectId, groupRole, userId) =>
 
 export const listProjects = () => apiFetch('/projects')
 
-export const createProject = (projectName) =>
-  apiFetch('/projects', { method: 'POST', body: JSON.stringify({ project_name: projectName }) })
+export const createProject = (projectName, postgresServiceId, minioServiceId) =>
+  apiFetch('/projects', {
+    method: 'POST',
+    body: JSON.stringify({
+      project_name: projectName,
+      postgres_service_id: postgresServiceId,
+      minio_service_id: minioServiceId,
+    }),
+  })
 
 export const updateProject = (projectId, projectName) =>
   apiFetch(`/projects/${projectId}`, {
@@ -76,6 +83,28 @@ export const updateProject = (projectId, projectName) =>
 
 export const deleteProject = (projectId) => apiFetch(`/projects/${projectId}`, { method: 'DELETE' })
 
+export const listPostgresServices = () => apiFetch('/admin/postgres-services')
+
+export const createPostgresService = (service) =>
+  apiFetch('/admin/postgres-services', { method: 'POST', body: JSON.stringify(service) })
+
+export const initializePostgresService = (postgresServiceId) =>
+  apiFetch(`/admin/postgres-services/${postgresServiceId}/initialize`, { method: 'POST' })
+
+export const deletePostgresService = (postgresServiceId) =>
+  apiFetch(`/admin/postgres-services/${postgresServiceId}`, { method: 'DELETE' })
+
+export const listMinioServices = () => apiFetch('/admin/minio-services')
+
+export const createMinioService = (service) =>
+  apiFetch('/admin/minio-services', { method: 'POST', body: JSON.stringify(service) })
+
+export const initializeMinioService = (minioServiceId) =>
+  apiFetch(`/admin/minio-services/${minioServiceId}/initialize`, { method: 'POST' })
+
+export const deleteMinioService = (minioServiceId) =>
+  apiFetch(`/admin/minio-services/${minioServiceId}`, { method: 'DELETE' })
+
 export const listCommodities = (projectId) => apiFetch(`/projects/${projectId}/commodities`)
 
 export const createCommodity = (projectId, name, code) =>
@@ -84,32 +113,47 @@ export const createCommodity = (projectId, name, code) =>
     body: JSON.stringify({ name, code }),
   })
 
-export const listAnalyses = (commodityId) => apiFetch(`/commodities/${commodityId}/analyses`)
+export const listAnalyses = (projectId, commodityId) =>
+  apiFetch(`/projects/${projectId}/commodities/${commodityId}/analyses`)
 
-export const getAnalysis = (analysisId) => apiFetch(`/analyses/${analysisId}`)
+export const getAnalysis = (projectId, analysisId) => apiFetch(`/projects/${projectId}/analyses/${analysisId}`)
 
-export const createGapEntry = (analysisId, entry) =>
-  apiFetch(`/analyses/${analysisId}/gap`, { method: 'POST', body: JSON.stringify(entry) })
+export const createGapEntry = (projectId, analysisId, entry) =>
+  apiFetch(`/projects/${projectId}/analyses/${analysisId}/gap`, {
+    method: 'POST',
+    body: JSON.stringify(entry),
+  })
 
-export const createFlushEntry = (analysisId, entry) =>
-  apiFetch(`/analyses/${analysisId}/flush`, { method: 'POST', body: JSON.stringify(entry) })
+export const createFlushEntry = (projectId, analysisId, entry) =>
+  apiFetch(`/projects/${projectId}/analyses/${analysisId}/flush`, {
+    method: 'POST',
+    body: JSON.stringify(entry),
+  })
 
-export const updateGapEntry = (analysisId, entry) =>
-  apiFetch(`/analyses/${analysisId}/gap`, { method: 'PUT', body: JSON.stringify(entry) })
+export const updateGapEntry = (projectId, analysisId, entry) =>
+  apiFetch(`/projects/${projectId}/analyses/${analysisId}/gap`, {
+    method: 'PUT',
+    body: JSON.stringify(entry),
+  })
 
-export const updateFlushEntry = (analysisId, entry) =>
-  apiFetch(`/analyses/${analysisId}/flush`, { method: 'PUT', body: JSON.stringify(entry) })
+export const updateFlushEntry = (projectId, analysisId, entry) =>
+  apiFetch(`/projects/${projectId}/analyses/${analysisId}/flush`, {
+    method: 'PUT',
+    body: JSON.stringify(entry),
+  })
 
-export const deleteEntry = (entryId) => apiFetch(`/entries/${entryId}`, { method: 'DELETE' })
+export const deleteEntry = (projectId, entryId) =>
+  apiFetch(`/projects/${projectId}/entries/${entryId}`, { method: 'DELETE' })
 
-export const listAnalysisImages = (analysisId) => apiFetch(`/analyses/${analysisId}/images`)
+export const listAnalysisImages = (projectId, analysisId) =>
+  apiFetch(`/projects/${projectId}/analyses/${analysisId}/images`)
 
-export async function uploadAnalysisImage(analysisId, file) {
+export async function uploadAnalysisImage(projectId, analysisId, file) {
   const formData = new FormData()
   formData.append('file', file)
   // No Content-Type header here -- the browser sets it (with the right
   // multipart boundary) automatically when the body is a FormData.
-  const response = await fetch(`${API_BASE}/analyses/${analysisId}/images`, {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/analyses/${analysisId}/images`, {
     method: 'POST',
     credentials: 'include',
     body: formData,
@@ -121,10 +165,11 @@ export async function uploadAnalysisImage(analysisId, file) {
   return response.json()
 }
 
-export const deleteAnalysisImage = (analysisImageId) =>
-  apiFetch(`/analysis-images/${analysisImageId}`, { method: 'DELETE' })
+export const deleteAnalysisImage = (projectId, analysisImageId) =>
+  apiFetch(`/projects/${projectId}/analysis-images/${analysisImageId}`, { method: 'DELETE' })
 
-export const analysisImageFileUrl = (analysisImageId) => `${API_BASE}/analysis-images/${analysisImageId}/file`
+export const analysisImageFileUrl = (projectId, analysisImageId) =>
+  `${API_BASE}/projects/${projectId}/analysis-images/${analysisImageId}/file`
 
 export const listProcessTypes = () => apiFetch('/process-types')
 
@@ -182,14 +227,15 @@ export const setToleranceValueCell = (toleranceGroupId, dimensionRangeId, toolVa
     body: JSON.stringify({ tool_value: toolValue, non_tool_value: nonToolValue }),
   })
 
-export const listImages = (commodityId) => apiFetch(`/commodities/${commodityId}/images`)
+export const listImages = (projectId, commodityId) =>
+  apiFetch(`/projects/${projectId}/commodities/${commodityId}/images`)
 
-export async function uploadImage(commodityId, file) {
+export async function uploadImage(projectId, commodityId, file) {
   const formData = new FormData()
   formData.append('file', file)
   // No Content-Type header here -- the browser sets it (with the right
   // multipart boundary) automatically when the body is a FormData.
-  const response = await fetch(`${API_BASE}/commodities/${commodityId}/images`, {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/commodities/${commodityId}/images`, {
     method: 'POST',
     credentials: 'include',
     body: formData,
@@ -201,26 +247,33 @@ export async function uploadImage(commodityId, file) {
   return response.json()
 }
 
-export const deleteImage = (imageId) => apiFetch(`/images/${imageId}`, { method: 'DELETE' })
+export const deleteImage = (projectId, imageId) =>
+  apiFetch(`/projects/${projectId}/images/${imageId}`, { method: 'DELETE' })
 
-export const imageFileUrl = (imageId) => `${API_BASE}/images/${imageId}/file`
+export const imageFileUrl = (projectId, imageId) => `${API_BASE}/projects/${projectId}/images/${imageId}/file`
 
-export const listMarkers = (imageId) => apiFetch(`/images/${imageId}/markers`)
+export const listMarkers = (projectId, imageId) => apiFetch(`/projects/${projectId}/images/${imageId}/markers`)
 
-export const createMarker = (imageId, points) =>
-  apiFetch(`/images/${imageId}/markers`, { method: 'POST', body: JSON.stringify({ points }) })
+export const createMarker = (projectId, imageId, points) =>
+  apiFetch(`/projects/${projectId}/images/${imageId}/markers`, {
+    method: 'POST',
+    body: JSON.stringify({ points }),
+  })
 
-export const deleteMarker = (markerId) => apiFetch(`/markers/${markerId}`, { method: 'DELETE' })
+export const deleteMarker = (projectId, markerId) =>
+  apiFetch(`/projects/${projectId}/markers/${markerId}`, { method: 'DELETE' })
 
-export const listChainComponents = (entryId) => apiFetch(`/entries/${entryId}/chain-components`)
+export const listChainComponents = (projectId, entryId) =>
+  apiFetch(`/projects/${projectId}/entries/${entryId}/chain-components`)
 
-export const createChainComponent = (entryId, component) =>
-  apiFetch(`/entries/${entryId}/chain-components`, {
+export const createChainComponent = (projectId, entryId, component) =>
+  apiFetch(`/projects/${projectId}/entries/${entryId}/chain-components`, {
     method: 'POST',
     body: JSON.stringify(component),
   })
 
-export const deleteChainComponent = (chainComponentId) =>
-  apiFetch(`/chain-components/${chainComponentId}`, { method: 'DELETE' })
+export const deleteChainComponent = (projectId, chainComponentId) =>
+  apiFetch(`/projects/${projectId}/chain-components/${chainComponentId}`, { method: 'DELETE' })
 
-export const getSimulation = (entryId) => apiFetch(`/entries/${entryId}/simulation`)
+export const getSimulation = (projectId, entryId) =>
+  apiFetch(`/projects/${projectId}/entries/${entryId}/simulation`)

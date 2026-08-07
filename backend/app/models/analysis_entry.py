@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Numeric, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base
+from app.db.project_base import ProjectBase
 
 
 class EntryType(str, enum.Enum):
@@ -33,7 +33,7 @@ class Direction(str, enum.Enum):
     OTHER = "OTHER"
 
 
-class AnalysisEntry(Base):
+class AnalysisEntry(ProjectBase):
     __tablename__ = "analysis_entries"
     __table_args__ = (UniqueConstraint("analysis_id", "entry_type"),)
 

@@ -12,6 +12,8 @@ import AnalysisListPage from './pages/AnalysisListPage.jsx'
 import AnalysisDetailPage from './pages/AnalysisDetailPage.jsx'
 import ProcessTypesPage from './pages/ProcessTypesPage.jsx'
 import ToleranceMatrixPage from './pages/ToleranceMatrixPage.jsx'
+import PostgresServicesPage from './pages/PostgresServicesPage.jsx'
+import MinioServicesPage from './pages/MinioServicesPage.jsx'
 
 // Nav: Project List -> Commodity List -> Analysis List -> Gap/Flush.
 // A dropdown-based header nav (per the brief's UX section) is Phase 8;
@@ -51,7 +53,7 @@ function App() {
             }
           />
           <Route
-            path="/commodities/:commodityId/analyses"
+            path="/projects/:projectId/commodities/:commodityId/analyses"
             element={
               <ProtectedRoute>
                 <AnalysisListPage />
@@ -59,7 +61,7 @@ function App() {
             }
           />
           <Route
-            path="/analyses/:analysisId"
+            path="/projects/:projectId/analyses/:analysisId"
             element={
               <ProtectedRoute>
                 <AnalysisDetailPage />
@@ -79,6 +81,22 @@ function App() {
             element={
               <ProtectedRoute requireRootAdmin>
                 <ToleranceMatrixPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/postgres-services"
+            element={
+              <ProtectedRoute requireRootAdmin>
+                <PostgresServicesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/minio-services"
+            element={
+              <ProtectedRoute requireRootAdmin>
+                <MinioServicesPage />
               </ProtectedRoute>
             }
           />

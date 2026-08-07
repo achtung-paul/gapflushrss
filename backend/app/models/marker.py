@@ -21,10 +21,10 @@ from datetime import datetime, timezone
 from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base
+from app.db.project_base import ProjectBase
 
 
-class Marker(Base):
+class Marker(ProjectBase):
     __tablename__ = "markers"
 
     marker_id: Mapped[int] = mapped_column(Integer, primary_key=True)

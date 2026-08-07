@@ -2,17 +2,17 @@
 # distinct from the Commodity's single annotated assembly image with
 # markers (see models/image.py, models/marker.py). An Analysis can have
 # any number of these. File bytes live in MinIO under `object_key`, same
-# storage helpers as Commodity images (see core/storage.py).
+# storage helpers as Commodity images (see core/service_storage.py).
 
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base
+from app.db.project_base import ProjectBase
 
 
-class AnalysisImage(Base):
+class AnalysisImage(ProjectBase):
     __tablename__ = "analysis_images"
 
     analysis_image_id: Mapped[int] = mapped_column(Integer, primary_key=True)

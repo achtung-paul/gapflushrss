@@ -11,7 +11,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_project_manager
+from app.api.deps import get_current_user, get_project_db, require_project_manager
 from app.db.session import get_db
 from app.models.commodity import Commodity
 from app.models.project import Project
@@ -24,11 +24,11 @@ router = APIRouter(prefix="/projects/{project_id}/commodities", tags=["commoditi
 @router.get("", response_model=list[CommodityOut])
 def list_commodities(
     project_id: int,
-    db: Session = Depends(get_db),
+    project_db: Session = Depends(get_project_db),
     _: User = Depends(get_current_user),
 ):
     return (
-        db.query(Commodity)
+        project_db.query(Commodity)
         .filter(Commodity.project_id == project_id)
         .order_by(Commodity.name)
         .all()
@@ -40,6 +40,7 @@ def create_commodity(
     project_id: int,
     body: CommodityCreate,
     db: Session = Depends(get_db),
+    project_db: Session = Depends(get_project_db),
     current_user: User = Depends(get_current_user),
 ):
     require_project_manager(db, current_user, project_id)
@@ -48,12 +49,20 @@ def create_commodity(
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-    code_taken = db.query(Commodity).filter(Commodity.code == body.code).first()
+    # Unique per project, not system-wide (see models/commodity.py) --
+    # two projects can share the same physical Postgres service, so this
+    # has to filter by project_id explicitly, not just check the code
+    # against the whole table.
+    code_taken = (
+        project_db.query(Commodity)
+        .filter(Commodity.project_id == project_id, Commodity.code == body.code)
+        .first()
+    )
     if code_taken is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Commodity code already in use")
 
     commodity = Commodity(project_id=project_id, name=body.name, code=body.code)
-    db.add(commodity)
-    db.commit()
-    db.refresh(commodity)
+    project_db.add(commodity)
+    project_db.commit()
+    project_db.refresh(commodity)
     return commodity

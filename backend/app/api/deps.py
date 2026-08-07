@@ -3,13 +3,17 @@
 # to call it, takes one of these as an argument.
 
 from datetime import datetime, timezone
+from typing import Generator
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app.core import service_db
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.group import MANAGERS, Group, UserGroupProject
+from app.models.minio_service import MinioService
+from app.models.postgres_service import PostgresService
 from app.models.project import Project
 from app.models.user import GlobalRole, User
 from app.models.user_session import UserSession
@@ -66,3 +70,32 @@ def require_project_manager(db: Session, user: User, project_id: int) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Must be root admin or a manager of this project",
         )
+
+
+def get_project(project_id: int, db: Session = Depends(get_db)) -> Project:
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    return project
+
+
+def get_project_db(project: Project = Depends(get_project), db: Session = Depends(get_db)) -> Generator[Session, None, None]:
+    # Commodity-and-below data doesn't live in this app's own central
+    # database (the one `db` above connects to) -- it lives on whichever
+    # Postgres service the Project was assigned at creation (see
+    # core/service_db.py, models/project.py). Every project-scoped route
+    # takes both `db` (central -- permission checks) and this
+    # (the actual data), see api/commodities.py for the pattern.
+    service = db.get(PostgresService, project.postgres_service_id)
+    project_db = service_db.get_session(service)
+    try:
+        yield project_db
+    finally:
+        project_db.close()
+
+
+def get_project_minio_service(project: Project = Depends(get_project), db: Session = Depends(get_db)) -> MinioService:
+    # FastAPI caches `Depends(get_project)`'s result per request, so this
+    # doesn't re-fetch the Project row that get_project_db already did --
+    # both just take the same cached one, resolved once from project_id.
+    return db.get(MinioService, project.minio_service_id)

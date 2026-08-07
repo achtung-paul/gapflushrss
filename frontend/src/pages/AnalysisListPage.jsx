@@ -47,7 +47,7 @@ function formatBand(nominal, upperLimit, lowerLimit) {
 // attached to this analysis yet), which renders '--' throughout with
 // just an Add button. Direction lives on the entry itself, not the
 // Analysis, since Gap and Flush can be measured along different axes.
-function EntryTableRow({ analysisId, analysisCode, entryType, entry, onChanged }) {
+function EntryTableRow({ projectId, analysisId, analysisCode, entryType, entry, onChanged }) {
   const [editing, setEditing] = useState(false)
   const [pendingDelete, setPendingDelete] = useState(false)
   const [direction, setDirection] = useState('')
@@ -62,8 +62,8 @@ function EntryTableRow({ analysisId, analysisCode, entryType, entry, onChanged }
       setSimulation(null)
       return
     }
-    getSimulation(entry.entry_id).then(setSimulation).catch((err) => setError(err.message))
-  }, [entry?.entry_id])
+    getSimulation(projectId, entry.entry_id).then(setSimulation).catch((err) => setError(err.message))
+  }, [projectId, entry?.entry_id])
 
   function startEditing() {
     setDirection(entry?.direction ?? '')
@@ -84,9 +84,13 @@ function EntryTableRow({ analysisId, analysisCode, entryType, entry, onChanged }
     }
     try {
       if (entry) {
-        await (entryType === 'GAP' ? updateGapEntry(analysisId, body) : updateFlushEntry(analysisId, body))
+        await (entryType === 'GAP'
+          ? updateGapEntry(projectId, analysisId, body)
+          : updateFlushEntry(projectId, analysisId, body))
       } else {
-        await (entryType === 'GAP' ? createGapEntry(analysisId, body) : createFlushEntry(analysisId, body))
+        await (entryType === 'GAP'
+          ? createGapEntry(projectId, analysisId, body)
+          : createFlushEntry(projectId, analysisId, body))
       }
       setEditing(false)
       onChanged()
@@ -98,7 +102,7 @@ function EntryTableRow({ analysisId, analysisCode, entryType, entry, onChanged }
   async function handleDelete() {
     setError(null)
     try {
-      await deleteEntry(entry.entry_id)
+      await deleteEntry(projectId, entry.entry_id)
       setPendingDelete(false)
       onChanged()
     } catch (err) {
@@ -109,7 +113,7 @@ function EntryTableRow({ analysisId, analysisCode, entryType, entry, onChanged }
   return (
     <tr>
       <td>
-        <Link to={`/analyses/${analysisId}`}>{analysisCode}</Link>
+        <Link to={`/projects/${projectId}/analyses/${analysisId}`}>{analysisCode}</Link>
       </td>
       <td>{entryType === 'GAP' ? 'Gap' : 'Flush'}</td>
       <td>
@@ -225,7 +229,7 @@ function EntryTableRow({ analysisId, analysisCode, entryType, entry, onChanged }
 // one in sequence; deleting one deletes that Analysis and everything
 // under it). See api/images.py's create_marker/delete_marker.
 function AnalysisListPage() {
-  const { commodityId } = useParams()
+  const { projectId, commodityId } = useParams()
   const [analyses, setAnalyses] = useState([])
   const [images, setImages] = useState([])
   const [selectedImageId, setSelectedImageId] = useState(null)
@@ -234,15 +238,15 @@ function AnalysisListPage() {
   const [error, setError] = useState(null)
 
   function refreshAnalyses() {
-    listAnalyses(commodityId).then(setAnalyses).catch((err) => setError(err.message))
+    listAnalyses(projectId, commodityId).then(setAnalyses).catch((err) => setError(err.message))
   }
 
   function refreshImages() {
-    listImages(commodityId).then(setImages).catch((err) => setError(err.message))
+    listImages(projectId, commodityId).then(setImages).catch((err) => setError(err.message))
   }
 
-  useEffect(refreshAnalyses, [commodityId])
-  useEffect(refreshImages, [commodityId])
+  useEffect(refreshAnalyses, [projectId, commodityId])
+  useEffect(refreshImages, [projectId, commodityId])
 
   useEffect(() => {
     if (images.length > 0 && selectedImageId === null) {
@@ -255,10 +259,10 @@ function AnalysisListPage() {
       setMarkers([])
       return
     }
-    listMarkers(selectedImageId).then(setMarkers).catch((err) => setError(err.message))
+    listMarkers(projectId, selectedImageId).then(setMarkers).catch((err) => setError(err.message))
   }
 
-  useEffect(refreshMarkers, [selectedImageId])
+  useEffect(refreshMarkers, [projectId, selectedImageId])
 
   async function handleUpload(event) {
     event.preventDefault()
@@ -266,7 +270,7 @@ function AnalysisListPage() {
     const file = event.target.elements.file.files[0]
     if (!file) return
     try {
-      await uploadImage(commodityId, file)
+      await uploadImage(projectId, commodityId, file)
       event.target.reset()
       refreshImages()
     } catch (err) {
@@ -277,7 +281,7 @@ function AnalysisListPage() {
   async function handleDeleteImage(imageId) {
     setError(null)
     try {
-      await deleteImage(imageId)
+      await deleteImage(projectId, imageId)
       setPendingDeleteImageId(null)
       if (selectedImageId === imageId) {
         setSelectedImageId(null)
@@ -294,27 +298,27 @@ function AnalysisListPage() {
     async (points) => {
       if (selectedImageId === null) return
       try {
-        await createMarker(selectedImageId, points)
+        await createMarker(projectId, selectedImageId, points)
         refreshMarkers()
         refreshAnalyses()
       } catch (err) {
         setError(err.message)
       }
     },
-    [selectedImageId],
+    [projectId, selectedImageId],
   )
 
   const handleDeleteMarker = useCallback(
     async (markerId) => {
       try {
-        await deleteMarker(markerId)
+        await deleteMarker(projectId, markerId)
         refreshMarkers()
         refreshAnalyses()
       } catch (err) {
         setError(err.message)
       }
     },
-    [selectedImageId],
+    [projectId, selectedImageId],
   )
 
   // One row per Gap and one per Flush for every analysis, whether or not
@@ -373,7 +377,8 @@ function AnalysisListPage() {
             remove the marker, its line, and its analysis.
           </p>
           <ImageAnnotator
-            imageUrl={imageFileUrl(selectedImageId)}
+            projectId={projectId}
+            imageUrl={imageFileUrl(projectId, selectedImageId)}
             markers={markers}
             onCreateMarker={handleCreateMarker}
             onDeleteMarker={handleDeleteMarker}
@@ -403,6 +408,7 @@ function AnalysisListPage() {
             {rows.map(({ analysis, entryType, entry }) => (
               <EntryTableRow
                 key={`${analysis.analysis_id}-${entryType}`}
+                projectId={projectId}
                 analysisId={analysis.analysis_id}
                 analysisCode={analysis.analysis_code}
                 entryType={entryType}

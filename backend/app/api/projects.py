@@ -10,12 +10,16 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_root_admin
-from app.core.storage import delete_image
+from app.api.deps import get_current_user, get_project_db, get_project_minio_service, require_root_admin
+from app.core import service_db, service_storage
 from app.db.session import get_db
+from app.models.analysis import Analysis
+from app.models.analysis_image import AnalysisImage
 from app.models.commodity import Commodity
 from app.models.group import CONTRIBUTORS, MANAGERS, VIEWERS, Group
 from app.models.image import Image
+from app.models.minio_service import MinioService
+from app.models.postgres_service import PostgresService
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.project import ProjectCreate, ProjectOut, ProjectUpdate
@@ -53,7 +57,27 @@ def create_project(
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Project name already exists")
 
-    project = Project(project_name=body.project_name)
+    # A project can never point at a service that isn't ready -- there'd
+    # be nowhere for its data to actually go. The admin has to click
+    # Initialize on the service first (see api/postgres_services.py,
+    # api/minio_services.py).
+    postgres_service = db.get(PostgresService, body.postgres_service_id)
+    if postgres_service is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Postgres service not found")
+    if service_db.check_status(postgres_service) != "initialized":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Postgres service isn't initialized yet")
+
+    minio_service = db.get(MinioService, body.minio_service_id)
+    if minio_service is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MinIO service not found")
+    if service_storage.check_status(minio_service) != "initialized":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="MinIO service isn't initialized yet")
+
+    project = Project(
+        project_name=body.project_name,
+        postgres_service_id=body.postgres_service_id,
+        minio_service_id=body.minio_service_id,
+    )
     db.add(project)
     db.flush()  # assigns project.project_id without ending the transaction
 
@@ -99,21 +123,47 @@ def update_project(
 def delete_project(
     project_id: int,
     db: Session = Depends(get_db),
+    project_db: Session = Depends(get_project_db),
+    minio_service: MinioService = Depends(get_project_minio_service),
     _: User = Depends(require_root_admin),
 ):
     project = _get_project_or_404(db, project_id)
 
-    # MinIO objects have to be removed by hand before the delete below --
-    # once the DB cascade removes the Image rows, their object_key (the
-    # only record of where the file lives in MinIO) is gone for good.
-    images = (
-        db.query(Image)
-        .join(Commodity, Image.commodity_id == Commodity.commodity_id)
-        .filter(Commodity.project_id == project_id)
-        .all()
-    )
+    # MinIO objects have to be removed by hand before the rows below --
+    # once they're gone, object_key (the only record of where a file
+    # lives) is gone for good. Covers both galleries: the Commodity's
+    # single annotated image (Image) and each Analysis's plain photo
+    # gallery (AnalysisImage) -- the latter wasn't cleaned up here
+    # before this project's data moved to a separate database; fixed
+    # here since MinIO cleanup now has to happen explicitly regardless.
+    commodities = project_db.query(Commodity).filter(Commodity.project_id == project_id).all()
+    commodity_ids = [commodity.commodity_id for commodity in commodities]
+
+    images = project_db.query(Image).filter(Image.commodity_id.in_(commodity_ids)).all()
     for image in images:
-        delete_image(image.object_key)
+        service_storage.delete_image(minio_service, image.object_key)
+
+    analysis_ids = [
+        row.analysis_id
+        for row in project_db.query(Analysis.analysis_id)
+        .filter(Analysis.commodity_id.in_(commodity_ids))
+        .all()
+    ]
+    analysis_images = (
+        project_db.query(AnalysisImage).filter(AnalysisImage.analysis_id.in_(analysis_ids)).all()
+    )
+    for analysis_image in analysis_images:
+        service_storage.delete_image(minio_service, analysis_image.object_key)
+
+    # Deletes every Commodity for this project, cascading *within this
+    # database* to everything under it (Analysis -> AnalysisEntry ->
+    # ChainComponent; Image -> Marker; Analysis -> AnalysisImage) --
+    # those FKs are still intra-database, only the Project<->Commodity
+    # link crosses databases now (see models/commodity.py). Never drops
+    # any tables: other projects may be colocated on this same service.
+    for commodity in commodities:
+        project_db.delete(commodity)
+    project_db.commit()
 
     # Groups aren't linked to the project by a foreign key, so nothing
     # cascades them -- delete by the same reconstructed name.
@@ -122,7 +172,5 @@ def delete_project(
         if group is not None:
             db.delete(group)
 
-    # Cascades to commodities -> analyses -> (entries -> chain
-    # components; images -> markers) via ondelete="CASCADE".
     db.delete(project)
     db.commit()

@@ -16,25 +16,33 @@ from app.api import (
     commodities,
     health,
     images,
+    minio_services,
+    postgres_services,
     projects,
     reference_data,
 )
-from app.core.bootstrap import create_default_process_types_if_needed, create_root_admin_if_needed
+from app.core.bootstrap import (
+    adopt_default_service_if_needed,
+    create_default_process_types_if_needed,
+    create_root_admin_if_needed,
+)
 from app.core.config import settings
-from app.core.storage import ensure_bucket_exists
 from app.db.session import SessionLocal
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Runs once when the app starts, before it accepts any requests.
+    # Bucket creation for a project's MinIO is no longer done here --
+    # buckets are per-service now (core/service_storage.py) and owned by
+    # the admin's "Initialize" action on that service, not app startup.
     db = SessionLocal()
     try:
         create_root_admin_if_needed(db)
         create_default_process_types_if_needed(db)
+        adopt_default_service_if_needed(db)
     finally:
         db.close()
-    ensure_bucket_exists()
     yield
 
 
@@ -53,6 +61,8 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(postgres_services.router)
+app.include_router(minio_services.router)
 app.include_router(projects.router)
 app.include_router(commodities.router)
 app.include_router(analyses.router)

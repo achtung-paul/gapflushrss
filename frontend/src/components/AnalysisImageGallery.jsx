@@ -11,7 +11,7 @@ import {
 // ImageAnnotator.jsx). Thumbnails in a 3-wide grid; click one to expand
 // it full-width in an overlay, click the overlay (or its close button)
 // to collapse back to the grid.
-function AnalysisImageGallery({ analysisId }) {
+function AnalysisImageGallery({ projectId, analysisId }) {
   const [images, setImages] = useState([])
   const [expandedId, setExpandedId] = useState(null)
   // Delete doesn't happen immediately -- it opens a small confirm/cancel
@@ -21,10 +21,10 @@ function AnalysisImageGallery({ analysisId }) {
   const [error, setError] = useState(null)
 
   function refresh() {
-    listAnalysisImages(analysisId).then(setImages).catch((err) => setError(err.message))
+    listAnalysisImages(projectId, analysisId).then(setImages).catch((err) => setError(err.message))
   }
 
-  useEffect(refresh, [analysisId])
+  useEffect(refresh, [projectId, analysisId])
 
   async function handleUpload(event) {
     event.preventDefault()
@@ -35,7 +35,7 @@ function AnalysisImageGallery({ analysisId }) {
       // The backend takes one file per request (same as the Commodity
       // image upload endpoint) -- multiple selection just means looping.
       for (const file of files) {
-        await uploadAnalysisImage(analysisId, file)
+        await uploadAnalysisImage(projectId, analysisId, file)
       }
       event.target.reset()
       refresh()
@@ -47,7 +47,7 @@ function AnalysisImageGallery({ analysisId }) {
   async function handleDelete(imageId) {
     setError(null)
     try {
-      await deleteAnalysisImage(imageId)
+      await deleteAnalysisImage(projectId, imageId)
       setPendingDeleteId(null)
       if (expandedId === imageId) {
         setExpandedId(null)
@@ -77,7 +77,7 @@ function AnalysisImageGallery({ analysisId }) {
           {images.map((image) => (
             <div key={image.analysis_image_id} className="analysis-gallery-thumb-wrap">
               <img
-                src={analysisImageFileUrl(image.analysis_image_id)}
+                src={analysisImageFileUrl(projectId, image.analysis_image_id)}
                 alt={image.original_filename}
                 className="analysis-gallery-thumb"
                 onClick={() => setExpandedId(image.analysis_image_id)}
@@ -111,7 +111,10 @@ function AnalysisImageGallery({ analysisId }) {
 
       {expandedImage && (
         <div className="analysis-gallery-lightbox" onClick={() => setExpandedId(null)}>
-          <img src={analysisImageFileUrl(expandedImage.analysis_image_id)} alt={expandedImage.original_filename} />
+          <img
+            src={analysisImageFileUrl(projectId, expandedImage.analysis_image_id)}
+            alt={expandedImage.original_filename}
+          />
         </div>
       )}
     </div>

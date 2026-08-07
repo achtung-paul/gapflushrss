@@ -7,36 +7,35 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.api.analyses import _get_commodity_or_404, _get_entry_or_404
-from app.api.deps import get_current_user, require_project_manager
+from app.api.analyses import _get_entry_or_404
+from app.api.deps import get_current_user, get_project_db, require_project_manager
 from app.core.simulation import run_simulation
 from app.db.session import get_db
-from app.models.analysis import Analysis
 from app.models.analysis_entry import AnalysisEntry
 from app.models.chain_component import ChainComponent
 from app.models.user import User
 from app.schemas.chain_component import ChainComponentCreate, ChainComponentOut, SimulationResultOut
 
-router = APIRouter(tags=["chain-components"])
+router = APIRouter(prefix="/projects/{project_id}", tags=["chain-components"])
 
 
-def _require_manager_for_entry(db: Session, user: User, entry_id: int) -> AnalysisEntry:
-    entry = _get_entry_or_404(db, entry_id)
-    analysis = db.get(Analysis, entry.analysis_id)
-    commodity = _get_commodity_or_404(db, analysis.commodity_id)
-    require_project_manager(db, user, commodity.project_id)
-    return entry
+def _require_manager_for_entry(
+    db: Session, project_db: Session, user: User, project_id: int, entry_id: int
+) -> AnalysisEntry:
+    require_project_manager(db, user, project_id)
+    return _get_entry_or_404(project_db, project_id, entry_id)
 
 
 @router.get("/entries/{entry_id}/chain-components", response_model=list[ChainComponentOut])
 def list_chain_components(
+    project_id: int,
     entry_id: int,
-    db: Session = Depends(get_db),
+    project_db: Session = Depends(get_project_db),
     _: User = Depends(get_current_user),
 ):
-    _get_entry_or_404(db, entry_id)
+    _get_entry_or_404(project_db, project_id, entry_id)
     return (
-        db.query(ChainComponent)
+        project_db.query(ChainComponent)
         .filter(ChainComponent.entry_id == entry_id)
         .order_by(ChainComponent.sequence_number)
         .all()
@@ -49,15 +48,17 @@ def list_chain_components(
     status_code=status.HTTP_201_CREATED,
 )
 def create_chain_component(
+    project_id: int,
     entry_id: int,
     body: ChainComponentCreate,
     db: Session = Depends(get_db),
+    project_db: Session = Depends(get_project_db),
     current_user: User = Depends(get_current_user),
 ):
-    _require_manager_for_entry(db, current_user, entry_id)
+    _require_manager_for_entry(db, project_db, current_user, project_id, entry_id)
 
     highest_sequence = (
-        db.query(func.max(ChainComponent.sequence_number))
+        project_db.query(func.max(ChainComponent.sequence_number))
         .filter(ChainComponent.entry_id == entry_id)
         .scalar()
     )
@@ -71,37 +72,43 @@ def create_chain_component(
         tolerance_value=body.tolerance_value,
         tolerance_value_id=body.tolerance_value_id,
     )
-    db.add(component)
-    db.commit()
-    db.refresh(component)
+    project_db.add(component)
+    project_db.commit()
+    project_db.refresh(component)
     return component
 
 
 @router.delete("/chain-components/{chain_component_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_chain_component(
+    project_id: int,
     chain_component_id: int,
     db: Session = Depends(get_db),
+    project_db: Session = Depends(get_project_db),
     current_user: User = Depends(get_current_user),
 ):
-    component = db.get(ChainComponent, chain_component_id)
+    component = project_db.get(ChainComponent, chain_component_id)
     if component is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chain component not found")
 
-    _require_manager_for_entry(db, current_user, component.entry_id)
+    # Ownership check happens inside here (via _get_entry_or_404's chain
+    # up to Commodity.project_id) -- a colocated project on the same
+    # Postgres service could otherwise have a matching chain_component_id.
+    _require_manager_for_entry(db, project_db, current_user, project_id, component.entry_id)
 
-    db.delete(component)
-    db.commit()
+    project_db.delete(component)
+    project_db.commit()
 
 
 @router.get("/entries/{entry_id}/simulation", response_model=SimulationResultOut)
 def get_simulation(
+    project_id: int,
     entry_id: int,
-    db: Session = Depends(get_db),
+    project_db: Session = Depends(get_project_db),
     _: User = Depends(get_current_user),
 ):
-    entry = _get_entry_or_404(db, entry_id)
+    entry = _get_entry_or_404(project_db, project_id, entry_id)
     components = (
-        db.query(ChainComponent)
+        project_db.query(ChainComponent)
         .filter(ChainComponent.entry_id == entry_id)
         .order_by(ChainComponent.sequence_number)
         .all()

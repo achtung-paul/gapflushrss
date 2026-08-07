@@ -16,6 +16,14 @@
 # record which cell it came from, but tolerance_value is still its own
 # snapshotted column so a later edit to that cell doesn't silently
 # change a saved analysis.
+#
+# This table lives on whichever Postgres service the parent Project is
+# assigned to (see core/service_db.py), while ToleranceValue is global
+# reference data that stays in the app's own central database (see
+# models/tolerance_value.py) -- so tolerance_value_id can't be a real
+# ForeignKey (Postgres can't enforce one across two separate databases).
+# It's a plain nullable column now: provenance-only, same as before,
+# just without DB-level referential integrity.
 
 import enum
 from datetime import datetime, timezone
@@ -23,7 +31,7 @@ from datetime import datetime, timezone
 from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base
+from app.db.project_base import ProjectBase
 
 
 class ContributorType(str, enum.Enum):
@@ -31,7 +39,7 @@ class ContributorType(str, enum.Enum):
     PROCESS = "PROCESS"
 
 
-class ChainComponent(Base):
+class ChainComponent(ProjectBase):
     __tablename__ = "chain_components"
     __table_args__ = (UniqueConstraint("entry_id", "sequence_number"),)
 
@@ -45,9 +53,7 @@ class ChainComponent(Base):
     )
     description: Mapped[str] = mapped_column(String(255), nullable=False)
     tolerance_value: Mapped[float] = mapped_column(Numeric(10, 3), nullable=False)
-    tolerance_value_id: Mapped[int | None] = mapped_column(
-        ForeignKey("tolerance_values.tolerance_value_id", ondelete="SET NULL"), nullable=True
-    )
+    tolerance_value_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

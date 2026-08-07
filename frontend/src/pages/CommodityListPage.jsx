@@ -37,7 +37,7 @@ function CommodityListPage() {
       <ul>
         {commodities.map((commodity) => (
           <li key={commodity.commodity_id}>
-            <Link to={`/commodities/${commodity.commodity_id}/analyses`}>
+            <Link to={`/projects/${projectId}/commodities/${commodity.commodity_id}/analyses`}>
               {commodity.name} ({commodity.code})
             </Link>
           </li>

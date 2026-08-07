@@ -42,14 +42,23 @@ class Settings(BaseSettings):
     root_admin_email: str = ""
     root_admin_password: str = ""
 
-    # MinIO (S3-compatible) object storage, used for analysis images
-    # (app/core/storage.py). Defaults match the "minio" service in
-    # docker-compose.yml.
+    # MinIO (S3-compatible) object storage. Only read once, by the
+    # one-time migration that seeds the "Default" MinioService row (see
+    # alembic/versions/fe5a0c40a1ce_multi_service_postgres_minio.py) --
+    # after that, every MinIO connection goes through a MinioService row
+    # instead (app/core/service_storage.py). Defaults match the "minio"
+    # service in docker-compose.yml.
     minio_endpoint: str = "minio:9000"
     minio_access_key: str = "gapflush"
     minio_secret_key: str = "gapflush"
     minio_secure: bool = False
     minio_bucket: str = "gapflushrss-images"
+
+    # Key used to encrypt Postgres/MinIO service credentials before they're
+    # stored in the DB (see core/crypto.py) -- a Fernet key, generate one
+    # with `Fernet.generate_key()`. Must stay the same across restarts or
+    # every stored service's credentials become undecryptable.
+    service_credential_key: str = ""
 
     @property
     def database_url(self) -> str:
