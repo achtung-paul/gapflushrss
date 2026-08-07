@@ -392,6 +392,110 @@ td {
   background: #9e9e9e;
 }
 
+/* Rich-text notes editor (components/RichTextEditor.jsx). Styled by hand
+   to match the rest of this app rather than pulling in an editor library's
+   own design system. */
+.rich-text-editor {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  max-width: 700px;
+  background: #fff;
+}
+
+.rich-text-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem;
+  border-bottom: 1px solid #ddd;
+  background: #f6f6f6;
+  flex-wrap: wrap;
+}
+
+.rich-text-toolbar button {
+  min-width: 2rem;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+/* Which formatting is active at the cursor. Without this the toolbar
+   gives no feedback and you can't tell if bold is on. */
+.rich-text-toolbar button.is-active {
+  background: #2e7d32;
+  color: #fff;
+  border-color: #2e7d32;
+}
+
+.rich-text-toolbar-spacer {
+  flex: 1;
+}
+
+.rich-text-content .ProseMirror {
+  min-height: 8rem;
+  padding: 0.5rem;
+  outline: none;
+}
+
+/* The Gap/Flush form is an .inline-form (a single flex row) plus the
+   notes editor, which is far too tall to sit in that row. Wrapping is
+   added here rather than on .inline-form itself because every other form
+   in the app relies on staying a single line. */
+.entry-form {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.entry-notes-field {
+  /* Take a full row of its own inside the wrapping flex container. */
+  flex: 0 0 100%;
+  margin: 0.5rem 0;
+}
+
+.entry-notes-field > label {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+/* Rendered notes. Margins are tightened because note content sits inside
+   a page that already has its own vertical rhythm -- default h2/ul margins
+   make a two-line note look like a new section. */
+.entry-notes {
+  max-width: 700px;
+  margin: 0.25rem 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid #ddd;
+  background: #fafafa;
+}
+
+.entry-notes > *:first-child {
+  margin-top: 0;
+}
+
+.entry-notes > *:last-child {
+  margin-bottom: 0;
+}
+
+.entry-notes h1,
+.entry-notes h2,
+.entry-notes h3 {
+  font-size: 1rem;
+  margin: 0.5rem 0 0.25rem;
+}
+
+.entry-notes ul,
+.entry-notes ol {
+  margin: 0.25rem 0;
+  padding-left: 1.4rem;
+}
+
+.contributor-note {
+  color: #555;
+  font-size: 0.85rem;
+  margin-left: 1rem;
+  white-space: pre-wrap;
+}
+
 /* Log viewer (pages/LogsPage.jsx). Messages are pre-formatted because
    tracebacks carry their own line breaks and indentation -- collapsing
    them into a paragraph makes them unreadable. */

@@ -78,6 +78,7 @@ def create_chain_component(
         description=body.description,
         tolerance_value=body.tolerance_value,
         tolerance_value_id=body.tolerance_value_id,
+        note=body.note,
     )
     project_db.add(component)
     project_db.commit()
@@ -107,6 +108,7 @@ def update_chain_component(
     component.description = body.description
     component.tolerance_value = body.tolerance_value
     component.tolerance_value_id = body.tolerance_value_id
+    component.note = body.note
     project_db.commit()
     project_db.refresh(component)
     return component

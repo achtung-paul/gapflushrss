@@ -11,6 +11,10 @@ class AnalysisEntryCreate(BaseModel):
     upper_limit: float
     lower_limit: float
     direction: Direction | None = None
+    # Rich text from the notes editor, as HTML. Defaulted so existing
+    # clients that don't send it keep working. Sanitised in
+    # api/analyses.py before it is stored -- never trust this value.
+    notes: str = ""
 
     @field_validator("upper_limit", "lower_limit")
     @classmethod
@@ -34,3 +38,6 @@ class AnalysisEntryOut(BaseModel):
     direction: Direction | None
     created_by_name: str
     updated_by_name: str
+    # Already sanitised when it was stored, which is what makes it safe
+    # for the frontend to render as markup.
+    notes: str

@@ -8,6 +8,7 @@ import {
   updateGapEntry,
 } from '../api/client.js'
 import AnalysisImageGallery from '../components/AnalysisImageGallery.jsx'
+import RichTextEditor from '../components/RichTextEditor.jsx'
 import ToleranceChainSection from '../components/ToleranceChainSection.jsx'
 
 // Shows an existing Gap or Flush entry (with an Edit button to change its
@@ -22,6 +23,7 @@ function EntrySection({ projectId, title, entry, onCreate, onUpdate }) {
   const [nominalValue, setNominalValue] = useState('')
   const [upperLimit, setUpperLimit] = useState('')
   const [lowerLimit, setLowerLimit] = useState('')
+  const [notes, setNotes] = useState('')
   const [error, setError] = useState(null)
 
   // e.g. "GAP-X" once a direction is set, or just "GAP" until it is --
@@ -34,6 +36,7 @@ function EntrySection({ projectId, title, entry, onCreate, onUpdate }) {
     setNominalValue(entry ? String(entry.nominal_value) : '')
     setUpperLimit(entry ? String(entry.upper_limit) : '')
     setLowerLimit(entry ? String(entry.lower_limit) : '')
+    setNotes(entry?.notes ?? '')
     setError(null)
     setEditing(true)
   }
@@ -46,6 +49,7 @@ function EntrySection({ projectId, title, entry, onCreate, onUpdate }) {
       upper_limit: Number(upperLimit),
       lower_limit: Number(lowerLimit),
       direction: direction || null,
+      notes,
     }
     try {
       await (entry ? onUpdate(body) : onCreate(body))
@@ -75,6 +79,12 @@ function EntrySection({ projectId, title, entry, onCreate, onUpdate }) {
         <p className="form-hint">
           Created by {entry.created_by_name} &middot; Last modified by {entry.updated_by_name}
         </p>
+        {entry.notes && (
+          // Safe to render as markup only because the backend sanitises
+          // it on write (core/html_sanitize.py) -- never render a value
+          // here that hasn't been through that.
+          <div className="entry-notes" dangerouslySetInnerHTML={{ __html: entry.notes }} />
+        )}
         <ToleranceChainSection
           projectId={projectId}
           entryId={entry.entry_id}
@@ -90,7 +100,10 @@ function EntrySection({ projectId, title, entry, onCreate, onUpdate }) {
     <div>
       <h3>{heading}</h3>
       {!entry && <p>Not attached yet.</p>}
-      <form onSubmit={handleSubmit} className="inline-form">
+      {/* entry-form adds wrapping to .inline-form's single row -- the
+          notes editor needs a line of its own, and .inline-form is used
+          by every other form in the app so it can't wrap globally. */}
+      <form onSubmit={handleSubmit} className="inline-form entry-form">
         <label>
           Direction{' '}
           <select value={direction} onChange={(e) => setDirection(e.target.value)}>
@@ -136,6 +149,13 @@ function EntrySection({ projectId, title, entry, onCreate, onUpdate }) {
             required
           />
         </label>
+        {/* Outside the inline row: the editor is far taller than the
+            numeric inputs and would wreck the single-line layout. Saved
+            by the same Save button, through the same endpoint. */}
+        <div className="entry-notes-field">
+          <label>Notes</label>
+          <RichTextEditor value={notes} onChange={setNotes} />
+        </div>
         <button type="submit">{entry ? 'Save' : `Add ${title}`}</button>
         {entry && (
           <button type="button" onClick={() => setEditing(false)}>

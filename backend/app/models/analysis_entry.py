@@ -15,7 +15,7 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.project_base import ProjectBase
@@ -64,3 +64,14 @@ class AnalysisEntry(ProjectBase):
     # reasoning as StandardTolerance.updated_by_name).
     created_by_name: Mapped[str] = mapped_column(String(201), nullable=False)
     updated_by_name: Mapped[str] = mapped_column(String(201), nullable=False)
+
+    # Free-form notes about this Gap/Flush, written in the rich-text
+    # editor (frontend/src/components/RichTextEditor.jsx) and stored as
+    # HTML. Text rather than String because there's no sensible length
+    # limit on someone's reasoning.
+    #
+    # ALWAYS run through core/html_sanitize.py's sanitize_notes() before
+    # assigning -- this column is rendered back as markup, so unsanitised
+    # content here is stored XSS. Empty string, never NULL, so "no notes"
+    # has one representation.
+    notes: Mapped[str] = mapped_column(Text, nullable=False, server_default="")

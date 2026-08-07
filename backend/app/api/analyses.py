@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_project_db, require_project_editor, require_project_manager
 from app.core import service_storage
+from app.core.html_sanitize import sanitize_notes
 from app.db.session import get_db
 from app.models.analysis import Analysis
 from app.models.analysis_entry import AnalysisEntry, EntryType
@@ -73,6 +74,7 @@ def _entry_out(analysis: Analysis, entry: AnalysisEntry) -> AnalysisEntryOut:
         direction=entry.direction,
         created_by_name=entry.created_by_name,
         updated_by_name=entry.updated_by_name,
+        notes=entry.notes,
     )
 
 
@@ -189,6 +191,9 @@ def _create_entry(
         direction=body.direction,
         created_by_name=actor_name,
         updated_by_name=actor_name,
+        # Sanitised on the way in, never on the way out -- see
+        # core/html_sanitize.py.
+        notes=sanitize_notes(body.notes),
     )
     project_db.add(entry)
     project_db.commit()
@@ -251,6 +256,7 @@ def _update_entry(
     entry.upper_limit = body.upper_limit
     entry.lower_limit = body.lower_limit
     entry.direction = body.direction
+    entry.notes = sanitize_notes(body.notes)
     entry.updated_by_name = f"{current_user.first_name} {current_user.last_name}"
     project_db.commit()
     project_db.refresh(entry)

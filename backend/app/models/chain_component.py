@@ -54,6 +54,12 @@ class ChainComponent(ProjectBase):
     description: Mapped[str] = mapped_column(String(255), nullable=False)
     tolerance_value: Mapped[float] = mapped_column(Numeric(10, 3), nullable=False)
     tolerance_value_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # A short note about this one contributor -- why this tolerance, where
+    # the figure came from, which drawing it's off. Deliberately *plain
+    # text*, unlike AnalysisEntry.notes: it's rendered as an ordinary
+    # React string, so it needs no sanitising and can't carry markup.
+    note: Mapped[str] = mapped_column(String(500), nullable=False, server_default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

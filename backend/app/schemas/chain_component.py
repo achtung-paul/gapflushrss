@@ -13,6 +13,17 @@ class ChainComponentCreate(BaseModel):
     # Optional: which cell of the admin tolerance matrix (Phase 3) this
     # value was prefilled from, purely for traceability.
     tolerance_value_id: int | None = None
+    # Plain text, not markup -- rendered as an ordinary React string.
+    note: str = ""
+
+    @field_validator("note")
+    @classmethod
+    def note_must_fit(cls, value: str) -> str:
+        # Matches the column width so an over-long note is a clean 422
+        # rather than a database error.
+        if len(value) > 500:
+            raise ValueError("note must be 500 characters or fewer")
+        return value
 
     @field_validator("tolerance_value")
     @classmethod
@@ -39,6 +50,7 @@ class ChainComponentOut(BaseModel):
     description: str
     tolerance_value: float
     tolerance_value_id: int | None
+    note: str
 
 
 class SimulationResultRow(BaseModel):

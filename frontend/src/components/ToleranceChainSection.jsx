@@ -57,6 +57,7 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
   const [cells, setCells] = useState([])
   const [selectedVariant, setSelectedVariant] = useState('')
 
+  const [note, setNote] = useState('')
   const [standardTolerances, setStandardTolerances] = useState([])
   const [selectedStandardToleranceId, setSelectedStandardToleranceId] = useState('')
 
@@ -71,6 +72,7 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
   const [editContributorType, setEditContributorType] = useState('COMPONENT')
   const [editDescription, setEditDescription] = useState('')
   const [editToleranceValue, setEditToleranceValue] = useState('')
+  const [editNote, setEditNote] = useState('')
 
   const refresh = useCallback(() => {
     listChainComponents(projectId, entryId).then(setComponents).catch((err) => setError(err.message))
@@ -148,8 +150,10 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
         description,
         tolerance_value: Number(toleranceValue),
         tolerance_value_id: matchedCell ? matchedCell.tolerance_value_id : null,
+        note,
       })
       setDescription('')
+      setNote('')
       setToleranceValue('')
       setSelectedProcessTypeId('')
       setSelectedGroupId('')
@@ -167,6 +171,7 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
     setEditContributorType(component.contributor_type)
     setEditDescription(component.description)
     setEditToleranceValue(String(component.tolerance_value))
+    setEditNote(component.note ?? '')
     setError(null)
   }
 
@@ -178,6 +183,7 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
         description: editDescription,
         tolerance_value: Number(editToleranceValue),
         tolerance_value_id: component.tolerance_value_id,
+        note: editNote,
       })
       setEditingId(null)
       refresh()
@@ -240,6 +246,15 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
                   required
                 />
               </label>{' '}
+              <label>
+                Note{' '}
+                <input
+                  type="text"
+                  maxLength={500}
+                  value={editNote}
+                  onChange={(e) => setEditNote(e.target.value)}
+                />
+              </label>{' '}
               <button type="button" onClick={() => handleSaveEdit(component)}>
                 Save
               </button>{' '}
@@ -269,6 +284,13 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
                     Delete
                   </button>
                 </>
+              )}
+              {component.note && (
+                // Plain text, rendered as an ordinary React string -- any
+                // markup someone types here shows as literal characters,
+                // which is why this field needs no sanitising (unlike the
+                // entry notes above).
+                <div className="contributor-note">{component.note}</div>
               )}
             </li>
           ),
@@ -387,6 +409,16 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
             value={toleranceValue}
             onChange={(e) => setToleranceValue(e.target.value)}
             required
+          />
+        </label>
+        <label>
+          Note{' '}
+          <input
+            type="text"
+            maxLength={500}
+            placeholder="Optional"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
           />
         </label>
         <button type="submit">Add contributor</button>
