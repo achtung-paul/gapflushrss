@@ -37,7 +37,31 @@ export const confirmPasswordReset = (token, newPassword) =>
     body: JSON.stringify({ token, new_password: newPassword }),
   })
 
-export const listUsers = () => apiFetch('/admin/users')
+export const listUsers = (search, page) => {
+  const params = new URLSearchParams()
+  if (search) params.set('search', search)
+  params.set('page', page)
+  return apiFetch(`/admin/users?${params.toString()}`)
+}
+
+export const createUser = (username, email, password, globalRole) =>
+  apiFetch('/admin/users', {
+    method: 'POST',
+    body: JSON.stringify({ username, email, password, global_role: globalRole }),
+  })
+
+export const deleteUser = (userId) => apiFetch(`/admin/users/${userId}`, { method: 'DELETE' })
+
+export const listProjectMembers = (projectId) => apiFetch(`/admin/projects/${projectId}/members`)
+
+export const addProjectMember = (projectId, userId, groupRole) =>
+  apiFetch(`/admin/projects/${projectId}/members`, {
+    method: 'POST',
+    body: JSON.stringify({ user_id: userId, group_role: groupRole }),
+  })
+
+export const removeProjectMember = (projectId, groupRole, userId) =>
+  apiFetch(`/admin/projects/${projectId}/members/${groupRole}/${userId}`, { method: 'DELETE' })
 
 export const listProjects = () => apiFetch('/projects')
 
@@ -77,6 +101,30 @@ export const updateFlushEntry = (analysisId, entry) =>
   apiFetch(`/analyses/${analysisId}/flush`, { method: 'PUT', body: JSON.stringify(entry) })
 
 export const deleteEntry = (entryId) => apiFetch(`/entries/${entryId}`, { method: 'DELETE' })
+
+export const listAnalysisImages = (analysisId) => apiFetch(`/analyses/${analysisId}/images`)
+
+export async function uploadAnalysisImage(analysisId, file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  // No Content-Type header here -- the browser sets it (with the right
+  // multipart boundary) automatically when the body is a FormData.
+  const response = await fetch(`${API_BASE}/analyses/${analysisId}/images`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  })
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    throw new Error(body.detail || `Request failed (${response.status})`)
+  }
+  return response.json()
+}
+
+export const deleteAnalysisImage = (analysisImageId) =>
+  apiFetch(`/analysis-images/${analysisImageId}`, { method: 'DELETE' })
+
+export const analysisImageFileUrl = (analysisImageId) => `${API_BASE}/analysis-images/${analysisImageId}/file`
 
 export const listProcessTypes = () => apiFetch('/process-types')
 
@@ -159,8 +207,8 @@ export const imageFileUrl = (imageId) => `${API_BASE}/images/${imageId}/file`
 
 export const listMarkers = (imageId) => apiFetch(`/images/${imageId}/markers`)
 
-export const createMarker = (imageId, x, y) =>
-  apiFetch(`/images/${imageId}/markers`, { method: 'POST', body: JSON.stringify({ x, y }) })
+export const createMarker = (imageId, points) =>
+  apiFetch(`/images/${imageId}/markers`, { method: 'POST', body: JSON.stringify({ points }) })
 
 export const deleteMarker = (markerId) => apiFetch(`/markers/${markerId}`, { method: 'DELETE' })
 

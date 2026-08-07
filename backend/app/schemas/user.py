@@ -19,3 +19,11 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     global_role: GlobalRole = GlobalRole.standard
+
+
+class UserListOut(BaseModel):
+    # A page of users plus the total count matching the search, so the
+    # frontend can render "page X of Y" / breadcrumb links without a
+    # second request.
+    items: list[UserOut]
+    total: int
