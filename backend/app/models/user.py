@@ -34,3 +34,13 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+    # When this password was last set -- account creation counts as
+    # setting it. api/auth.py's login() compares this against
+    # PASSWORD_EXPIRY to force a reset after 30 days; password-reset
+    # confirm is the only other place that updates it. No meaning yet
+    # for an OAuth-authenticated account (OAuth isn't built -- see
+    # PROJECT_BRIEF.md's phasing decision), since there's no password to
+    # expire in the first place.
+    password_changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )

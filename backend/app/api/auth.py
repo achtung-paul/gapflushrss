@@ -1,7 +1,7 @@
 # Login/logout, "who am I", and password reset.
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import delete
@@ -26,6 +26,13 @@ logger = logging.getLogger(__name__)
 # find out which usernames/emails exist in the system.
 GENERIC_LOGIN_ERROR = "Invalid username or password"
 GENERIC_RESET_REQUESTED_MESSAGE = "If that email is registered, a reset link has been sent."
+PASSWORD_EXPIRED_ERROR = "Your password has expired. Use 'Forgot your password?' to reset it by email."
+
+# Password-based accounts have to reset every 30 days. Only applies to
+# password auth -- there's no OAuth login in this codebase yet (see
+# PROJECT_BRIEF.md's phasing decision), so every account is a password
+# account today; an OAuth account should skip this check once that's built.
+PASSWORD_EXPIRY = timedelta(days=30)
 
 
 @router.post("/login", response_model=UserOut)
@@ -33,6 +40,13 @@ def login(body: LoginRequest, response: Response, db: Session = Depends(get_db))
     user = db.query(User).filter(User.username == body.username).first()
     if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=GENERIC_LOGIN_ERROR)
+
+    # Checked after the password itself, not before: telling someone who
+    # just proved they know the correct password that it's specifically
+    # *expired* (rather than the generic wrong-password error) doesn't
+    # leak anything an attacker could use.
+    if datetime.now(timezone.utc) - user.password_changed_at > PASSWORD_EXPIRY:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PASSWORD_EXPIRED_ERROR)
 
     session = UserSession(session_token=generate_token(), user_id=user.user_id)
     db.add(session)
@@ -98,6 +112,7 @@ def confirm_password_reset(body: PasswordResetConfirm, db: Session = Depends(get
 
     user = db.get(User, reset_token.user_id)
     user.password_hash = hash_password(body.new_password)
+    user.password_changed_at = datetime.now(timezone.utc)
     reset_token.used = True
 
     # Log the user out everywhere -- a password reset should invalidate
