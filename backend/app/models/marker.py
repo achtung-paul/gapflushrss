@@ -9,10 +9,16 @@
 # x/y are stored as a fraction (0-1) of the image's natural width/height,
 # not raw pixels -- that way a marker's position is independent of
 # whatever size the image happens to be displayed at in the browser.
+#
+# A marker is dropped by drawing a polyline (see ImageAnnotator.jsx) --
+# `points` holds every vertex the user clicked, in the same 0-1 fraction
+# system, in drawing order. x/y always duplicate the last entry in
+# `points`: they exist so balloon-placement code doesn't need to know
+# anything about polylines, just "where does this marker sit".
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -30,6 +36,7 @@ class Marker(Base):
     )
     x: Mapped[float] = mapped_column(Float, nullable=False)
     y: Mapped[float] = mapped_column(Float, nullable=False)
+    points: Mapped[list] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

@@ -291,10 +291,10 @@ function AnalysisListPage() {
   }
 
   const handleCreateMarker = useCallback(
-    async (x, y) => {
+    async (points) => {
       if (selectedImageId === null) return
       try {
-        await createMarker(selectedImageId, x, y)
+        await createMarker(selectedImageId, points)
         refreshMarkers()
         refreshAnalyses()
       } catch (err) {
@@ -367,9 +367,10 @@ function AnalysisListPage() {
       {selectedImageId !== null && (
         <div>
           <p>
-            Drag a small box on the image to drop a numbered marker at its center -- this creates
-            the next analysis in sequence. Click a marker to open its analysis, or use its delete
-            button to remove the marker and its analysis.
+            Click the image to place points along a line, double-click to finish -- this drops a
+            numbered marker at the last point (with the line left in place) and creates the next
+            analysis in sequence. Click a marker to open its analysis, or use its delete button to
+            remove the marker, its line, and its analysis.
           </p>
           <ImageAnnotator
             imageUrl={imageFileUrl(selectedImageId)}

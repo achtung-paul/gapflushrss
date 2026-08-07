@@ -108,6 +108,26 @@ td {
   user-select: none;
 }
 
+/* Leader-line polylines behind each marker balloon (brief step 2's
+   reference image). Sits on top of the image but below the balloons in
+   DOM order; pointer-events: none so it doesn't block drawing a new
+   one. */
+.marker-polylines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.marker-polylines polyline {
+  fill: none;
+  stroke: #d32f2f;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
 /* Positions a marker (and its confirm popup, if open) at the dropped
    point -- % of image size, set via inline left/top in
    ImageAnnotator.jsx. */

@@ -1,7 +1,7 @@
 from pydantic import BaseModel, field_validator
 
 
-class MarkerCreate(BaseModel):
+class Point(BaseModel):
     # Fraction (0-1) of the image's natural width/height -- see
     # app/models/marker.py for why.
     x: float
@@ -12,6 +12,21 @@ class MarkerCreate(BaseModel):
     def must_be_within_image(cls, value: float) -> float:
         if not (0 <= value <= 1):
             raise ValueError("must be between 0 and 1 (a fraction of the image size)")
+        return value
+
+
+class MarkerCreate(BaseModel):
+    # The polyline the user drew, in the order they clicked it -- the
+    # last point is where the numbered marker balloon is placed. At
+    # least one point (a "line" the user finished without adding a
+    # second vertex) is fine, that's just a marker with no visible line.
+    points: list[Point]
+
+    @field_validator("points")
+    @classmethod
+    def must_have_a_point(cls, value: list[Point]) -> list[Point]:
+        if not value:
+            raise ValueError("must have at least one point")
         return value
 
 
@@ -27,3 +42,4 @@ class MarkerOut(BaseModel):
     sequence_number: int
     x: float
     y: float
+    points: list[Point]

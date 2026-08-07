@@ -25,7 +25,7 @@ from app.models.image import Image
 from app.models.marker import Marker
 from app.models.user import User
 from app.schemas.image import ImageOut
-from app.schemas.marker import MarkerCreate, MarkerOut
+from app.schemas.marker import MarkerCreate, MarkerOut, Point
 
 router = APIRouter(tags=["images"])
 
@@ -51,6 +51,7 @@ def _marker_out(marker: Marker, analysis: Analysis) -> MarkerOut:
         sequence_number=analysis.sequence_number,
         x=marker.x,
         y=marker.y,
+        points=[Point(x=p[0], y=p[1]) for p in marker.points],
     )
 
 
@@ -170,7 +171,15 @@ def create_marker(
     db.add(analysis)
     db.flush()  # assigns analysis.analysis_id without ending the transaction
 
-    marker = Marker(image_id=image_id, analysis_id=analysis.analysis_id, x=body.x, y=body.y)
+    # The marker balloon sits at the polyline's last point.
+    endpoint = body.points[-1]
+    marker = Marker(
+        image_id=image_id,
+        analysis_id=analysis.analysis_id,
+        x=endpoint.x,
+        y=endpoint.y,
+        points=[[p.x, p.y] for p in body.points],
+    )
     db.add(marker)
     db.commit()
     db.refresh(marker)
