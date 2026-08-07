@@ -21,6 +21,7 @@ from app.api import (
     commodities,
     health,
     images,
+    internal_logs,
     minio_services,
     postgres_services,
     projects,
@@ -149,6 +150,7 @@ app.include_router(images.router)
 app.include_router(analysis_images.router)
 app.include_router(chain_components.router)
 app.include_router(standard_tolerances.router)
+app.include_router(internal_logs.router)
 
 
 @app.get("/")

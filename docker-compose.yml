@@ -6,6 +6,31 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    # Write real log files (not just stdout) so the admin log viewer can
+    # read them -- see api/logs.py.
+    #
+    # log_directory is relative to PGDATA on purpose. Postgres runs as a
+    # non-root user, and a freshly created Docker named volume is owned by
+    # root, so Postgres cannot write to an arbitrary new volume path. Its
+    # own data directory is the one place it is guaranteed to own.
+    #
+    # The %a (day name) filename plus log_truncate_on_rotation gives
+    # exactly seven self-recycling files -- 7-day retention with no
+    # external cleanup, which is why the sweeper in core/logging_config.py
+    # doesn't touch these.
+    #
+    # Errors and slow queries only. log_statement=all would copy real
+    # dimensional data and user details into files the admin UI exposes.
+    command: >
+      postgres
+      -c logging_collector=on
+      -c log_destination=csvlog
+      -c log_directory=log
+      -c log_filename=postgresql-%a.log
+      -c log_truncate_on_rotation=on
+      -c log_rotation_age=1d
+      -c log_min_error_statement=error
+      -c log_min_duration_statement=1000
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
@@ -35,11 +60,25 @@ services:
       - "1025" # SMTP, used by the backend
 
   minio:
-    image: minio/minio:latest
+    # Pinned rather than :latest -- the log webhook below depends on this
+    # image's behaviour, and an unpinned tag can change it under us.
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     restart: unless-stopped
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # MinIO has no file logging of its own, so it POSTs log events to
+      # the backend instead (api/internal_logs.py), which writes them
+      # alongside the other services' logs for the admin viewer. The
+      # alternative -- reading MinIO's stdout -- would mean giving the
+      # backend the Docker socket, i.e. root on the host.
+      MINIO_LOGGER_WEBHOOK_ENABLE: "on"
+      MINIO_LOGGER_WEBHOOK_ENDPOINT: http://backend:8000/internal/minio-logs
+      MINIO_LOGGER_WEBHOOK_AUTH_TOKEN: ${MINIO_LOG_WEBHOOK_TOKEN}
+      # Persist undelivered events. MinIO starts before the backend and
+      # the backend restarts on every deploy, so without this the events
+      # from those windows are simply dropped.
+      MINIO_LOGGER_WEBHOOK_QUEUE_DIR: /data/.minio-log-queue
     command: server /data --console-address ":9001"
     volumes:
       - miniodata:/data
@@ -72,6 +111,21 @@ services:
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       MINIO_BUCKET: gapflushrss-images
       SERVICE_CREDENTIAL_KEY: ${SERVICE_CREDENTIAL_KEY}
+      LOG_DIR: /var/log/gapflushrss
+      POSTGRES_LOG_DIR: /pgdata/log
+      MINIO_LOG_WEBHOOK_TOKEN: ${MINIO_LOG_WEBHOOK_TOKEN}
+    volumes:
+      # Log files have to outlive the container: the image is rebuilt on
+      # every deploy, which would otherwise discard the whole history the
+      # admin viewer exists to show.
+      - logs:/var/log/gapflushrss
+      # Read-only so the backend can read Postgres's CSV logs, which
+      # Postgres writes inside its own data directory (see the postgres
+      # service above for why they live there). This does expose the
+      # database files to this container -- read-only, and it already
+      # holds full credentials for that database, so it grants nothing
+      # new, but it is the one untidy part of this arrangement.
+      - pgdata:/pgdata:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -104,3 +158,4 @@ services:
 volumes:
   pgdata:
   miniodata:
+  logs:
