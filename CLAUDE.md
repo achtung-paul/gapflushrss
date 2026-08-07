@@ -86,6 +86,19 @@ Inspect the generated file before deploying — check ordering per the gotcha ab
 
 It deliberately does **not** touch `commodities`/`analyses`/etc. or the `alembic_project` chain itself — that adoption (recording "already at the project chain's starting revision" without re-running `CREATE TABLE`, plus reshaping `commodities`'s constraints) happens in `core/service_db.py`'s `initialize_schema`, called from `core/bootstrap.py`'s `adopt_default_service_if_needed` on every app startup. **Don't move this logic back inside a migration** — an earlier version tried driving a second Alembic `EnvironmentContext` (`command.stamp`/`command.upgrade` against the `alembic_project` chain) from inside this migration's own `upgrade()`, and the nested context corrupted the outer migration's `op` proxy (`AttributeError: 'NoneType' object has no attribute 'drop_constraint'`), caught by testing against a restored copy of the LXC's DB before it ever touched the real one. Keep migration-triggering-another-migration out of a single call stack.
 
+Within `initialize_schema`, the constraint fixes run **before** `command.stamp`, not after — `command.stamp` commits on its own connection independently of everything else in the function, so if it ran first and the constraint fixes then failed, `check_status` (which only checks whether `alembic_version_project` exists) would report "initialized" on a database that never actually got fixed, with no way to detect or retry it. Same ordering principle applies to any future multi-step "adopt" logic here.
+
+### Testing a risky migration before it touches real data
+
+For any migration that isn't a simple, obviously-reversible column add (like this one — it seeds encrypted credentials and reshapes constraints), rehearse it against a throwaway copy on the *same* Postgres server rather than trusting it on the first real run:
+```
+docker compose exec postgres pg_dump -U <user> -d <db> -Fc > backup.dump   # keep this regardless
+docker compose exec postgres psql -U <user> -d postgres -c "CREATE DATABASE <db>_test OWNER <user>;"
+docker compose exec postgres pg_restore -U <user> -d <db>_test < backup.dump
+docker compose run --rm -e POSTGRES_DB=<db>_test backend alembic upgrade head
+```
+`docker compose run --rm -e VAR=value backend <cmd>` overrides an env var for one throwaway container without touching the running `backend` service or its container — safe to use for one-off checks (`alembic upgrade head`, a `python -c "..."` snippet calling app code) against the test copy. Drop the `_test` database when done. This is exactly how the nested-`EnvironmentContext` bug above was caught before it ever ran against the LXC's real data.
+
 ## Deploying to the test LXC
 
 The LXC's `/opt/gapflushrss` (`192.168.4.78`, root, key at `~/.ssh/proxmox_test_server_private.pem`) is a **plain file copy, not a git checkout** — commits here don't appear there automatically.
@@ -93,6 +106,8 @@ The LXC's `/opt/gapflushrss` (`192.168.4.78`, root, key at `~/.ssh/proxmox_test_
 scp -i ~/.ssh/proxmox_test_server_private.pem <local_path> root@192.168.4.78:/opt/gapflushrss/<same_relative_path>
 ssh -i ~/.ssh/proxmox_test_server_private.pem root@192.168.4.78 "cd /opt/gapflushrss && docker compose build <service> && docker compose up -d <service>"
 ```
+For a change touching many files (e.g. a whole feature), `rsync -avz --exclude='__pycache__' --exclude='*.pyc' -e "ssh -i ~/.ssh/proxmox_test_server_private.pem" <local_dir>/ root@192.168.4.78:/opt/gapflushrss/<same_dir>/` is faster than scp-ing one file at a time and keeps the same "only copy what changed" property.
+
 Frontend runs the Vite dev server inside its container (not a static build) with no bind-mounted volume, so even frontend-only edits need the full build+up cycle to show up.
 
 ## Reference material that can't be committed
