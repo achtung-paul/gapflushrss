@@ -20,7 +20,12 @@ import app.models  # noqa: F401
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
-if config.config_file_name is not None:
+# Guarded for the same reason as alembic_project/env.py -- see the longer
+# note there. This chain only runs from the command line today (the
+# Dockerfile's `alembic upgrade head`), so the guard is a no-op here, but
+# it keeps both chains behaving the same if this one is ever driven from
+# inside the app too.
+if config.config_file_name is not None and config.attributes.get("configure_logger", True):
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata

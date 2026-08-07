@@ -126,6 +126,13 @@ def _project_alembic_config(url: str) -> Config:
     cfg = Config(str(_BACKEND_DIR / "alembic_project.ini"))
     cfg.set_main_option("script_location", str(_BACKEND_DIR / "alembic_project"))
     cfg.set_main_option("sqlalchemy.url", url)
+    # Stops alembic_project/env.py calling fileConfig(), which would
+    # reconfigure logging for the whole process: it disables every
+    # existing logger and replaces the root handlers with the ones from
+    # the .ini. Running inside the app -- which this always is -- that
+    # silently killed all application and uvicorn logging from the first
+    # schema upgrade onwards. See the note in that env.py.
+    cfg.attributes["configure_logger"] = False
     return cfg
 
 

@@ -45,7 +45,21 @@ if not url:
     )
 config.set_main_option("sqlalchemy.url", url)
 
-if config.config_file_name is not None:
+# Only configure logging from the .ini when Alembic is being run as a
+# command-line tool. fileConfig() defaults to disable_existing_loggers=True
+# and rewrites the root logger's handlers from alembic.ini -- which, when
+# this chain is driven programmatically from inside the running app
+# (core/service_db.py's initialize_schema, called on startup and from the
+# admin Initialize button), silently switched off *every* logger the
+# application had already created and detached its file handlers. The
+# effect was that all app logging, and uvicorn's own access logging,
+# stopped dead the first time a project-schema upgrade ran and never came
+# back for the life of the process.
+#
+# core/service_db.py sets configure_logger=False for that reason; the
+# Dockerfile's `alembic upgrade head` leaves it unset and still gets the
+# .ini's logging as before.
+if config.config_file_name is not None and config.attributes.get("configure_logger", True):
     fileConfig(config.config_file_name)
 
 target_metadata = ProjectBase.metadata
