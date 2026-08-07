@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthContext.jsx'
 function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
 
@@ -13,7 +13,7 @@ function LoginPage() {
     event.preventDefault()
     setError(null)
     try {
-      await login(username, password)
+      await login(email, password)
       navigate('/')
     } catch (err) {
       setError(err.message)
@@ -25,8 +25,8 @@ function LoginPage() {
       <h2>Log in</h2>
       <form onSubmit={handleSubmit}>
         <label>
-          Username
-          <input value={username} onChange={(e) => setUsername(e.target.value)} required />
+          Email
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </label>
         <label>
           Password

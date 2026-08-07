@@ -8,6 +8,7 @@ import {
   listProjects,
   listUsers,
   removeProjectMember,
+  updateUser,
 } from '../api/client.js'
 
 const GLOBAL_ROLES = ['standard', 'root_admin']
@@ -22,12 +23,22 @@ function AdminPage() {
   const [searchInput, setSearchInput] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [page, setPage] = useState(1)
-  const [newUsername, setNewUsername] = useState('')
+  const [newFirstName, setNewFirstName] = useState('')
+  const [newLastName, setNewLastName] = useState('')
   const [newEmail, setNewEmail] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [newGlobalRole, setNewGlobalRole] = useState('standard')
   const [pendingDeleteUserId, setPendingDeleteUserId] = useState(null)
   const [error, setError] = useState(null)
+
+  // Editing an existing user's details (not password -- that's the
+  // email-based reset flow) in place, same inline-edit pattern as
+  // ProcessTypesPage.jsx.
+  const [editingUserId, setEditingUserId] = useState(null)
+  const [editFirstName, setEditFirstName] = useState('')
+  const [editLastName, setEditLastName] = useState('')
+  const [editEmail, setEditEmail] = useState('')
+  const [editGlobalRole, setEditGlobalRole] = useState('standard')
 
   const [projects, setProjects] = useState([])
   const [selectedProjectId, setSelectedProjectId] = useState('')
@@ -107,11 +118,32 @@ function AdminPage() {
     event.preventDefault()
     setError(null)
     try {
-      await createUser(newUsername, newEmail, newPassword, newGlobalRole)
-      setNewUsername('')
+      await createUser(newFirstName, newLastName, newEmail, newPassword, newGlobalRole)
+      setNewFirstName('')
+      setNewLastName('')
       setNewEmail('')
       setNewPassword('')
       setNewGlobalRole('standard')
+      refreshUsers()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  function startEditingUser(user) {
+    setEditingUserId(user.user_id)
+    setEditFirstName(user.first_name)
+    setEditLastName(user.last_name)
+    setEditEmail(user.email)
+    setEditGlobalRole(user.global_role)
+    setError(null)
+  }
+
+  async function handleSaveEditUser(userId) {
+    setError(null)
+    try {
+      await updateUser(userId, editFirstName, editLastName, editEmail, editGlobalRole)
+      setEditingUserId(null)
       refreshUsers()
     } catch (err) {
       setError(err.message)
@@ -167,51 +199,96 @@ function AdminPage() {
       <h2>Users</h2>
       {error && <p className="form-error">{error}</p>}
 
-      <input
-        type="search"
-        placeholder="Search by username or email..."
-        value={searchInput}
-        onChange={(e) => setSearchInput(e.target.value)}
-        className="admin-user-search"
-      />
+      <label>
+        Search users{' '}
+        <input
+          type="search"
+          placeholder="Search by name or email..."
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          className="admin-user-search"
+        />
+      </label>
 
       <table>
         <thead>
           <tr>
-            <th>Username</th>
+            <th>First name</th>
+            <th>Last name</th>
             <th>Email</th>
             <th>Role</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          {users.map((user) => (
-            <tr key={user.user_id}>
-              <td>{user.username}</td>
-              <td>{user.email}</td>
-              <td>{user.global_role}</td>
-              <td>
-                {pendingDeleteUserId === user.user_id ? (
-                  <>
-                    <span>Delete this user?</span>{' '}
-                    <button type="button" onClick={() => handleDeleteUser(user.user_id)}>
-                      Yes
-                    </button>{' '}
-                    <button type="button" onClick={() => setPendingDeleteUserId(null)}>
-                      No
-                    </button>
-                  </>
-                ) : (
-                  <button type="button" onClick={() => setPendingDeleteUserId(user.user_id)}>
-                    Delete
+          {users.map((user) =>
+            editingUserId === user.user_id ? (
+              <tr key={user.user_id}>
+                <td>
+                  <input value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} />
+                </td>
+                <td>
+                  <input value={editLastName} onChange={(e) => setEditLastName(e.target.value)} />
+                </td>
+                <td>
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                  />
+                </td>
+                <td>
+                  <select value={editGlobalRole} onChange={(e) => setEditGlobalRole(e.target.value)}>
+                    {GLOBAL_ROLES.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td>
+                  <button type="button" onClick={() => handleSaveEditUser(user.user_id)}>
+                    Save
+                  </button>{' '}
+                  <button type="button" onClick={() => setEditingUserId(null)}>
+                    Cancel
                   </button>
-                )}
-              </td>
-            </tr>
-          ))}
+                </td>
+              </tr>
+            ) : (
+              <tr key={user.user_id}>
+                <td>{user.first_name}</td>
+                <td>{user.last_name}</td>
+                <td>{user.email}</td>
+                <td>{user.global_role}</td>
+                <td>
+                  {pendingDeleteUserId === user.user_id ? (
+                    <>
+                      <span>Delete this user?</span>{' '}
+                      <button type="button" onClick={() => handleDeleteUser(user.user_id)}>
+                        Yes
+                      </button>{' '}
+                      <button type="button" onClick={() => setPendingDeleteUserId(null)}>
+                        No
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button type="button" onClick={() => startEditingUser(user)}>
+                        Edit
+                      </button>{' '}
+                      <button type="button" onClick={() => setPendingDeleteUserId(user.user_id)}>
+                        Delete
+                      </button>
+                    </>
+                  )}
+                </td>
+              </tr>
+            ),
+          )}
           {users.length === 0 && (
             <tr>
-              <td colSpan={4}>No users found.</td>
+              <td colSpan={5}>No users found.</td>
             </tr>
           )}
         </tbody>
@@ -240,33 +317,54 @@ function AdminPage() {
       )}
 
       <form onSubmit={handleCreateUser} className="inline-form">
-        <input
-          placeholder="Username"
-          value={newUsername}
-          onChange={(e) => setNewUsername(e.target.value)}
-          required
-        />
-        <input
-          type="email"
-          placeholder="Email"
-          value={newEmail}
-          onChange={(e) => setNewEmail(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
-          required
-        />
-        <select value={newGlobalRole} onChange={(e) => setNewGlobalRole(e.target.value)}>
-          {GLOBAL_ROLES.map((role) => (
-            <option key={role} value={role}>
-              {role}
-            </option>
-          ))}
-        </select>
+        <label>
+          First name{' '}
+          <input
+            placeholder="First name"
+            value={newFirstName}
+            onChange={(e) => setNewFirstName(e.target.value)}
+            required
+          />
+        </label>
+        <label>
+          Last name{' '}
+          <input
+            placeholder="Last name"
+            value={newLastName}
+            onChange={(e) => setNewLastName(e.target.value)}
+            required
+          />
+        </label>
+        <label>
+          Email{' '}
+          <input
+            type="email"
+            placeholder="Email"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            required
+          />
+        </label>
+        <label>
+          Password{' '}
+          <input
+            type="password"
+            placeholder="Password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            required
+          />
+        </label>
+        <label>
+          Role{' '}
+          <select value={newGlobalRole} onChange={(e) => setNewGlobalRole(e.target.value)}>
+            {GLOBAL_ROLES.map((role) => (
+              <option key={role} value={role}>
+                {role}
+              </option>
+            ))}
+          </select>
+        </label>
         <button type="submit">Add user</button>
       </form>
 
@@ -293,7 +391,8 @@ function AdminPage() {
           <table>
             <thead>
               <tr>
-                <th>Username</th>
+                <th>First name</th>
+                <th>Last name</th>
                 <th>Email</th>
                 <th>Group</th>
                 <th></th>
@@ -304,7 +403,8 @@ function AdminPage() {
                 const key = `${member.group_role}:${member.user_id}`
                 return (
                   <tr key={key}>
-                    <td>{member.username}</td>
+                    <td>{member.first_name}</td>
+                    <td>{member.last_name}</td>
                     <td>{member.email}</td>
                     <td>{member.group_role}</td>
                     <td>
@@ -332,33 +432,42 @@ function AdminPage() {
               })}
               {members.length === 0 && (
                 <tr>
-                  <td colSpan={4}>No members yet.</td>
+                  <td colSpan={5}>No members yet.</td>
                 </tr>
               )}
             </tbody>
           </table>
 
           <form onSubmit={handleAddMember} className="inline-form">
-            <input
-              placeholder="Search users..."
-              value={memberSearchInput}
-              onChange={(e) => setMemberSearchInput(e.target.value)}
-            />
-            <select value={newMemberUserId} onChange={(e) => setNewMemberUserId(e.target.value)} required>
-              <option value="">Select user...</option>
-              {memberOptions.map((user) => (
-                <option key={user.user_id} value={user.user_id}>
-                  {user.username}
-                </option>
-              ))}
-            </select>
-            <select value={newMemberRole} onChange={(e) => setNewMemberRole(e.target.value)}>
-              {GROUP_ROLES.map((role) => (
-                <option key={role} value={role}>
-                  {role}
-                </option>
-              ))}
-            </select>
+            <label>
+              Search users{' '}
+              <input
+                placeholder="Search users..."
+                value={memberSearchInput}
+                onChange={(e) => setMemberSearchInput(e.target.value)}
+              />
+            </label>
+            <label>
+              User{' '}
+              <select value={newMemberUserId} onChange={(e) => setNewMemberUserId(e.target.value)} required>
+                <option value="">Select user...</option>
+                {memberOptions.map((user) => (
+                  <option key={user.user_id} value={user.user_id}>
+                    {user.first_name} {user.last_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Group{' '}
+              <select value={newMemberRole} onChange={(e) => setNewMemberRole(e.target.value)}>
+                {GROUP_ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button type="submit">Add to group</button>
           </form>
         </>

@@ -11,11 +11,12 @@
 # so `project_id` is a plain column, not a real ForeignKey, and every
 # query against this table must filter by project_id explicitly.
 #
-# `updated_by_username` is a plain string snapshot (the username at the
-# time) of whoever last created/changed the row, not a foreign key to
-# Users -- User is a central-database model, this table isn't, so
-# there's no way to enforce or live-join a real FK here (same reasoning
-# as ChainComponent.tolerance_value_id's provenance-only reference).
+# `updated_by_name` is a plain string snapshot (the user's first + last
+# name at the time) of whoever last created/changed the row, not a
+# foreign key to Users -- User is a central-database model, this table
+# isn't, so there's no way to enforce or live-join a real FK here (same
+# reasoning as ChainComponent.tolerance_value_id's provenance-only
+# reference).
 
 from datetime import datetime, timezone
 
@@ -34,7 +35,7 @@ class StandardTolerance(ProjectBase):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     # Symmetric +/- magnitude in mm, same shape as ChainComponent.tolerance_value.
     tolerance_value: Mapped[float] = mapped_column(Numeric(10, 3), nullable=False)
-    updated_by_username: Mapped[str] = mapped_column(String(50), nullable=False)
+    updated_by_name: Mapped[str] = mapped_column(String(201), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

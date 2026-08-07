@@ -15,7 +15,7 @@ from app.models.password_reset_token import PasswordResetToken
 from app.models.user import User
 from app.models.user_session import UserSession
 from app.schemas.group import GroupMemberOut, GroupMembershipCreate, GroupRole
-from app.schemas.user import UserCreate, UserListOut, UserOut
+from app.schemas.user import UserCreate, UserListOut, UserOut, UserUpdate
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -33,10 +33,14 @@ def list_users(
 ):
     query = db.query(User)
     if search:
-        # Case-insensitive substring match on username or email --
-        # matches the columns shown in the admin table.
+        # Case-insensitive substring match on first name, last name, or
+        # email -- matches the columns shown in the admin table.
         pattern = f"%{search}%"
-        query = query.filter((User.username.ilike(pattern)) | (User.email.ilike(pattern)))
+        query = query.filter(
+            (User.first_name.ilike(pattern))
+            | (User.last_name.ilike(pattern))
+            | (User.email.ilike(pattern))
+        )
 
     total = query.count()
     items = (
@@ -54,21 +58,49 @@ def create_user(
     db: Session = Depends(get_db),
     _: User = Depends(require_root_admin),
 ):
-    already_exists = (
-        db.query(User)
-        .filter((User.username == body.username) | (User.email == body.email))
-        .first()
-    )
+    already_exists = db.query(User).filter(User.email == body.email).first()
     if already_exists is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username or email already in use")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use")
 
     user = User(
-        username=body.username,
+        first_name=body.first_name,
+        last_name=body.last_name,
         email=body.email,
         password_hash=hash_password(body.password),
         global_role=body.global_role,
     )
     db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.put("/users/{user_id}", response_model=UserOut)
+def update_user(
+    user_id: int,
+    body: UserUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_root_admin),
+):
+    # Added alongside the username -> first/last name migration: existing
+    # users got backfilled with a placeholder surname (see that
+    # migration), and there was previously no way to fix a user's details
+    # after creation at all. Password isn't editable here -- that stays
+    # on the email-based reset-token flow (api/auth.py).
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    email_taken = (
+        db.query(User).filter(User.email == body.email, User.user_id != user_id).first()
+    )
+    if email_taken is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use")
+
+    user.first_name = body.first_name
+    user.last_name = body.last_name
+    user.email = body.email
+    user.global_role = body.global_role
     db.commit()
     db.refresh(user)
     return user
@@ -121,11 +153,17 @@ def list_project_members(
         .join(UserGroupProject, UserGroupProject.user_id == User.user_id)
         .join(Group, UserGroupProject.group_id == Group.group_id)
         .filter(UserGroupProject.project_id == project_id)
-        .order_by(User.username)
+        .order_by(User.last_name, User.first_name)
         .all()
     )
     return [
-        GroupMemberOut(user_id=user.user_id, username=user.username, email=user.email, group_role=role_by_group_name[group.group_name])
+        GroupMemberOut(
+            user_id=user.user_id,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            email=user.email,
+            group_role=role_by_group_name[group.group_name],
+        )
         for user, group in rows
         if group.group_name in role_by_group_name
     ]

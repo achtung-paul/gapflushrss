@@ -13,9 +13,10 @@ class GroupMembershipCreate(BaseModel):
 
 class GroupMemberOut(BaseModel):
     # Built by hand in api/admin.py, not model_validate'd off a row --
-    # username/email come from the joined User, group_role is derived
-    # from the joined Group's name (see _group_name in api/projects.py).
+    # first_name/last_name/email come from the joined User, group_role is
+    # derived from the joined Group's name (see _group_name in api/projects.py).
     user_id: int
-    username: str
+    first_name: str
+    last_name: str
     email: EmailStr
     group_role: GroupRole

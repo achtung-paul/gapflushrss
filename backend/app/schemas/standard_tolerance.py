@@ -29,5 +29,5 @@ class StandardToleranceOut(BaseModel):
     standard_tolerance_id: int
     name: str
     tolerance_value: float
-    updated_by_username: str
+    updated_by_name: str
     updated_at: datetime

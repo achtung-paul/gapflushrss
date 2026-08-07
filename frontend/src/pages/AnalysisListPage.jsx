@@ -35,9 +35,9 @@ function formatBand(nominal, upperLimit, lowerLimit) {
   }
   return (
     <>
-      {(n + u).toFixed(2)}
+      {(n + u).toFixed(2)} mm
       <br />
-      {(n - l).toFixed(2)}
+      {(n - l).toFixed(2)} mm
     </>
   )
 }
@@ -133,13 +133,13 @@ function EntryTableRow({ projectId, analysisId, analysisCode, entryType, entry, 
         {editing ? (
           <input
             type="number"
-            step="any"
+            step="0.1"
             value={nominalValue}
             onChange={(e) => setNominalValue(e.target.value)}
             required
           />
         ) : entry ? (
-          entry.nominal_value
+          `${entry.nominal_value} mm`
         ) : (
           '--'
         )}
@@ -150,7 +150,7 @@ function EntryTableRow({ projectId, analysisId, analysisCode, entryType, entry, 
           <>
             <input
               type="number"
-              step="any"
+              step="0.1"
               min="0"
               placeholder="+"
               value={upperLimit}
@@ -160,7 +160,7 @@ function EntryTableRow({ projectId, analysisId, analysisCode, entryType, entry, 
             <br />
             <input
               type="number"
-              step="any"
+              step="0.1"
               min="0"
               placeholder="-"
               value={lowerLimit}
@@ -170,8 +170,8 @@ function EntryTableRow({ projectId, analysisId, analysisCode, entryType, entry, 
           </>
         ) : entry ? (
           <>
-            +{entry.upper_limit}
-            <br />-{entry.lower_limit}
+            +{entry.upper_limit} mm
+            <br />-{entry.lower_limit} mm
           </>
         ) : (
           '--'
@@ -181,7 +181,7 @@ function EntryTableRow({ projectId, analysisId, analysisCode, entryType, entry, 
         const result = simulation?.results.find((r) => r.sigma_level === sigmaLevel)
         return (
           <td key={sigmaLevel} className={result ? RAG_CLASS[result.rag] : undefined}>
-            {result ? `±${result.spread.toFixed(2)}` : ''}
+            {result ? `±${result.spread.toFixed(2)} mm` : ''}
           </td>
         )
       })}
@@ -338,33 +338,54 @@ function AnalysisListPage() {
       {error && <p className="form-error">{error}</p>}
 
       <h3>Images</h3>
-      <ul>
-        {images.map((image) => (
-          <li key={image.image_id}>
-            <button type="button" onClick={() => setSelectedImageId(image.image_id)}>
-              {image.original_filename}
-            </button>{' '}
-            {pendingDeleteImageId === image.image_id ? (
-              <>
-                <span>Delete this image?</span>{' '}
-                <button type="button" onClick={() => handleDeleteImage(image.image_id)}>
-                  Yes
-                </button>{' '}
-                <button type="button" onClick={() => setPendingDeleteImageId(null)}>
-                  No
+      {images.length === 0 ? (
+        <p>No images uploaded yet.</p>
+      ) : (
+        <div className="analysis-gallery-grid">
+          {images.map((image) => (
+            <div key={image.image_id} className="analysis-gallery-thumb-wrap">
+              <img
+                src={imageFileUrl(projectId, image.image_id)}
+                alt={image.original_filename}
+                className={
+                  image.image_id === selectedImageId
+                    ? 'analysis-gallery-thumb image-thumb-selected'
+                    : 'analysis-gallery-thumb'
+                }
+                onClick={() => setSelectedImageId(image.image_id)}
+              />
+              {pendingDeleteImageId === image.image_id ? (
+                <div className="analysis-gallery-confirm">
+                  <p>Delete this image?</p>
+                  <div>
+                    <button type="button" onClick={() => handleDeleteImage(image.image_id)}>
+                      Yes
+                    </button>{' '}
+                    <button type="button" onClick={() => setPendingDeleteImageId(null)}>
+                      No
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="analysis-gallery-delete-btn"
+                  title="Delete image"
+                  onClick={() => setPendingDeleteImageId(image.image_id)}
+                >
+                  &times;
                 </button>
-              </>
-            ) : (
-              <button type="button" onClick={() => setPendingDeleteImageId(image.image_id)}>
-                Delete
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <form onSubmit={handleUpload} className="inline-form">
-        <input type="file" name="file" accept="image/*" required />
+        <label>
+          Image file{' '}
+          <input type="file" name="file" accept="image/*" required />
+        </label>
         <button type="submit">Upload image</button>
       </form>
 
@@ -394,12 +415,12 @@ function AnalysisListPage() {
               <th>Analysis</th>
               <th>Gap/Flush</th>
               <th>Direction</th>
-              <th>Nominal</th>
-              <th>Max/Min</th>
-              <th>Tolerance</th>
-              <th>3σ</th>
-              <th>4σ</th>
-              <th>5σ</th>
+              <th>Nominal (mm)</th>
+              <th>Max/Min (mm)</th>
+              <th>Tolerance (mm)</th>
+              <th>3σ (mm)</th>
+              <th>4σ (mm)</th>
+              <th>5σ (mm)</th>
               <th></th>
               <th></th>
             </tr>

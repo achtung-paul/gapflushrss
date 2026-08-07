@@ -21,8 +21,8 @@ async function apiFetch(path, options = {}) {
   return response.json()
 }
 
-export const login = (username, password) =>
-  apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) })
+export const login = (email, password) =>
+  apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
 
 export const logout = () => apiFetch('/auth/logout', { method: 'POST' })
 
@@ -44,10 +44,27 @@ export const listUsers = (search, page) => {
   return apiFetch(`/admin/users?${params.toString()}`)
 }
 
-export const createUser = (username, email, password, globalRole) =>
+export const createUser = (firstName, lastName, email, password, globalRole) =>
   apiFetch('/admin/users', {
     method: 'POST',
-    body: JSON.stringify({ username, email, password, global_role: globalRole }),
+    body: JSON.stringify({
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      password,
+      global_role: globalRole,
+    }),
+  })
+
+export const updateUser = (userId, firstName, lastName, email, globalRole) =>
+  apiFetch(`/admin/users/${userId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      global_role: globalRole,
+    }),
   })
 
 export const deleteUser = (userId) => apiFetch(`/admin/users/${userId}`, { method: 'DELETE' })

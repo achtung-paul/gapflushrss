@@ -1,11 +1,13 @@
 # Project creation, listing, rename, and delete. Only a root_admin can
-# do any of these -- there's no "manager of this project" to check for
-# create (the project, and its groups, don't exist yet), and
+# create/rename/delete -- there's no "manager of this project" to check
+# for create (the project, and its groups, don't exist yet), and
 # rename/delete are treated the same way since they're structural
 # actions on the project itself, not on assets within it (which project
 # managers already handle elsewhere). Reading the list is open to any
-# logged-in user -- see the note in api/commodities.py about read
-# visibility.
+# logged-in user, but only shows projects they're actually a member of
+# (root_admin sees everything) -- see api/deps.py's get_project for the
+# matching 404-not-403 treatment of a project a user isn't a member of,
+# which is what actually hides its existence from direct navigation too.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -16,12 +18,12 @@ from app.db.session import get_db
 from app.models.analysis import Analysis
 from app.models.analysis_image import AnalysisImage
 from app.models.commodity import Commodity
-from app.models.group import CONTRIBUTORS, MANAGERS, VIEWERS, Group
+from app.models.group import CONTRIBUTORS, MANAGERS, VIEWERS, Group, UserGroupProject
 from app.models.image import Image
 from app.models.minio_service import MinioService
 from app.models.postgres_service import PostgresService
 from app.models.project import Project
-from app.models.user import User
+from app.models.user import GlobalRole, User
 from app.schemas.project import ProjectCreate, ProjectOut, ProjectUpdate
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -42,16 +44,56 @@ def _group_name(project_name: str, role_name: str) -> str:
     return f"Project-{project_name}-{role_name}"
 
 
+# Root admin access doesn't come from group membership, so it's reported
+# as its own role rather than whichever group they might incidentally be
+# in. Everyone else's role is whichever of the three groups they belong
+# to -- highest-privilege one wins if they're somehow in more than one.
+def _resolve_my_role(db: Session, user: User, project: Project) -> str:
+    if user.global_role == GlobalRole.root_admin:
+        return "Root Admin"
+    for role_name, display_name in ((MANAGERS, "Manager"), (CONTRIBUTORS, "Contributor"), (VIEWERS, "Viewer")):
+        group = db.query(Group).filter(Group.group_name == _group_name(project.project_name, role_name)).first()
+        if group is None:
+            continue
+        membership = (
+            db.query(UserGroupProject)
+            .filter_by(user_id=user.user_id, project_id=project.project_id, group_id=group.group_id)
+            .first()
+        )
+        if membership is not None:
+            return display_name
+    return "Viewer"  # shouldn't happen -- list_projects only returns projects the user is a member of
+
+
+def _project_out(db: Session, project: Project, current_user: User) -> ProjectOut:
+    return ProjectOut(
+        project_id=project.project_id,
+        project_name=project.project_name,
+        postgres_service_id=project.postgres_service_id,
+        minio_service_id=project.minio_service_id,
+        my_role=_resolve_my_role(db, current_user, project),
+    )
+
+
 @router.get("", response_model=list[ProjectOut])
-def list_projects(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return db.query(Project).order_by(Project.project_name).all()
+def list_projects(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    query = db.query(Project)
+    if current_user.global_role != GlobalRole.root_admin:
+        # Membership in any of a project's three groups is enough to see
+        # it in the list -- same "any group counts" rule as
+        # api/deps.py's user_can_view_project.
+        query = query.join(UserGroupProject, UserGroupProject.project_id == Project.project_id).filter(
+            UserGroupProject.user_id == current_user.user_id
+        )
+    projects = query.order_by(Project.project_name).distinct().all()
+    return [_project_out(db, project, current_user) for project in projects]
 
 
 @router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
 def create_project(
     body: ProjectCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_root_admin),
 ):
     existing = db.query(Project).filter(Project.project_name == body.project_name).first()
     if existing is not None:
@@ -86,7 +128,7 @@ def create_project(
 
     db.commit()
     db.refresh(project)
-    return project
+    return _project_out(db, project, current_user)
 
 
 @router.put("/{project_id}", response_model=ProjectOut)
@@ -94,7 +136,7 @@ def update_project(
     project_id: int,
     body: ProjectUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_root_admin),
 ):
     project = _get_project_or_404(db, project_id)
 
@@ -116,7 +158,7 @@ def update_project(
 
     db.commit()
     db.refresh(project)
-    return project
+    return _project_out(db, project, current_user)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

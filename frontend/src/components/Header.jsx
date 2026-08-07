@@ -22,7 +22,9 @@ function Header() {
           <>
             <Link to="/projects">Projects</Link>
             {user.global_role === 'root_admin' && <Link to="/admin">Admin</Link>}
-            <span>{user.username}</span>
+            <span>
+              {user.last_name}, {user.first_name}
+            </span>
             <button onClick={handleLogout}>Log out</button>
           </>
         ) : (

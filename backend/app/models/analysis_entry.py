@@ -15,7 +15,7 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Numeric, UniqueConstraint
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.project_base import ProjectBase
@@ -57,3 +57,10 @@ class AnalysisEntry(ProjectBase):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+
+    # Plain name snapshots, not FKs -- this table lives on a per-project
+    # Postgres service, while User rows live in the central database, so
+    # a real foreign key/join across services isn't possible (same
+    # reasoning as StandardTolerance.updated_by_name).
+    created_by_name: Mapped[str] = mapped_column(String(201), nullable=False)
+    updated_by_name: Mapped[str] = mapped_column(String(201), nullable=False)

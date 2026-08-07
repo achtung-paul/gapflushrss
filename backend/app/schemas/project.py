@@ -24,3 +24,8 @@ class ProjectOut(BaseModel):
     project_name: str
     postgres_service_id: int
     minio_service_id: int
+    # The calling user's role on this specific project ("Root Admin",
+    # "Manager", "Contributor", or "Viewer") -- built by hand per-request
+    # in api/projects.py, not a column on Project, since it depends on
+    # who's asking.
+    my_role: str

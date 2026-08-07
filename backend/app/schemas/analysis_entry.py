@@ -32,3 +32,5 @@ class AnalysisEntryOut(BaseModel):
     upper_limit: float
     lower_limit: float
     direction: Direction | None
+    created_by_name: str
+    updated_by_name: str

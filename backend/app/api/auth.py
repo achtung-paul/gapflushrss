@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 
 # Shown to the client for both login failures and password-reset requests.
 # Not saying *why* it failed stops an attacker using the error message to
-# find out which usernames/emails exist in the system.
-GENERIC_LOGIN_ERROR = "Invalid username or password"
+# find out which emails exist in the system.
+GENERIC_LOGIN_ERROR = "Invalid email or password"
 GENERIC_RESET_REQUESTED_MESSAGE = "If that email is registered, a reset link has been sent."
 PASSWORD_EXPIRED_ERROR = "Your password has expired. Use 'Forgot your password?' to reset it by email."
 
@@ -37,7 +37,7 @@ PASSWORD_EXPIRY = timedelta(days=30)
 
 @router.post("/login", response_model=UserOut)
 def login(body: LoginRequest, response: Response, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == body.username).first()
+    user = db.query(User).filter(User.email == body.email).first()
     if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=GENERIC_LOGIN_ERROR)
 

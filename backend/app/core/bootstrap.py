@@ -2,8 +2,9 @@
 #
 # Without this, nobody could ever log in: user accounts are only created
 # by a root_admin (via POST /admin/users), but creating the very first
-# one needs a root_admin to already exist. Setting ROOT_ADMIN_USERNAME /
-# ROOT_ADMIN_EMAIL / ROOT_ADMIN_PASSWORD breaks that chicken-and-egg problem.
+# one needs a root_admin to already exist. Setting ROOT_ADMIN_FIRST_NAME /
+# ROOT_ADMIN_LAST_NAME / ROOT_ADMIN_EMAIL / ROOT_ADMIN_PASSWORD breaks
+# that chicken-and-egg problem.
 
 import logging
 
@@ -20,7 +21,12 @@ logger = logging.getLogger(__name__)
 
 
 def create_root_admin_if_needed(db: Session) -> None:
-    if not (settings.root_admin_username and settings.root_admin_email and settings.root_admin_password):
+    if not (
+        settings.root_admin_first_name
+        and settings.root_admin_last_name
+        and settings.root_admin_email
+        and settings.root_admin_password
+    ):
         return
 
     root_admin_exists = (
@@ -31,14 +37,15 @@ def create_root_admin_if_needed(db: Session) -> None:
 
     db.add(
         User(
-            username=settings.root_admin_username,
+            first_name=settings.root_admin_first_name,
+            last_name=settings.root_admin_last_name,
             email=settings.root_admin_email,
             password_hash=hash_password(settings.root_admin_password),
             global_role=GlobalRole.root_admin,
         )
     )
     db.commit()
-    logger.info("Created initial root_admin user %r", settings.root_admin_username)
+    logger.info("Created initial root_admin user %r", settings.root_admin_email)
 
 
 def create_default_process_types_if_needed(db: Session) -> None:

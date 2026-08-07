@@ -104,7 +104,7 @@ function StandardTolerancesPage() {
                       onChange={(e) => setEditingToleranceValue(e.target.value)}
                     />
                   </td>
-                  <td>{standard.updated_by_username}</td>
+                  <td>{standard.updated_by_name}</td>
                   <td>
                     <button onClick={() => saveEdit(standard.standard_tolerance_id)}>Save</button>{' '}
                     <button onClick={() => setEditingId(null)}>Cancel</button>
@@ -114,7 +114,7 @@ function StandardTolerancesPage() {
                 <>
                   <td>{standard.name}</td>
                   <td>±{standard.tolerance_value} mm</td>
-                  <td>{standard.updated_by_username}</td>
+                  <td>{standard.updated_by_name}</td>
                   <td>
                     {pendingDeleteId === standard.standard_tolerance_id ? (
                       <>

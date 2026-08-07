@@ -330,6 +330,10 @@ td {
   height: auto;
 }
 
+.image-thumb-selected {
+  outline: 3px solid #2e7d32;
+}
+
 .analysis-table {
   border-collapse: collapse;
 }
@@ -426,6 +430,13 @@ td {
 .matrix-cell {
   display: flex;
   gap: 0.25rem;
+}
+
+.matrix-cell label {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-size: 0.75rem;
 }
 
 .matrix-cell input {

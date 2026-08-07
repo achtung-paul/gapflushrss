@@ -37,8 +37,9 @@ class Settings(BaseSettings):
 
     # First-run bootstrap: if no root_admin user exists yet, one is
     # created from these on startup (see app/main.py). Only takes effect
-    # when all three are set.
-    root_admin_username: str = ""
+    # when all four are set.
+    root_admin_first_name: str = ""
+    root_admin_last_name: str = ""
     root_admin_email: str = ""
     root_admin_password: str = ""
 

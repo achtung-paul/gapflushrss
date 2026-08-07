@@ -1,5 +1,7 @@
-# The Users table from PROJECT_BRIEF.md: Users(user_id, username, global_role).
-# We also store email (needed for password-reset emails) and password_hash.
+# The Users table. Login is by email + password (see api/auth.py) --
+# there's no separate username. first_name/last_name are what's shown
+# everywhere a person needs to be identified (header, admin user list,
+# project member list, "last modified by" columns) instead.
 #
 # global_role only distinguishes "root_admin" (bypasses all project-scope
 # checks, per the brief) from "standard". Everything else -- what a user
@@ -25,7 +27,8 @@ class User(Base):
     __tablename__ = "users"
 
     user_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    first_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     global_role: Mapped[GlobalRole] = mapped_column(

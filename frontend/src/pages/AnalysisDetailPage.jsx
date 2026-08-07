@@ -65,12 +65,15 @@ function EntrySection({ projectId, title, entry, onCreate, onUpdate }) {
       <div>
         <h3>{heading}</h3>
         <p>
-          {displayCode}: nominal {entry.nominal_value}, band {entry.nominal_value - entry.lower_limit}
+          {displayCode}: nominal {entry.nominal_value} mm, band {entry.nominal_value - entry.lower_limit} mm
           {' to '}
-          {entry.nominal_value + entry.upper_limit} (+{entry.upper_limit} / -{entry.lower_limit}){' '}
+          {entry.nominal_value + entry.upper_limit} mm (+{entry.upper_limit} mm / -{entry.lower_limit} mm){' '}
           <button type="button" onClick={startEditing}>
             Edit
           </button>
+        </p>
+        <p className="form-hint">
+          Created by {entry.created_by_name} &middot; Last modified by {entry.updated_by_name}
         </p>
         <ToleranceChainSection
           projectId={projectId}
@@ -88,39 +91,51 @@ function EntrySection({ projectId, title, entry, onCreate, onUpdate }) {
       <h3>{heading}</h3>
       {!entry && <p>Not attached yet.</p>}
       <form onSubmit={handleSubmit} className="inline-form">
-        <select value={direction} onChange={(e) => setDirection(e.target.value)}>
-          <option value="">Direction...</option>
-          <option value="X">X</option>
-          <option value="Y">Y</option>
-          <option value="Z">Z</option>
-          <option value="OTHER">Other</option>
-        </select>
-        <input
-          type="number"
-          step="any"
-          placeholder="Nominal"
-          value={nominalValue}
-          onChange={(e) => setNominalValue(e.target.value)}
-          required
-        />
-        <input
-          type="number"
-          step="any"
-          min="0"
-          placeholder="Upper limit (+)"
-          value={upperLimit}
-          onChange={(e) => setUpperLimit(e.target.value)}
-          required
-        />
-        <input
-          type="number"
-          step="any"
-          min="0"
-          placeholder="Lower limit (-)"
-          value={lowerLimit}
-          onChange={(e) => setLowerLimit(e.target.value)}
-          required
-        />
+        <label>
+          Direction{' '}
+          <select value={direction} onChange={(e) => setDirection(e.target.value)}>
+            <option value="">Direction...</option>
+            <option value="X">X</option>
+            <option value="Y">Y</option>
+            <option value="Z">Z</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </label>
+        <label>
+          Nominal (mm){' '}
+          <input
+            type="number"
+            step="0.1"
+            placeholder="Nominal"
+            value={nominalValue}
+            onChange={(e) => setNominalValue(e.target.value)}
+            required
+          />
+        </label>
+        <label>
+          Upper limit + (mm){' '}
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            placeholder="Upper limit (+)"
+            value={upperLimit}
+            onChange={(e) => setUpperLimit(e.target.value)}
+            required
+          />
+        </label>
+        <label>
+          Lower limit - (mm){' '}
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            placeholder="Lower limit (-)"
+            value={lowerLimit}
+            onChange={(e) => setLowerLimit(e.target.value)}
+            required
+          />
+        </label>
         <button type="submit">{entry ? 'Save' : `Add ${title}`}</button>
         {entry && (
           <button type="button" onClick={() => setEditing(false)}>

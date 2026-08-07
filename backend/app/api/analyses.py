@@ -69,6 +69,8 @@ def _entry_out(analysis: Analysis, entry: AnalysisEntry) -> AnalysisEntryOut:
         upper_limit=entry.upper_limit,
         lower_limit=entry.lower_limit,
         direction=entry.direction,
+        created_by_name=entry.created_by_name,
+        updated_by_name=entry.updated_by_name,
     )
 
 
@@ -149,6 +151,7 @@ def _create_entry(
             detail=f"{entry_type.value} already attached to this analysis",
         )
 
+    actor_name = f"{current_user.first_name} {current_user.last_name}"
     entry = AnalysisEntry(
         analysis_id=analysis_id,
         entry_type=entry_type,
@@ -156,6 +159,8 @@ def _create_entry(
         upper_limit=body.upper_limit,
         lower_limit=body.lower_limit,
         direction=body.direction,
+        created_by_name=actor_name,
+        updated_by_name=actor_name,
     )
     project_db.add(entry)
     project_db.commit()
@@ -218,6 +223,7 @@ def _update_entry(
     entry.upper_limit = body.upper_limit
     entry.lower_limit = body.lower_limit
     entry.direction = body.direction
+    entry.updated_by_name = f"{current_user.first_name} {current_user.last_name}"
     project_db.commit()
     project_db.refresh(entry)
     return _entry_out(analysis, entry)
