@@ -53,7 +53,6 @@ def upgrade():
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(['commodity_id'], ['commodities.commodity_id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('analysis_id'),
-        sa.UniqueConstraint('analysis_code'),
         sa.UniqueConstraint('commodity_id', 'sequence_number'),
     )
     op.create_index(op.f('ix_analyses_commodity_id'), 'analyses', ['commodity_id'], unique=False)

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core import service_db
 from app.core.config import settings
 from app.db.session import get_db
-from app.models.group import MANAGERS, Group, UserGroupProject
+from app.models.group import CONTRIBUTORS, MANAGERS, Group, UserGroupProject
 from app.models.minio_service import MinioService
 from app.models.postgres_service import PostgresService
 from app.models.project import Project
@@ -41,9 +41,7 @@ def require_root_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
-def user_can_manage_project(db: Session, user: User, project_id: int) -> bool:
-    # A "Project Admin" (per the brief) isn't a role stored on the user --
-    # it's just being a member of that specific project's Managers group.
+def _user_is_in_project_group(db: Session, user: User, project_id: int, role_name: str) -> bool:
     if user.global_role == GlobalRole.root_admin:
         return True
 
@@ -51,17 +49,37 @@ def user_can_manage_project(db: Session, user: User, project_id: int) -> bool:
     if project is None:
         return False
 
-    managers_group_name = f"Project-{project.project_name}-{MANAGERS}"
-    managers_group = db.query(Group).filter(Group.group_name == managers_group_name).first()
-    if managers_group is None:
+    group_name = f"Project-{project.project_name}-{role_name}"
+    group = db.query(Group).filter(Group.group_name == group_name).first()
+    if group is None:
         return False
 
     membership = (
         db.query(UserGroupProject)
-        .filter_by(user_id=user.user_id, project_id=project_id, group_id=managers_group.group_id)
+        .filter_by(user_id=user.user_id, project_id=project_id, group_id=group.group_id)
         .first()
     )
     return membership is not None
+
+
+def user_can_manage_project(db: Session, user: User, project_id: int) -> bool:
+    # A "Project Admin" (per the brief) isn't a role stored on the user --
+    # it's just being a member of that specific project's Managers group.
+    # Managers can read/write/delete (per the brief's Managers/Contributors/
+    # Viewers table) -- this is the delete-and-structural-changes check;
+    # see user_can_edit_project for the create/update check.
+    return _user_is_in_project_group(db, user, project_id, MANAGERS)
+
+
+def user_can_edit_project(db: Session, user: User, project_id: int) -> bool:
+    # Contributors can read/write but not delete (per the brief) -- so
+    # anywhere a Manager can create/update, a Contributor can too. Only
+    # delete routes (and Commodity creation, which the brief explicitly
+    # reserves for "Site Admins or Project Admins") should use
+    # user_can_manage_project/require_project_manager instead of this.
+    return user_can_manage_project(db, user, project_id) or _user_is_in_project_group(
+        db, user, project_id, CONTRIBUTORS
+    )
 
 
 def require_project_manager(db: Session, user: User, project_id: int) -> None:
@@ -69,6 +87,14 @@ def require_project_manager(db: Session, user: User, project_id: int) -> None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Must be root admin or a manager of this project",
+        )
+
+
+def require_project_editor(db: Session, user: User, project_id: int) -> None:
+    if not user_can_edit_project(db, user, project_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Must be root admin, a manager, or a contributor of this project",
         )
 
 

@@ -11,7 +11,13 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.analyses import _get_analysis_or_404
-from app.api.deps import get_current_user, get_project_db, get_project_minio_service, require_project_manager
+from app.api.deps import (
+    get_current_user,
+    get_project_db,
+    get_project_minio_service,
+    require_project_editor,
+    require_project_manager,
+)
 from app.core import service_storage
 from app.db.session import get_db
 from app.models.analysis_image import AnalysisImage
@@ -20,6 +26,13 @@ from app.models.user import User
 from app.schemas.analysis_image import AnalysisImageOut
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["analysis-images"])
+
+
+def _require_editor_for_analysis(
+    db: Session, project_db: Session, user: User, project_id: int, analysis_id: int
+) -> None:
+    require_project_editor(db, user, project_id)
+    _get_analysis_or_404(project_db, project_id, analysis_id)
 
 
 def _require_manager_for_analysis(
@@ -67,7 +80,7 @@ async def upload_analysis_image(
     current_user: User = Depends(get_current_user),
     file: UploadFile = File(...),
 ):
-    _require_manager_for_analysis(db, project_db, current_user, project_id, analysis_id)
+    _require_editor_for_analysis(db, project_db, current_user, project_id, analysis_id)
 
     if not (file.content_type or "").startswith("image/"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be an image")

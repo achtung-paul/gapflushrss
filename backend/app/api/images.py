@@ -17,7 +17,13 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.analyses import _get_analysis_or_404, _get_commodity_or_404, next_analysis_sequence_number
-from app.api.deps import get_current_user, get_project_db, get_project_minio_service, require_project_manager
+from app.api.deps import (
+    get_current_user,
+    get_project_db,
+    get_project_minio_service,
+    require_project_editor,
+    require_project_manager,
+)
 from app.core import service_storage
 from app.db.session import get_db
 from app.models.analysis import Analysis
@@ -30,6 +36,13 @@ from app.schemas.image import ImageOut
 from app.schemas.marker import MarkerCreate, MarkerOut, Point
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["images"])
+
+
+def _require_editor_for_commodity(
+    db: Session, project_db: Session, user: User, project_id: int, commodity_id: int
+) -> None:
+    require_project_editor(db, user, project_id)
+    _get_commodity_or_404(project_db, project_id, commodity_id)
 
 
 def _require_manager_for_commodity(
@@ -90,7 +103,7 @@ async def upload_commodity_image(
     current_user: User = Depends(get_current_user),
     file: UploadFile = File(...),
 ):
-    _require_manager_for_commodity(db, project_db, current_user, project_id, commodity_id)
+    _require_editor_for_commodity(db, project_db, current_user, project_id, commodity_id)
 
     if not (file.content_type or "").startswith("image/"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be an image")
@@ -182,7 +195,7 @@ def create_marker(
     current_user: User = Depends(get_current_user),
 ):
     image = _get_image_or_404(project_db, project_id, image_id)
-    _require_manager_for_commodity(db, project_db, current_user, project_id, image.commodity_id)
+    _require_editor_for_commodity(db, project_db, current_user, project_id, image.commodity_id)
     commodity = project_db.get(Commodity, image.commodity_id)
 
     next_sequence = next_analysis_sequence_number(project_db, commodity.commodity_id)

@@ -4,6 +4,16 @@
 # "what's the next number for this commodity" is a simple integer query,
 # and the unique constraint on it (per commodity) catches any race
 # between two analyses being created for the same commodity at once.
+#
+# analysis_code is NOT globally unique (it was, until this table became
+# project-scoped -- see models/commodity.py). Since Commodity.code is
+# only unique per-project, and two different projects can be colocated
+# on the same physical Postgres service, two unrelated projects can each
+# have their own "IP" commodity and both want "IP-001" as their first
+# analysis's code -- that's fine, they're different rows in different
+# projects that happen to render the same human-facing label. The
+# (commodity_id, sequence_number) constraint below is what actually
+# guarantees no duplicate within one commodity.
 
 from datetime import datetime, timezone
 
@@ -22,7 +32,7 @@ class Analysis(ProjectBase):
         ForeignKey("commodities.commodity_id", ondelete="CASCADE"), nullable=False, index=True
     )
     sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
-    analysis_code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    analysis_code: Mapped[str] = mapped_column(String(20), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

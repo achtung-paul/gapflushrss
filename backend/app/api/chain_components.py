@@ -8,7 +8,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.analyses import _get_entry_or_404
-from app.api.deps import get_current_user, get_project_db, require_project_manager
+from app.api.deps import get_current_user, get_project_db, require_project_editor, require_project_manager
 from app.core.simulation import run_simulation
 from app.db.session import get_db
 from app.models.analysis_entry import AnalysisEntry
@@ -17,6 +17,13 @@ from app.models.user import User
 from app.schemas.chain_component import ChainComponentCreate, ChainComponentOut, SimulationResultOut
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["chain-components"])
+
+
+def _require_editor_for_entry(
+    db: Session, project_db: Session, user: User, project_id: int, entry_id: int
+) -> AnalysisEntry:
+    require_project_editor(db, user, project_id)
+    return _get_entry_or_404(project_db, project_id, entry_id)
 
 
 def _require_manager_for_entry(
@@ -55,7 +62,7 @@ def create_chain_component(
     project_db: Session = Depends(get_project_db),
     current_user: User = Depends(get_current_user),
 ):
-    _require_manager_for_entry(db, project_db, current_user, project_id, entry_id)
+    _require_editor_for_entry(db, project_db, current_user, project_id, entry_id)
 
     highest_sequence = (
         project_db.query(func.max(ChainComponent.sequence_number))

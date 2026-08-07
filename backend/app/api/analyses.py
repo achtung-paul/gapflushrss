@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, get_project_db, require_project_manager
+from app.api.deps import get_current_user, get_project_db, require_project_editor, require_project_manager
 from app.db.session import get_db
 from app.models.analysis import Analysis
 from app.models.analysis_entry import AnalysisEntry, EntryType
@@ -135,7 +135,7 @@ def _create_entry(
     project_db: Session,
     current_user: User,
 ) -> AnalysisEntryOut:
-    require_project_manager(db, current_user, project_id)
+    require_project_editor(db, current_user, project_id)
     analysis = _get_analysis_or_404(project_db, project_id, analysis_id)
 
     already_exists = (
@@ -204,7 +204,7 @@ def _update_entry(
     project_db: Session,
     current_user: User,
 ) -> AnalysisEntryOut:
-    require_project_manager(db, current_user, project_id)
+    require_project_editor(db, current_user, project_id)
     analysis = _get_analysis_or_404(project_db, project_id, analysis_id)
 
     entry = project_db.query(AnalysisEntry).filter_by(analysis_id=analysis_id, entry_type=entry_type).first()
