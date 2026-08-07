@@ -196,6 +196,8 @@ function AdminPage() {
         <Link to="/admin/minio-services">MinIO services</Link>
         {' | '}
         <Link to="/admin/logs">Service logs</Link>
+        {' | '}
+        <Link to="/admin/banner">Site banner</Link>
       </p>
 
       <h2>Users</h2>

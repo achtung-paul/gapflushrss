@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 import Header from './components/Header.jsx'
+import Banner from './components/Banner.jsx'
 import ProtectedRoute from './auth/ProtectedRoute.jsx'
 import Home from './pages/Home.jsx'
 import LoginPage from './pages/LoginPage.jsx'
@@ -16,6 +17,7 @@ import PostgresServicesPage from './pages/PostgresServicesPage.jsx'
 import MinioServicesPage from './pages/MinioServicesPage.jsx'
 import StandardTolerancesPage from './pages/StandardTolerancesPage.jsx'
 import LogsPage from './pages/LogsPage.jsx'
+import BannerPage from './pages/BannerPage.jsx'
 
 // Nav: Project List -> Commodity List -> Analysis List -> Gap/Flush.
 // A dropdown-based header nav (per the brief's UX section) is Phase 8;
@@ -24,6 +26,9 @@ function App() {
   return (
     <>
       <Header />
+      {/* Above <main> so it sits over every page. Renders nothing unless
+          a banner is active and this user hasn't dismissed it. */}
+      <Banner />
       <main>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -107,6 +112,14 @@ function App() {
             element={
               <ProtectedRoute requireRootAdmin>
                 <MinioServicesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/banner"
+            element={
+              <ProtectedRoute requireRootAdmin>
+                <BannerPage />
               </ProtectedRoute>
             }
           />

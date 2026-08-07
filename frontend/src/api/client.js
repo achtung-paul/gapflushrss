@@ -92,6 +92,14 @@ export const updateUser = (userId, firstName, lastName, email, globalRole) =>
 
 export const deleteUser = (userId) => apiFetch(`/admin/users/${userId}`, { method: 'DELETE' })
 
+export const getBanner = () => apiFetch('/banner')
+
+export const updateBanner = (message, colour, isActive) =>
+  apiFetch('/admin/banner', {
+    method: 'PUT',
+    body: JSON.stringify({ message, colour, is_active: isActive }),
+  })
+
 export const listLogs = (service, level, limit) => {
   const params = new URLSearchParams()
   if (service) params.set('service', service)

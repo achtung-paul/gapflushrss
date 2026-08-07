@@ -17,6 +17,7 @@ from app.api import (
     analyses,
     analysis_images,
     auth,
+    banner,
     chain_components,
     commodities,
     health,
@@ -151,6 +152,7 @@ app.include_router(images.router)
 app.include_router(analysis_images.router)
 app.include_router(chain_components.router)
 app.include_router(standard_tolerances.router)
+app.include_router(banner.router)
 app.include_router(logs.router)
 app.include_router(internal_logs.router)
 
