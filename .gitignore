@@ -25,3 +25,8 @@ dist/
 # Docker volumes data (if ever bind-mounted locally)
 pgdata/
 miniodata/
+
+# Code review write-ups -- kept local, not committed. They enumerate
+# unfixed weaknesses (see the "still open" sections), so they shouldn't
+# live in the repo. Glob covers future dated reviews too.
+codereview*.md
