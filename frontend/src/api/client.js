@@ -3,6 +3,30 @@
 // works both in the Docker deployment and if you ever add a dev proxy.
 const API_BASE = '/api'
 
+// Turn a failed response into the best message we can find. Most errors
+// are FastAPI's {"detail": "..."} JSON, but not all of them reach the
+// backend at all -- nginx rejects an over-sized upload itself and returns
+// an HTML error page, which would otherwise surface as a bare
+// "Request failed (413)". Falling back to the status text keeps those
+// readable.
+async function errorMessage(response) {
+  const raw = await response.text().catch(() => '')
+  try {
+    const detail = JSON.parse(raw).detail
+    if (detail) {
+      // Pydantic validation errors come back as an array of objects
+      // rather than a string -- surface the messages, not "[object Object]".
+      return Array.isArray(detail) ? detail.map((d) => d.msg || String(d)).join('; ') : detail
+    }
+  } catch {
+    // Not JSON (e.g. nginx's HTML 413 page) -- fall through.
+  }
+  if (response.status === 413) {
+    return 'That file is too large to upload.'
+  }
+  return `Request failed (${response.status} ${response.statusText})`.trim()
+}
+
 async function apiFetch(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     // Send/receive the session cookie.
@@ -12,8 +36,7 @@ async function apiFetch(path, options = {}) {
   })
 
   if (!response.ok) {
-    const body = await response.json().catch(() => ({}))
-    throw new Error(body.detail || `Request failed (${response.status})`)
+    throw new Error(await errorMessage(response))
   }
   if (response.status === 204) {
     return null
@@ -176,8 +199,7 @@ export async function uploadAnalysisImage(projectId, analysisId, file) {
     body: formData,
   })
   if (!response.ok) {
-    const body = await response.json().catch(() => ({}))
-    throw new Error(body.detail || `Request failed (${response.status})`)
+    throw new Error(await errorMessage(response))
   }
   return response.json()
 }
@@ -258,8 +280,7 @@ export async function uploadImage(projectId, commodityId, file) {
     body: formData,
   })
   if (!response.ok) {
-    const body = await response.json().catch(() => ({}))
-    throw new Error(body.detail || `Request failed (${response.status})`)
+    throw new Error(await errorMessage(response))
   }
   return response.json()
 }

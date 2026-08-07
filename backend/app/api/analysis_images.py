@@ -4,7 +4,6 @@
 # involved, just upload/view/delete.
 
 import uuid
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
@@ -19,6 +18,12 @@ from app.api.deps import (
     require_project_manager,
 )
 from app.core import service_storage
+from app.core.uploads import (
+    EXTENSION_BY_TYPE,
+    read_and_validate_upload,
+    safe_media_type,
+    stream_and_release,
+)
 from app.db.session import get_db
 from app.models.analysis_image import AnalysisImage
 from app.models.minio_service import MinioService
@@ -82,32 +87,22 @@ async def upload_analysis_image(
 ):
     _require_editor_for_analysis(db, project_db, current_user, project_id, analysis_id)
 
-    if not (file.content_type or "").startswith("image/"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be an image")
-
-    data = await file.read()
-    extension = Path(file.filename or "").suffix
-    object_key = f"analyses/{analysis_id}/{uuid.uuid4()}{extension}"
-    service_storage.upload_image(minio_service, object_key, data, file.content_type)
+    # content_type here is what the file actually is, not what the client
+    # claimed -- see core/uploads.py.
+    data, content_type = await read_and_validate_upload(file)
+    object_key = f"analyses/{analysis_id}/{uuid.uuid4()}{EXTENSION_BY_TYPE[content_type]}"
+    service_storage.upload_image(minio_service, object_key, data, content_type)
 
     image = AnalysisImage(
         analysis_id=analysis_id,
         object_key=object_key,
         original_filename=file.filename or object_key,
-        content_type=file.content_type,
+        content_type=content_type,
     )
     project_db.add(image)
     project_db.commit()
     project_db.refresh(image)
     return image
-
-
-def _stream_and_release(minio_response):
-    try:
-        yield from minio_response.stream(32 * 1024)
-    finally:
-        minio_response.close()
-        minio_response.release_conn()
 
 
 @router.get("/analysis-images/{analysis_image_id}/file")
@@ -120,7 +115,13 @@ def get_analysis_image_file(
 ):
     image = _get_analysis_image_or_404(project_db, project_id, analysis_image_id)
     minio_response = service_storage.get_image_stream(minio_service, image.object_key)
-    return StreamingResponse(_stream_and_release(minio_response), media_type=image.content_type)
+    # Same nosniff / safe_media_type reasoning as api/images.py's
+    # get_image_file.
+    return StreamingResponse(
+        stream_and_release(minio_response),
+        media_type=safe_media_type(image.content_type),
+        headers={"X-Content-Type-Options": "nosniff"},
+    )
 
 
 @router.delete("/analysis-images/{analysis_image_id}", status_code=status.HTTP_204_NO_CONTENT)
