@@ -9,6 +9,7 @@
 # api/images.py) rather than using presigned URLs, so the browser never
 # needs to talk to MinIO directly.
 
+import logging
 from io import BytesIO
 from typing import Literal
 
@@ -16,6 +17,8 @@ from minio import Minio
 
 from app.core.crypto import decrypt_secret
 from app.models.minio_service import MinioService
+
+logger = logging.getLogger(__name__)
 
 ServiceStatus = Literal["unreachable", "not_initialized", "initialized"]
 
@@ -46,7 +49,10 @@ def check_status(service: MinioService) -> ServiceStatus:
     except Exception:
         # Same reasoning as service_db.check_status -- any failure
         # (bad credentials, unreachable endpoint, ...) reads the same
-        # way to an admin: this connection doesn't work right now.
+        # way to an admin: this connection doesn't work right now. Logged
+        # rather than discarded so the reason is available in the admin
+        # log viewer when a service shows as unreachable.
+        logger.warning("MinIO service %r is unreachable", service.name, exc_info=True)
         return "unreachable"
     return "initialized" if exists else "not_initialized"
 

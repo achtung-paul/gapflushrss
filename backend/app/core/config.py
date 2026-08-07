@@ -61,6 +61,24 @@ class Settings(BaseSettings):
     # every stored service's credentials become undecryptable.
     service_credential_key: str = ""
 
+    # Where the backend writes its own log files, and where it reads them
+    # back from to serve the admin log viewer (core/logging_config.py,
+    # api/logs.py). Must be a Docker volume in any real deployment --
+    # anything written to the container's own filesystem is lost on the
+    # next rebuild, which is every deploy.
+    log_dir: str = "/var/log/gapflushrss"
+
+    # Where Postgres's CSV logs are readable from. Postgres writes them
+    # inside its own data directory (the one path it's guaranteed to own),
+    # which is mounted read-only into this container -- see
+    # docker-compose.yml and api/logs.py.
+    postgres_log_dir: str = "/pgdata/log"
+
+    # Shared secret MinIO presents when POSTing its log events to
+    # /internal/minio-logs (see api/internal_logs.py). Leaving this blank
+    # disables that endpoint entirely rather than leaving it unauthenticated.
+    minio_log_webhook_token: str = ""
+
     @property
     def database_url(self) -> str:
         return (

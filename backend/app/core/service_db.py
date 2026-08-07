@@ -9,6 +9,7 @@
 # dict: fine for one backend worker process (see CLAUDE.md), would need
 # a lock if this app ever ran multiple workers concurrently.
 
+import logging
 from pathlib import Path
 from typing import Literal
 
@@ -21,6 +22,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import settings
 from app.core.crypto import decrypt_secret
 from app.models.postgres_service import PostgresService
+
+logger = logging.getLogger(__name__)
 
 # .../backend, however this process was started -- so alembic_project's
 # files resolve the same way whether we're in the container's /app or a
@@ -117,7 +120,12 @@ def check_status(service: PostgresService) -> ServiceStatus:
         # Any failure here (wrong password, host unreachable, DB doesn't
         # exist, ...) means the same thing to an admin looking at the
         # services list: this connection doesn't work right now. The
-        # specific reason isn't actionable from this status check alone.
+        # specific reason isn't actionable from this status check alone --
+        # but it *is* what someone will want when they open the log
+        # viewer to find out why a service went red, so log it rather
+        # than discarding it. Any password in the URL is stripped by the
+        # redaction filter in core/logging_config.py.
+        logger.warning("Postgres service %r is unreachable", service.name, exc_info=True)
         return "unreachable"
     return "initialized" if initialized else "not_initialized"
 
