@@ -7,6 +7,7 @@ import {
   updateFlushEntry,
   updateGapEntry,
 } from '../api/client.js'
+import AnalysisImageGallery from '../components/AnalysisImageGallery.jsx'
 import ToleranceChainSection from '../components/ToleranceChainSection.jsx'
 
 // Shows an existing Gap or Flush entry (with an Edit button to change its
@@ -55,11 +56,16 @@ function EntrySection({ title, entry, onCreate, onUpdate }) {
   }
 
   if (entry && !editing) {
+    // entry_code from the backend never includes direction (see
+    // api/analyses.py's _entry_out) -- append it here, same as the
+    // heading above, so e.g. "IP-001-GAP" becomes "IP-001-GAP-X" once a
+    // direction is set.
+    const displayCode = entry.entry_code + (entry.direction ? `-${entry.direction}` : '')
     return (
       <div>
         <h3>{heading}</h3>
         <p>
-          {entry.entry_code}: nominal {entry.nominal_value}, band {entry.nominal_value - entry.lower_limit}
+          {displayCode}: nominal {entry.nominal_value}, band {entry.nominal_value - entry.lower_limit}
           {' to '}
           {entry.nominal_value + entry.upper_limit} (+{entry.upper_limit} / -{entry.lower_limit}){' '}
           <button type="button" onClick={startEditing}>
@@ -171,6 +177,7 @@ function AnalysisDetailPage() {
           refresh()
         }}
       />
+      <AnalysisImageGallery analysisId={analysisId} />
     </div>
   )
 }

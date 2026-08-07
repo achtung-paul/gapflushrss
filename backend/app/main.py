@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import (
     admin,
     analyses,
+    analysis_images,
     auth,
     chain_components,
     commodities,
@@ -57,6 +58,7 @@ app.include_router(commodities.router)
 app.include_router(analyses.router)
 app.include_router(reference_data.router)
 app.include_router(images.router)
+app.include_router(analysis_images.router)
 app.include_router(chain_components.router)
 
 
