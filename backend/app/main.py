@@ -20,6 +20,7 @@ from app.api import (
     postgres_services,
     projects,
     reference_data,
+    standard_tolerances,
 )
 from app.core.bootstrap import (
     adopt_default_service_if_needed,
@@ -70,6 +71,7 @@ app.include_router(reference_data.router)
 app.include_router(images.router)
 app.include_router(analysis_images.router)
 app.include_router(chain_components.router)
+app.include_router(standard_tolerances.router)
 
 
 @app.get("/")

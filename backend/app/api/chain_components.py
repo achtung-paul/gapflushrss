@@ -85,6 +85,33 @@ def create_chain_component(
     return component
 
 
+@router.put("/chain-components/{chain_component_id}", response_model=ChainComponentOut)
+def update_chain_component(
+    project_id: int,
+    chain_component_id: int,
+    body: ChainComponentCreate,
+    db: Session = Depends(get_db),
+    project_db: Session = Depends(get_project_db),
+    current_user: User = Depends(get_current_user),
+):
+    component = project_db.get(ChainComponent, chain_component_id)
+    if component is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chain component not found")
+
+    # Editor-level, same as create -- this changes an existing
+    # contributor's values, it doesn't remove one, so it's not held to
+    # the Manager-only bar delete_chain_component below uses.
+    _require_editor_for_entry(db, project_db, current_user, project_id, component.entry_id)
+
+    component.contributor_type = body.contributor_type
+    component.description = body.description
+    component.tolerance_value = body.tolerance_value
+    component.tolerance_value_id = body.tolerance_value_id
+    project_db.commit()
+    project_db.refresh(component)
+    return component
+
+
 @router.delete("/chain-components/{chain_component_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_chain_component(
     project_id: int,

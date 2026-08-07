@@ -24,3 +24,4 @@ from app.models.image import Image  # noqa: F401
 from app.models.marker import Marker  # noqa: F401
 from app.models.analysis_image import AnalysisImage  # noqa: F401
 from app.models.chain_component import ChainComponent  # noqa: F401
+from app.models.standard_tolerance import StandardTolerance  # noqa: F401

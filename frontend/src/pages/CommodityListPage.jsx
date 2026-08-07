@@ -32,6 +32,8 @@ function CommodityListPage() {
     <div>
       <p>
         <Link to="/projects">&larr; Projects</Link>
+        {' | '}
+        <Link to={`/projects/${projectId}/standard-tolerances`}>Standard tolerances</Link>
       </p>
       <h2>Commodities</h2>
       <ul>
@@ -45,14 +47,20 @@ function CommodityListPage() {
       </ul>
 
       <form onSubmit={handleCreate} className="inline-form">
-        <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-        <input
-          placeholder="Code (2 letters)"
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          maxLength={2}
-          required
-        />
+        <label>
+          Name{' '}
+          <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+        </label>
+        <label>
+          Code (2 letters){' '}
+          <input
+            placeholder="Code (2 letters)"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            maxLength={2}
+            required
+          />
+        </label>
         <button type="submit">Create commodity</button>
       </form>
       {error && <p className="form-error">{error}</p>}

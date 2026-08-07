@@ -150,34 +150,52 @@ function PostgresServicesPage() {
       </table>
 
       <form onSubmit={handleCreate} className="inline-form">
-        <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-        <input placeholder="Host" value={host} onChange={(e) => setHost(e.target.value)} required />
-        <input
-          type="number"
-          placeholder="Port"
-          value={port}
-          onChange={(e) => setPort(e.target.value)}
-          required
-        />
-        <input
-          placeholder="Database"
-          value={database}
-          onChange={(e) => setDatabase(e.target.value)}
-          required
-        />
-        <input
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
+        <label>
+          Name{' '}
+          <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+        </label>
+        <label>
+          Host{' '}
+          <input placeholder="Host" value={host} onChange={(e) => setHost(e.target.value)} required />
+        </label>
+        <label>
+          Port{' '}
+          <input
+            type="number"
+            placeholder="Port"
+            value={port}
+            onChange={(e) => setPort(e.target.value)}
+            required
+          />
+        </label>
+        <label>
+          Database{' '}
+          <input
+            placeholder="Database"
+            value={database}
+            onChange={(e) => setDatabase(e.target.value)}
+            required
+          />
+        </label>
+        <label>
+          Username{' '}
+          <input
+            placeholder="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+          />
+        </label>
+        <label>
+          Password{' '}
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </label>
         <button type="submit">Add service</button>
       </form>
 

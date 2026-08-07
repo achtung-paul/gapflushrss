@@ -104,12 +104,15 @@ function ProcessTypesPage() {
       </table>
 
       <form onSubmit={handleCreate} className="inline-form">
-        <input
-          placeholder="New process type"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          required
-        />
+        <label>
+          New process type{' '}
+          <input
+            placeholder="New process type"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            required
+          />
+        </label>
         <button type="submit">Create</button>
       </form>
       {error && <p className="form-error">{error}</p>}

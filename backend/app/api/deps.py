@@ -62,6 +62,20 @@ def _user_is_in_project_group(db: Session, user: User, project_id: int, role_nam
     return membership is not None
 
 
+def user_can_view_project(db: Session, user: User, project_id: int) -> bool:
+    # Unlike user_can_manage_project/user_can_edit_project, this doesn't
+    # care *which* of the three groups the membership is in -- Managers,
+    # Contributors, and Viewers can all see that the project exists.
+    # Used by get_project below to 404 (not 403) a project a user isn't
+    # a member of, so its existence isn't leaked to non-members either.
+    if user.global_role == GlobalRole.root_admin:
+        return True
+    return (
+        db.query(UserGroupProject).filter_by(user_id=user.user_id, project_id=project_id).first()
+        is not None
+    )
+
+
 def user_can_manage_project(db: Session, user: User, project_id: int) -> bool:
     # A "Project Admin" (per the brief) isn't a role stored on the user --
     # it's just being a member of that specific project's Managers group.
@@ -98,9 +112,16 @@ def require_project_editor(db: Session, user: User, project_id: int) -> None:
         )
 
 
-def get_project(project_id: int, db: Session = Depends(get_db)) -> Project:
+def get_project(
+    project_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> Project:
     project = db.get(Project, project_id)
-    if project is None:
+    # A non-member gets the same 404 as a project that doesn't exist at
+    # all -- every project-scoped route resolves through here (directly
+    # or via get_project_db/get_project_minio_service below), so this is
+    # the one place that needs to hide a project's existence for it to
+    # be hidden everywhere.
+    if project is None or not user_can_view_project(db, current_user, project_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     return project
 

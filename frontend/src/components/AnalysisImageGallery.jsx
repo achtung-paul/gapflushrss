@@ -66,7 +66,10 @@ function AnalysisImageGallery({ projectId, analysisId }) {
       {error && <p className="form-error">{error}</p>}
 
       <form onSubmit={handleUpload} className="inline-form">
-        <input type="file" name="files" accept="image/*" multiple required />
+        <label>
+          Image files{' '}
+          <input type="file" name="files" accept="image/*" multiple required />
+        </label>
         <button type="submit">Upload</button>
       </form>
 

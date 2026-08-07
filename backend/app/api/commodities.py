@@ -1,12 +1,9 @@
 # Commodities live under a Project (brief: Project -> Commodity ->
 # Analysis). Creating one requires being root_admin or a Manager of the
-# parent project; reading the list only requires being logged in.
-#
-# Note on scope: the brief's Viewers group implies project membership
-# should also gate *reading* data, but Phase 2 doesn't build that
-# finer-grained visibility check -- any logged-in user can currently list
-# any project's commodities/analyses. Only writes are project-scoped.
-# Worth tightening later if read-isolation between projects matters.
+# parent project. Reading only requires being logged in *and* a member
+# of the project (any of its three groups) -- enforced by get_project_db
+# below resolving through api/deps.py's get_project, which 404s a
+# project this user isn't a member of before this handler even runs.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -43,6 +40,11 @@ def create_commodity(
     project_db: Session = Depends(get_project_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Manager-only, not require_project_editor -- the brief reserves
+    # defining Commodities specifically for "Site Admins or Project
+    # Admins" (a Project Admin being a Manager, see api/deps.py), unlike
+    # the Contributor-writable Analysis/entry/marker/image routes
+    # elsewhere in this app.
     require_project_manager(db, current_user, project_id)
 
     project = db.get(Project, project_id)

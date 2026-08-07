@@ -272,8 +272,32 @@ export const createChainComponent = (projectId, entryId, component) =>
     body: JSON.stringify(component),
   })
 
+export const updateChainComponent = (projectId, chainComponentId, component) =>
+  apiFetch(`/projects/${projectId}/chain-components/${chainComponentId}`, {
+    method: 'PUT',
+    body: JSON.stringify(component),
+  })
+
 export const deleteChainComponent = (projectId, chainComponentId) =>
   apiFetch(`/projects/${projectId}/chain-components/${chainComponentId}`, { method: 'DELETE' })
 
 export const getSimulation = (projectId, entryId) =>
   apiFetch(`/projects/${projectId}/entries/${entryId}/simulation`)
+
+export const listStandardTolerances = (projectId) =>
+  apiFetch(`/projects/${projectId}/standard-tolerances`)
+
+export const createStandardTolerance = (projectId, name, toleranceValue) =>
+  apiFetch(`/projects/${projectId}/standard-tolerances`, {
+    method: 'POST',
+    body: JSON.stringify({ name, tolerance_value: toleranceValue }),
+  })
+
+export const updateStandardTolerance = (projectId, standardToleranceId, name, toleranceValue) =>
+  apiFetch(`/projects/${projectId}/standard-tolerances/${standardToleranceId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ name, tolerance_value: toleranceValue }),
+  })
+
+export const deleteStandardTolerance = (projectId, standardToleranceId) =>
+  apiFetch(`/projects/${projectId}/standard-tolerances/${standardToleranceId}`, { method: 'DELETE' })

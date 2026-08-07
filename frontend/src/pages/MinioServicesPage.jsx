@@ -150,27 +150,42 @@ function MinioServicesPage() {
       </table>
 
       <form onSubmit={handleCreate} className="inline-form">
-        <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-        <input
-          placeholder="Endpoint (host:port)"
-          value={endpoint}
-          onChange={(e) => setEndpoint(e.target.value)}
-          required
-        />
-        <input
-          placeholder="Access key"
-          value={accessKey}
-          onChange={(e) => setAccessKey(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Secret key"
-          value={secretKey}
-          onChange={(e) => setSecretKey(e.target.value)}
-          required
-        />
-        <input placeholder="Bucket" value={bucket} onChange={(e) => setBucket(e.target.value)} required />
+        <label>
+          Name{' '}
+          <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+        </label>
+        <label>
+          Endpoint{' '}
+          <input
+            placeholder="Endpoint (host:port)"
+            value={endpoint}
+            onChange={(e) => setEndpoint(e.target.value)}
+            required
+          />
+        </label>
+        <label>
+          Access key{' '}
+          <input
+            placeholder="Access key"
+            value={accessKey}
+            onChange={(e) => setAccessKey(e.target.value)}
+            required
+          />
+        </label>
+        <label>
+          Secret key{' '}
+          <input
+            type="password"
+            placeholder="Secret key"
+            value={secretKey}
+            onChange={(e) => setSecretKey(e.target.value)}
+            required
+          />
+        </label>
+        <label>
+          Bucket{' '}
+          <input placeholder="Bucket" value={bucket} onChange={(e) => setBucket(e.target.value)} required />
+        </label>
         <label>
           <input type="checkbox" checked={secure} onChange={(e) => setSecure(e.target.checked)} /> Secure
           (HTTPS)

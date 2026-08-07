@@ -33,24 +33,30 @@ function CellInputs({ cell, onSave }) {
 
   return (
     <div className="matrix-cell">
-      <input
-        type="number"
-        step="any"
-        placeholder="T"
-        title="Tool-specific"
-        value={toolValue}
-        onChange={(e) => setToolValue(e.target.value)}
-        onBlur={handleBlur}
-      />
-      <input
-        type="number"
-        step="any"
-        placeholder="NT"
-        title="Non-tool-specific"
-        value={nonToolValue}
-        onChange={(e) => setNonToolValue(e.target.value)}
-        onBlur={handleBlur}
-      />
+      <label title="Tool-specific (mm)">
+        T{' '}
+        <input
+          type="number"
+          step="0.1"
+          placeholder="T"
+          title="Tool-specific"
+          value={toolValue}
+          onChange={(e) => setToolValue(e.target.value)}
+          onBlur={handleBlur}
+        />
+      </label>
+      <label title="Non-tool-specific (mm)">
+        NT{' '}
+        <input
+          type="number"
+          step="0.1"
+          placeholder="NT"
+          title="Non-tool-specific"
+          value={nonToolValue}
+          onChange={(e) => setNonToolValue(e.target.value)}
+          onBlur={handleBlur}
+        />
+      </label>
     </div>
   )
 }
@@ -175,7 +181,7 @@ function ToleranceMatrixPage() {
               <th>Tolerance group</th>
               {ranges.map((range) => (
                 <th key={range.dimension_range_id}>
-                  {range.min_value} to {range.max_value}
+                  {range.min_value} to {range.max_value} mm
                   <br />
                   {pendingDeleteRangeId === range.dimension_range_id ? (
                     <>
@@ -245,33 +251,42 @@ function ToleranceMatrixPage() {
 
       <h3>Add a tolerance group (row)</h3>
       <form onSubmit={handleAddGroup} className="inline-form">
-        <input
-          placeholder="Group name (e.g. TG1)"
-          value={newGroupName}
-          onChange={(e) => setNewGroupName(e.target.value)}
-          required
-        />
+        <label>
+          Group name{' '}
+          <input
+            placeholder="Group name (e.g. TG1)"
+            value={newGroupName}
+            onChange={(e) => setNewGroupName(e.target.value)}
+            required
+          />
+        </label>
         <button type="submit">Add group</button>
       </form>
 
       <h3>Add a dimension range (column)</h3>
       <form onSubmit={handleAddRange} className="inline-form">
-        <input
-          type="number"
-          step="any"
-          placeholder="Min"
-          value={newRangeMin}
-          onChange={(e) => setNewRangeMin(e.target.value)}
-          required
-        />
-        <input
-          type="number"
-          step="any"
-          placeholder="Max"
-          value={newRangeMax}
-          onChange={(e) => setNewRangeMax(e.target.value)}
-          required
-        />
+        <label>
+          Min (mm){' '}
+          <input
+            type="number"
+            step="0.1"
+            placeholder="Min"
+            value={newRangeMin}
+            onChange={(e) => setNewRangeMin(e.target.value)}
+            required
+          />
+        </label>
+        <label>
+          Max (mm){' '}
+          <input
+            type="number"
+            step="0.1"
+            placeholder="Max"
+            value={newRangeMax}
+            onChange={(e) => setNewRangeMax(e.target.value)}
+            required
+          />
+        </label>
         <button type="submit">Add range</button>
       </form>
     </div>

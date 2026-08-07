@@ -14,6 +14,7 @@ import ProcessTypesPage from './pages/ProcessTypesPage.jsx'
 import ToleranceMatrixPage from './pages/ToleranceMatrixPage.jsx'
 import PostgresServicesPage from './pages/PostgresServicesPage.jsx'
 import MinioServicesPage from './pages/MinioServicesPage.jsx'
+import StandardTolerancesPage from './pages/StandardTolerancesPage.jsx'
 
 // Nav: Project List -> Commodity List -> Analysis List -> Gap/Flush.
 // A dropdown-based header nav (per the brief's UX section) is Phase 8;
@@ -65,6 +66,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <AnalysisDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/projects/:projectId/standard-tolerances"
+            element={
+              <ProtectedRoute>
+                <StandardTolerancesPage />
               </ProtectedRoute>
             }
           />
