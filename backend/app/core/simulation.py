@@ -16,6 +16,15 @@ import math
 
 SIGMA_LEVELS = (3, 4, 5)
 
+# Reported instead of a RAG colour when there's nothing to evaluate --
+# i.e. the tolerance chain is still empty. Without this, an empty chain
+# combines to a spread of exactly 0, which sits comfortably inside any
+# tolerance band and comes back "green" at every sigma level. That makes
+# "nobody has done this analysis yet" look identical to "this analysis
+# passed", which is the most dangerous way for a stack-up tool to be
+# wrong -- so it gets its own status rather than a colour.
+NOT_EVALUATED = "not_evaluated"
+
 # The RAG rule from the brief, step 6: a breach past the tolerance limit
 # is "amber" if it's within this fraction of the limit that was
 # breached, otherwise "red".
@@ -69,6 +78,10 @@ def run_simulation(
 ) -> dict:
     """Run the RSS stack-up at 3/4/5 sigma and evaluate each against the target band."""
     combined_one_sigma = combine_rss(tolerance_values)
+    # An empty chain has nothing to say about whether the target is met --
+    # see NOT_EVALUATED. The rows are still returned (with a zero spread)
+    # so the results table renders its usual shape, just without a verdict.
+    has_chain = len(tolerance_values) > 0
 
     results = []
     for sigma_level in SIGMA_LEVELS:
@@ -80,7 +93,7 @@ def run_simulation(
                 "spread": spread,
                 "lower_bound": lower_bound,
                 "upper_bound": upper_bound,
-                "rag": rag,
+                "rag": rag if has_chain else NOT_EVALUATED,
             }
         )
     return {"sigma_1": combined_one_sigma, "results": results}

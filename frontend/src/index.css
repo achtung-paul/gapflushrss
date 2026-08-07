@@ -366,6 +366,10 @@ td {
 .rag-badge {
   font-weight: bold;
   color: #fff;
+  /* Neutral default so a badge is never white-on-white if its status
+     doesn't match one of the classes below -- an invisible badge reads as
+     "no result", which is far more misleading than an odd-looking one. */
+  background: #607d8b;
 }
 
 .rag-green {
@@ -378,6 +382,14 @@ td {
 
 .rag-red {
   background: #d32f2f;
+}
+
+/* No tolerance chain built yet, so there's no pass/fail verdict to show
+   (see core/simulation.py). Deliberately grey rather than any of the
+   three RAG colours -- the whole point is that it must not read as a
+   result, especially not as a passing one. */
+.rag-not-evaluated {
+  background: #9e9e9e;
 }
 
 .rss-chart {

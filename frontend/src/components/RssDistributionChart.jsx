@@ -16,6 +16,11 @@ const RAG_COLORS = {
   green: '#2e7d32',
   amber: '#b8860b',
   red: '#d32f2f',
+  // Empty chain -- no verdict to colour (see core/simulation.py). The
+  // curve itself is already suppressed in this case via hasChainData
+  // below; this keeps the sigma marker lines a neutral grey rather than
+  // falling through to SVG's default black.
+  not_evaluated: '#999999',
 }
 
 // Standard normal PDF, shifted/scaled to mean 0 -- we only need the

@@ -13,7 +13,26 @@ import {
 } from '../api/client.js'
 import RssDistributionChart from './RssDistributionChart.jsx'
 
-const RAG_LABELS = { green: 'Green', amber: 'Amber', red: 'Red' }
+// not_evaluated is what the backend returns when the chain is still empty
+// -- there's no verdict to give yet (see core/simulation.py).
+const RAG_LABELS = {
+  green: 'Green',
+  amber: 'Amber',
+  red: 'Red',
+  not_evaluated: 'Not evaluated',
+}
+
+// Mapped explicitly rather than interpolated as `rag-${result.rag}`: the
+// backend's value uses an underscore (not_evaluated) while the CSS class
+// is hyphenated, and .rag-badge sets white text with the background
+// coming from this class -- so a name that doesn't match renders white on
+// white, i.e. an invisible badge rather than an obviously broken one.
+const RAG_CLASS = {
+  green: 'rag-green',
+  amber: 'rag-amber',
+  red: 'rag-red',
+  not_evaluated: 'rag-not-evaluated',
+}
 
 // Lets the user build the RSS tolerance chain for one Gap/Flush entry
 // (brief step 4: component tolerances + assembly-process variation),
@@ -392,7 +411,9 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
                   <td>
                     {result.lower_bound.toFixed(3)} to {result.upper_bound.toFixed(3)} mm
                   </td>
-                  <td className={`rag-badge rag-${result.rag}`}>{RAG_LABELS[result.rag]}</td>
+                  <td className={`rag-badge ${RAG_CLASS[result.rag] ?? ''}`}>
+                    {RAG_LABELS[result.rag] ?? result.rag}
+                  </td>
                 </tr>
               ))}
             </tbody>

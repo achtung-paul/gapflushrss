@@ -19,7 +19,12 @@ import {
 import ImageAnnotator from '../components/ImageAnnotator.jsx'
 
 const DIRECTION_LABELS = { X: 'X', Y: 'Y', Z: 'Z', OTHER: 'Other' }
-const RAG_CLASS = { green: 'rag-green', amber: 'rag-amber', red: 'rag-red' }
+const RAG_CLASS = {
+  green: 'rag-green',
+  amber: 'rag-amber',
+  red: 'rag-red',
+  not_evaluated: 'rag-not-evaluated',
+}
 const SIGMA_LEVELS = [3, 4, 5]
 
 // Renders the Max/Min band (nominal + upper limit, over nominal - lower

@@ -17,6 +17,11 @@ COPY alembic ./alembic
 COPY alembic.ini .
 COPY alembic_project ./alembic_project
 COPY alembic_project.ini .
+# Included so the suite can be run against the real image with
+# `docker compose run --rm --no-deps backend python -m pytest tests/`.
+# Drop this (and pytest from requirements.txt) when the production image
+# is split out in Phase 9.
+COPY tests ./tests
 
 EXPOSE 8000
 
