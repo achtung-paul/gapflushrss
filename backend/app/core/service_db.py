@@ -18,6 +18,7 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.core.config import settings
 from app.core.crypto import decrypt_secret
 from app.models.postgres_service import PostgresService
 
@@ -43,11 +44,35 @@ _engine_cache: dict[int, Engine] = {}
 _sessionmaker_cache: dict[int, sessionmaker] = {}
 
 
+# How long to wait for a TCP connection before giving up. Without this,
+# an unreachable service blocks for the OS-level timeout (minutes) --
+# which matters because check_status runs on every services-list request
+# and bootstrap.upgrade_initialized_services probes every service on
+# startup.
+CONNECT_TIMEOUT_SECONDS = 5
+
+
 def _database_url(service: PostgresService) -> str:
     password = decrypt_secret(service.encrypted_password)
+
+    # The bundled Postgres (settings.postgres_host) runs without TLS, and
+    # sits on the host-local docker bridge where there's no network hop to
+    # intercept -- so it stays on libpq's default opportunistic mode. Every
+    # *other* registered service is genuinely remote, and libpq's "prefer"
+    # would silently fall back to plaintext if that server didn't offer
+    # TLS, sending its credentials in the clear with nothing to signal it.
+    # "require" refuses to connect instead, which fails loudly at Initialize
+    # time -- the safe direction.
+    #
+    # Comparing against settings.postgres_host is exact rather than a
+    # hostname guess: that name is precisely how the bundled container is
+    # addressed on the compose network.
+    sslmode = "prefer" if service.host == settings.postgres_host else "require"
+
     return (
         f"postgresql+psycopg2://{service.username}:{password}"
         f"@{service.host}:{service.port}/{service.database}"
+        f"?sslmode={sslmode}&connect_timeout={CONNECT_TIMEOUT_SECONDS}"
     )
 
 

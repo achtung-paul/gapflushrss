@@ -28,6 +28,7 @@ from app.core.bootstrap import (
     create_root_admin_if_needed,
 )
 from app.core.config import settings
+from app.core.email import validate_email_settings
 from app.db.session import SessionLocal
 
 
@@ -37,6 +38,11 @@ async def lifespan(app: FastAPI):
     # Bucket creation for a project's MinIO is no longer done here --
     # buckets are per-service now (core/service_storage.py) and owned by
     # the admin's "Initialize" action on that service, not app startup.
+
+    # Checked before anything else: a bad SMTP config should stop the
+    # deploy, not wait to be discovered by the first password reset.
+    validate_email_settings()
+
     db = SessionLocal()
     try:
         create_root_admin_if_needed(db)
