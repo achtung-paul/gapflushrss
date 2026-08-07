@@ -36,7 +36,15 @@ VERSION_TABLE = "alembic_version_project"
 # revision id -- what a *legacy* database (see initialize_schema below)
 # gets stamped at, since its tables already match that revision's shape
 # (once the constraint fixes below are applied) without ever running it.
-PROJECT_HEAD_REVISION = "0ab50047e838"
+#
+# This is the chain's FIRST revision, not its head. Stamping it only says
+# "you are at the starting point"; initialize_schema still has to run an
+# upgrade afterwards to pull the database the rest of the way. It was
+# previously named PROJECT_HEAD_REVISION, which read as though stamping it
+# were sufficient -- it isn't, and the mismatch left adopted databases
+# several migrations behind while check_status still reported them as
+# "initialized".
+PROJECT_INITIAL_REVISION = "0ab50047e838"
 
 ServiceStatus = Literal["unreachable", "not_initialized", "initialized"]
 
@@ -162,10 +170,22 @@ def initialize_schema(service: PostgresService) -> None:
             connection.execute(
                 text("ALTER TABLE commodities DROP CONSTRAINT IF EXISTS commodities_code_key")
             )
+            # Guarded rather than a bare ADD CONSTRAINT: Postgres has no
+            # "ADD CONSTRAINT IF NOT EXISTS", and every other statement in
+            # this block is already idempotent. Without the guard a retry
+            # after a partial failure dies here with DuplicateTable --
+            # which would contradict the whole point of the ordering noted
+            # above, since the retry the comment promises wouldn't work.
             connection.execute(
                 text(
+                    "DO $$ BEGIN "
+                    "IF NOT EXISTS ("
+                    "SELECT 1 FROM pg_constraint "
+                    "WHERE conname = 'commodities_project_id_code_key'"
+                    ") THEN "
                     "ALTER TABLE commodities ADD CONSTRAINT commodities_project_id_code_key "
-                    "UNIQUE (project_id, code)"
+                    "UNIQUE (project_id, code); "
+                    "END IF; END $$;"
                 )
             )
             connection.execute(
@@ -174,10 +194,16 @@ def initialize_schema(service: PostgresService) -> None:
                     "chain_components_tolerance_value_id_fkey"
                 )
             )
-        command.stamp(_project_alembic_config(url), PROJECT_HEAD_REVISION)
-    else:
-        # `alembic upgrade head` is idempotent, so this same call also
-        # serves as "bring an already-initialized service's schema up to
-        # date" if the project chain grows new migrations later -- not
-        # just first-time setup.
-        command.upgrade(_project_alembic_config(url), "head")
+        command.stamp(_project_alembic_config(url), PROJECT_INITIAL_REVISION)
+
+    # Always upgrade to head, including straight after the stamp above.
+    # The stamp only records "this database matches the chain's *first*
+    # revision" -- every migration added since then still has to run, or
+    # the database would sit silently out of date while check_status (which
+    # only looks for the version table) reported it as initialized.
+    #
+    # `alembic upgrade head` is idempotent, so this same call also serves as
+    # "bring an already-initialized service up to date" when the project
+    # chain grows new migrations later -- which is how
+    # bootstrap.upgrade_initialized_services uses it.
+    command.upgrade(_project_alembic_config(url), "head")

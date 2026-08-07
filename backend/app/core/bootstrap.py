@@ -79,3 +79,35 @@ def adopt_default_service_if_needed(db: Session) -> None:
     if service_db.check_status(default_service) == "not_initialized":
         service_db.initialize_schema(default_service)
         logger.info("Adopted the Default Postgres service into the project-scoped Alembic chain")
+
+
+def upgrade_initialized_services(db: Session) -> None:
+    # The project-scoped chain (alembic_project/) has no single fixed
+    # database, so it can't run from the Dockerfile's startup command the
+    # way the central chain does -- it has to be applied once per service.
+    # Previously that meant an admin clicking "Initialize" on every service
+    # after every deploy that added a project-chain migration, and
+    # forgetting simply left the schema stale: the failure showed up later
+    # as an UndefinedColumn error on an ordinary request, with nothing
+    # pointing back at the missed migration.
+    #
+    # Doing it here makes deploys self-applying. initialize_schema ends in
+    # `alembic upgrade head`, which is idempotent, so this is a no-op for
+    # services that are already current.
+    #
+    # Failures are logged and skipped rather than raised: one unreachable
+    # service must not stop the app from starting. Anything skipped here
+    # can still be brought up to date later with the admin Initialize
+    # button, or on the next restart.
+    for service in db.query(PostgresService).all():
+        try:
+            if service_db.check_status(service) != "initialized":
+                continue
+            service_db.initialize_schema(service)
+            logger.info("Project schema is up to date on Postgres service %r", service.name)
+        except Exception:
+            logger.exception(
+                "Could not upgrade the project schema on Postgres service %r -- skipping it. "
+                "Use the admin Initialize button once it's reachable again.",
+                service.name,
+            )

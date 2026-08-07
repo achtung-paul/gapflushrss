@@ -28,6 +28,7 @@ from app.core.bootstrap import (
     adopt_default_service_if_needed,
     create_default_process_types_if_needed,
     create_root_admin_if_needed,
+    upgrade_initialized_services,
 )
 from app.core.config import settings
 from app.core.email import validate_email_settings
@@ -51,6 +52,9 @@ async def lifespan(app: FastAPI):
         create_root_admin_if_needed(db)
         create_default_process_types_if_needed(db)
         adopt_default_service_if_needed(db)
+        # After adoption, so a service adopted just above is included in
+        # the same pass rather than waiting for the next restart.
+        upgrade_initialized_services(db)
     finally:
         db.close()
     yield
