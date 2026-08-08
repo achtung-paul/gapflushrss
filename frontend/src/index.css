@@ -704,3 +704,85 @@ td {
 .matrix-cell .number-input-steppers button {
   padding: 0 0.15rem;
 }
+
+/* AngledInterfaceHelpPage.jsx: a readable prose measure, wider than the
+   700px used for rendered notes since this page also holds a table and
+   two diagrams up to 600px. */
+.help-page {
+  max-width: 800px;
+}
+
+.help-page code {
+  background: #f5f5f5;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+}
+
+/* AngledInterfaceDiagrams.jsx -- same convention as .rss-chart*:
+   structural geometry stays inline as SVG attributes, only fills/
+   strokes/fonts live here. */
+.angled-diagram {
+  max-width: 600px;
+  display: block;
+  margin: 0.75rem 0;
+}
+
+.angled-diagram-caption {
+  color: #555;
+  font-size: 0.85rem;
+  max-width: 600px;
+}
+
+.angled-diagram-face {
+  stroke: #999;
+  stroke-width: 1.5;
+}
+
+.angled-diagram-arc {
+  fill: none;
+  stroke: #999;
+  stroke-width: 1;
+}
+
+/* The arrowhead marker is a single shared <defs> element referenced by
+   every vector/projection line (an SVG <marker> isn't a DOM descendant
+   of the line that uses it, so a normal descendant selector can't give
+   it a different colour per line). `color` + `fill: currentColor` is the
+   one part of the SVG spec built for exactly this: a marker's
+   currentColor resolves against the `color` of whichever element
+   referenced it via marker-end, not the marker's own position in the
+   tree -- so each line's own `color` recolours its own arrowhead. */
+.angled-diagram-vector {
+  stroke: var(--color-heading);
+  color: var(--color-heading);
+  stroke-width: 2;
+}
+
+.angled-diagram-projection {
+  stroke: #b8860b;
+  color: #b8860b;
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+}
+
+.angled-diagram-arrowhead {
+  fill: currentColor;
+}
+
+.angled-diagram-label {
+  font-size: 12px;
+  fill: #555;
+}
+
+.angled-diagram-bar,
+.angled-diagram-bar-alt {
+  fill: var(--color-heading);
+}
+
+.angled-diagram-bar-alt {
+  opacity: 0.6;
+}
+
+.angled-diagram-bar-rss {
+  fill: #b8860b;
+}
