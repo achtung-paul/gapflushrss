@@ -11,6 +11,7 @@ import {
   listToleranceValues,
   updateChainComponent,
 } from '../api/client.js'
+import NumberInput from './NumberInput.jsx'
 import RssDistributionChart from './RssDistributionChart.jsx'
 
 // not_evaluated is what the backend returns when the chain is still empty
@@ -34,6 +35,20 @@ const RAG_CLASS = {
   not_evaluated: 'rag-not-evaluated',
 }
 
+const CONTRIBUTOR_TYPE_LABELS = {
+  COMPONENT: 'Component tolerance',
+  PROCESS: 'Assembly process variation',
+}
+
+// standard:<id> namespaces a preset's id inside the same string-valued
+// <select> as the two base contributor types, so "Type" is one control
+// instead of two (a Type dropdown plus a separate Standard tolerance
+// dropdown) -- the two used to require touching both to describe one
+// contributor.
+function standardOptionValue(standardToleranceId) {
+  return `standard:${standardToleranceId}`
+}
+
 // Lets the user build the RSS tolerance chain for one Gap/Flush entry
 // (brief step 4: component tolerances + assembly-process variation),
 // then shows the computed 3/4/5 sigma simulation (brief steps 5-6)
@@ -44,9 +59,15 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
   const [error, setError] = useState(null)
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
 
-  const [contributorType, setContributorType] = useState('COMPONENT')
+  // 'COMPONENT', 'PROCESS', or `standard:<standard_tolerance_id>` -- see
+  // standardOptionValue above.
+  const [typeSelection, setTypeSelection] = useState('COMPONENT')
   const [description, setDescription] = useState('')
-  const [toleranceValue, setToleranceValue] = useState('')
+  // Only used when neither a preset nor a matrix cell supplies a value
+  // (see pickedValue below) -- otherwise that value is shown read-only
+  // via the picker itself, and this box is hidden entirely so the
+  // number is never shown twice.
+  const [manualToleranceValue, setManualToleranceValue] = useState('')
 
   const [processTypes, setProcessTypes] = useState([])
   const [selectedProcessTypeId, setSelectedProcessTypeId] = useState('')
@@ -55,15 +76,14 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
   const [ranges, setRanges] = useState([])
   const [selectedRangeId, setSelectedRangeId] = useState('')
   const [cells, setCells] = useState([])
-  const [selectedVariant, setSelectedVariant] = useState('')
+  const [selectedVariance, setSelectedVariance] = useState('')
 
   const [note, setNote] = useState('')
   const [standardTolerances, setStandardTolerances] = useState([])
-  const [selectedStandardToleranceId, setSelectedStandardToleranceId] = useState('')
 
   // Editing an existing contributor swaps its <li> for this same set of
   // fields, pre-filled -- deliberately simpler than the add form: it
-  // doesn't re-expose the process-type/group/range/variant or standard-
+  // doesn't re-expose the process-type/group/range/variance or standard-
   // tolerance pickers (those are create-time convenience for prefilling
   // a value), just the three fields that were actually saved.
   // tolerance_value_id is sent back unchanged on save, since hand-
@@ -101,43 +121,61 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
     listToleranceValues(selectedProcessTypeId).then(setCells).catch((err) => setError(err.message))
   }, [selectedProcessTypeId])
 
+  const selectedStandard = standardTolerances.find(
+    (s) => typeSelection === standardOptionValue(s.standard_tolerance_id),
+  )
+
   // The matrix cell for whichever group + range are currently picked,
   // if one exists -- a blank "-" cell in the admin matrix has no row at
   // all (see backend/app/api/reference_data.py), so no match just means
-  // "nothing to prefill, enter the value manually".
+  // "nothing to prefill, enter the value manually". Irrelevant (and
+  // harmless) once a preset is selected -- the matrix pickers are
+  // hidden and their selections cleared by handleTypeChange below.
   const matchedCell = cells.find(
     (cell) =>
       String(cell.tolerance_group_id) === selectedGroupId &&
       String(cell.dimension_range_id) === selectedRangeId,
   )
-  const hasBothVariants =
+  const hasBothVariances =
     matchedCell && matchedCell.tool_value !== null && matchedCell.non_tool_value !== null
 
-  useEffect(() => {
-    if (!matchedCell) {
-      return
-    }
-    if (hasBothVariants) {
-      if (selectedVariant === 'tool') {
-        setToleranceValue(String(matchedCell.tool_value))
-      } else if (selectedVariant === 'non_tool') {
-        setToleranceValue(String(matchedCell.non_tool_value))
-      }
-    } else if (matchedCell.tool_value !== null) {
-      setToleranceValue(String(matchedCell.tool_value))
-    } else if (matchedCell.non_tool_value !== null) {
-      setToleranceValue(String(matchedCell.non_tool_value))
-    }
-  }, [matchedCell, hasBothVariants, selectedVariant])
+  // The value the matrix currently supplies, or null if it doesn't (no
+  // cell matched, or a both-variance cell with neither variance picked
+  // yet). Plain derivation rather than a useEffect pushing into state --
+  // there's nothing to synchronise, so nothing to get stale.
+  const matrixValue = !matchedCell
+    ? null
+    : hasBothVariances
+      ? selectedVariance === 'tool'
+        ? matchedCell.tool_value
+        : selectedVariance === 'non_tool'
+          ? matchedCell.non_tool_value
+          : null
+      : (matchedCell.tool_value ?? matchedCell.non_tool_value)
 
-  function handleSelectStandardTolerance(standardToleranceId) {
-    setSelectedStandardToleranceId(standardToleranceId)
-    const standard = standardTolerances.find(
-      (s) => String(s.standard_tolerance_id) === standardToleranceId,
-    )
-    if (standard) {
-      setDescription(standard.name)
-      setToleranceValue(String(standard.tolerance_value))
+  // The one number this contributor will save with, from whichever
+  // source is currently active -- a preset beats the matrix, since
+  // picking one hides the matrix pickers entirely (see the JSX below).
+  // null means neither supplies a value yet, which is exactly when the
+  // manual Tolerance box needs to be shown.
+  const pickedValue = selectedStandard ? Number(selectedStandard.tolerance_value) : matrixValue
+
+  function handleTypeChange(value) {
+    setTypeSelection(value)
+    const standardId = value.startsWith('standard:') ? Number(value.slice('standard:'.length)) : null
+    if (standardId !== null) {
+      // Picking a preset is the same convenience the old, separate
+      // Standard tolerance dropdown gave: prefill the description and
+      // drop the matrix pickers, since the preset already carries its
+      // own value.
+      const standard = standardTolerances.find((s) => s.standard_tolerance_id === standardId)
+      if (standard) {
+        setDescription(standard.name)
+      }
+      setSelectedProcessTypeId('')
+      setSelectedGroupId('')
+      setSelectedRangeId('')
+      setSelectedVariance('')
     }
   }
 
@@ -145,21 +183,26 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
     event.preventDefault()
     setError(null)
     try {
+      const contributorType = selectedStandard ? selectedStandard.contributor_type : typeSelection
+      const toleranceValue = pickedValue !== null ? pickedValue : Number(manualToleranceValue)
       await createChainComponent(projectId, entryId, {
         contributor_type: contributorType,
         description,
-        tolerance_value: Number(toleranceValue),
-        tolerance_value_id: matchedCell ? matchedCell.tolerance_value_id : null,
+        tolerance_value: toleranceValue,
+        // Only true provenance when the value actually came from the
+        // matrix -- a preset's own tolerance_value_id would misrepresent
+        // where this contributor's number came from.
+        tolerance_value_id: !selectedStandard && matchedCell ? matchedCell.tolerance_value_id : null,
         note,
       })
+      setTypeSelection('COMPONENT')
       setDescription('')
       setNote('')
-      setToleranceValue('')
+      setManualToleranceValue('')
       setSelectedProcessTypeId('')
       setSelectedGroupId('')
       setSelectedRangeId('')
-      setSelectedVariant('')
-      setSelectedStandardToleranceId('')
+      setSelectedVariance('')
       refresh()
     } catch (err) {
       setError(err.message)
@@ -237,14 +280,7 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
               </label>{' '}
               <label>
                 Tolerance (± mm){' '}
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  value={editToleranceValue}
-                  onChange={(e) => setEditToleranceValue(e.target.value)}
-                  required
-                />
+                <NumberInput min="0" value={editToleranceValue} onChange={setEditToleranceValue} required />
               </label>{' '}
               <label>
                 Note{' '}
@@ -300,9 +336,22 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
       <form onSubmit={handleSubmit} className="inline-form">
         <label>
           Type{' '}
-          <select value={contributorType} onChange={(e) => setContributorType(e.target.value)}>
+          <select value={typeSelection} onChange={(e) => handleTypeChange(e.target.value)}>
             <option value="COMPONENT">Component tolerance</option>
             <option value="PROCESS">Assembly process variation</option>
+            {standardTolerances.length > 0 && (
+              <optgroup label="Standard tolerances">
+                {standardTolerances.map((standard) => (
+                  <option
+                    key={standard.standard_tolerance_id}
+                    value={standardOptionValue(standard.standard_tolerance_id)}
+                  >
+                    {standard.name} (±{standard.tolerance_value} mm,{' '}
+                    {CONTRIBUTOR_TYPE_LABELS[standard.contributor_type] ?? standard.contributor_type})
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </label>
         <label>
@@ -315,102 +364,92 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
             required
           />
         </label>
-        <label>
-          DIN matrix{' '}
-          <select
-            value={selectedProcessTypeId}
-            onChange={(e) => {
-              setSelectedProcessTypeId(e.target.value)
-              setSelectedGroupId('')
-              setSelectedRangeId('')
-              setSelectedVariant('')
-            }}
-          >
-            <option value="">(manual value)</option>
-            {processTypes.map((processType) => (
-              <option key={processType.process_type_id} value={processType.process_type_id}>
-                {processType.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {selectedProcessTypeId && (
+        {!selectedStandard && (
           <>
             <label>
-              Tolerance group{' '}
+              DIN matrix{' '}
               <select
-                value={selectedGroupId}
+                value={selectedProcessTypeId}
                 onChange={(e) => {
-                  setSelectedGroupId(e.target.value)
-                  setSelectedVariant('')
+                  setSelectedProcessTypeId(e.target.value)
+                  setSelectedGroupId('')
+                  setSelectedRangeId('')
+                  setSelectedVariance('')
                 }}
               >
-                <option value="">Tolerance group...</option>
-                {groups.map((group) => (
-                  <option key={group.tolerance_group_id} value={group.tolerance_group_id}>
-                    {group.name}
+                <option value="">(manual value)</option>
+                {processTypes.map((processType) => (
+                  <option key={processType.process_type_id} value={processType.process_type_id}>
+                    {processType.name}
                   </option>
                 ))}
               </select>
             </label>
-            <label>
-              Dimension range (mm){' '}
-              <select
-                value={selectedRangeId}
-                onChange={(e) => {
-                  setSelectedRangeId(e.target.value)
-                  setSelectedVariant('')
-                }}
-              >
-                <option value="">Dimension range...</option>
-                {ranges.map((range) => (
-                  <option key={range.dimension_range_id} value={range.dimension_range_id}>
-                    {range.min_value} to {range.max_value} mm
-                  </option>
-                ))}
-              </select>
-            </label>
+            {selectedProcessTypeId && (
+              <>
+                <label>
+                  Tolerance group{' '}
+                  <select
+                    value={selectedGroupId}
+                    onChange={(e) => {
+                      setSelectedGroupId(e.target.value)
+                      setSelectedVariance('')
+                    }}
+                  >
+                    <option value="">Tolerance group...</option>
+                    {groups.map((group) => (
+                      <option key={group.tolerance_group_id} value={group.tolerance_group_id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Dimension range (mm){' '}
+                  <select
+                    value={selectedRangeId}
+                    onChange={(e) => {
+                      setSelectedRangeId(e.target.value)
+                      setSelectedVariance('')
+                    }}
+                  >
+                    <option value="">Dimension range...</option>
+                    {ranges.map((range) => (
+                      <option key={range.dimension_range_id} value={range.dimension_range_id}>
+                        {range.min_value} to {range.max_value} mm
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
+            {hasBothVariances && (
+              <label>
+                Variance{' '}
+                <select value={selectedVariance} onChange={(e) => setSelectedVariance(e.target.value)}>
+                  <option value="">Tool or non-tool...</option>
+                  <option value="tool">Tool-specific (±{matchedCell.tool_value} mm)</option>
+                  <option value="non_tool">Non-tool-specific (±{matchedCell.non_tool_value} mm)</option>
+                </select>
+              </label>
+            )}
+            {selectedGroupId && selectedRangeId && !matchedCell && (
+              <span className="form-hint">No value defined for this cell -- enter manually</span>
+            )}
           </>
         )}
-        {hasBothVariants && (
+        {pickedValue === null && (
           <label>
-            Variant{' '}
-            <select value={selectedVariant} onChange={(e) => setSelectedVariant(e.target.value)}>
-              <option value="">Tool or non-tool...</option>
-              <option value="tool">Tool-specific (±{matchedCell.tool_value} mm)</option>
-              <option value="non_tool">Non-tool-specific (±{matchedCell.non_tool_value} mm)</option>
-            </select>
+            Tolerance (± mm){' '}
+            <NumberInput
+              min="0"
+              placeholder="Tolerance (±)"
+              value={manualToleranceValue}
+              onChange={setManualToleranceValue}
+              required
+            />
           </label>
         )}
-        {selectedGroupId && selectedRangeId && !matchedCell && (
-          <span className="form-hint">No value defined for this cell -- enter manually</span>
-        )}
-        <label>
-          Standard tolerance{' '}
-          <select
-            value={selectedStandardToleranceId}
-            onChange={(e) => handleSelectStandardTolerance(e.target.value)}
-          >
-            <option value="">(none)</option>
-            {standardTolerances.map((standard) => (
-              <option key={standard.standard_tolerance_id} value={standard.standard_tolerance_id}>
-                {standard.name} (±{standard.tolerance_value} mm)
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Tolerance (± mm){' '}
-          <input
-            type="number"
-            step="0.1"
-            min="0"
-            placeholder="Tolerance (±)"
-            value={toleranceValue}
-            onChange={(e) => setToleranceValue(e.target.value)}
-            required
-          />
-        </label>
         <label>
           Note{' '}
           <input
