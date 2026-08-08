@@ -71,9 +71,14 @@ function EntrySection({ projectId, title, entry, onCreate, onUpdate, onEntryChan
       <div>
         <h3>{heading}</h3>
         <p>
-          {displayCode}: nominal {entry.nominal_value} mm, band {entry.nominal_value - entry.lower_limit} mm
-          {' to '}
-          {entry.nominal_value + entry.upper_limit} mm (+{entry.upper_limit} mm / -{entry.lower_limit} mm){' '}
+          {/* toFixed(3) matches the Numeric(10,3) column these come from --
+              plain subtraction/addition on the floats the API returns can
+              produce binary floating-point noise (e.g. 0.10000000000000009)
+              that was never actually stored. */}
+          {displayCode}: nominal {entry.nominal_value} mm, band{' '}
+          {(entry.nominal_value - entry.lower_limit).toFixed(3)} mm{' '}
+          to {(entry.nominal_value + entry.upper_limit).toFixed(3)} mm (+{entry.upper_limit} mm{' '}
+          / -{entry.lower_limit} mm){' '}
           <button type="button" onClick={startEditing}>
             Edit
           </button>
