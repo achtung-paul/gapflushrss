@@ -4,6 +4,7 @@ import {
   createFlushEntry,
   createGapEntry,
   getAnalysis,
+  updateAnalysisDescription,
   updateFlushEntry,
   updateGapEntry,
 } from '../api/client.js'
@@ -183,12 +184,32 @@ function AnalysisDetailPage() {
   const { projectId, analysisId } = useParams()
   const [analysis, setAnalysis] = useState(null)
   const [error, setError] = useState(null)
+  const [editingDescription, setEditingDescription] = useState(false)
+  const [descriptionInput, setDescriptionInput] = useState('')
+  const [descriptionError, setDescriptionError] = useState(null)
 
   function refresh() {
     getAnalysis(projectId, analysisId).then(setAnalysis).catch((err) => setError(err.message))
   }
 
   useEffect(refresh, [projectId, analysisId])
+
+  function startEditingDescription() {
+    setDescriptionInput(analysis.description)
+    setDescriptionError(null)
+    setEditingDescription(true)
+  }
+
+  async function handleSaveDescription() {
+    setDescriptionError(null)
+    try {
+      await updateAnalysisDescription(projectId, analysisId, descriptionInput)
+      setEditingDescription(false)
+      refresh()
+    } catch (err) {
+      setDescriptionError(err.message)
+    }
+  }
 
   if (error) {
     return <p className="form-error">{error}</p>
@@ -204,7 +225,34 @@ function AnalysisDetailPage() {
           &larr; Analyses
         </Link>
       </p>
-      <h2>Analysis Page: {analysis.analysis_code}</h2>
+      <h2>
+        Analysis Page: {analysis.analysis_code}
+        {editingDescription ? (
+          <>
+            {' - '}
+            <input
+              value={descriptionInput}
+              onChange={(e) => setDescriptionInput(e.target.value)}
+              placeholder="e.g. IP to Console"
+              autoFocus
+            />{' '}
+            <button type="button" onClick={handleSaveDescription}>
+              Save
+            </button>{' '}
+            <button type="button" onClick={() => setEditingDescription(false)}>
+              Cancel
+            </button>
+          </>
+        ) : (
+          <>
+            {analysis.description && ` - ${analysis.description}`}{' '}
+            <button type="button" onClick={startEditingDescription}>
+              {analysis.description ? 'Edit' : 'Add description'}
+            </button>
+          </>
+        )}
+      </h2>
+      {descriptionError && <p className="form-error">{descriptionError}</p>}
       <EntrySection
         projectId={projectId}
         title="Gap"

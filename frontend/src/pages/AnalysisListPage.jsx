@@ -53,7 +53,7 @@ function formatBand(nominal, upperLimit, lowerLimit) {
 // attached to this analysis yet), which renders '--' throughout with
 // just an Add button. Direction lives on the entry itself, not the
 // Analysis, since Gap and Flush can be measured along different axes.
-function EntryTableRow({ projectId, analysisId, analysisCode, entryType, entry, onChanged }) {
+function EntryTableRow({ projectId, analysisId, analysisCode, analysisDescription, entryType, entry, onChanged }) {
   const [editing, setEditing] = useState(false)
   const [pendingDelete, setPendingDelete] = useState(false)
   const [direction, setDirection] = useState('')
@@ -121,6 +121,7 @@ function EntryTableRow({ projectId, analysisId, analysisCode, entryType, entry, 
       <td>
         <Link to={`/projects/${projectId}/analyses/${analysisId}`}>{analysisCode}</Link>
       </td>
+      <td>{analysisDescription || '--'}</td>
       <td>{entryType === 'GAP' ? 'Gap' : 'Flush'}</td>
       <td>
         {editing ? (
@@ -398,6 +399,7 @@ function AnalysisListPage() {
           <thead>
             <tr>
               <th>Analysis</th>
+              <th>Description</th>
               <th>Gap/Flush</th>
               <th>Direction</th>
               <th>Nominal (mm)</th>
@@ -418,6 +420,7 @@ function AnalysisListPage() {
                 projectId={projectId}
                 analysisId={analysis.analysis_id}
                 analysisCode={analysis.analysis_code}
+                analysisDescription={analysis.description}
                 entryType={entryType}
                 entry={entry}
                 onChanged={refreshAnalyses}

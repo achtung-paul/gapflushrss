@@ -174,6 +174,12 @@ export const listAnalyses = (projectId, commodityId) =>
 
 export const getAnalysis = (projectId, analysisId) => apiFetch(`/projects/${projectId}/analyses/${analysisId}`)
 
+export const updateAnalysisDescription = (projectId, analysisId, description) =>
+  apiFetch(`/projects/${projectId}/analyses/${analysisId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ description }),
+  })
+
 export const createGapEntry = (projectId, analysisId, entry) =>
   apiFetch(`/projects/${projectId}/analyses/${analysisId}/gap`, {
     method: 'POST',

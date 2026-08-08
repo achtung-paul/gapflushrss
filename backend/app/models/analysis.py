@@ -33,6 +33,11 @@ class Analysis(ProjectBase):
     )
     sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
     analysis_code: Mapped[str] = mapped_column(String(20), nullable=False)
+    # User-entered label like "IP to Console" -- purely descriptive, no
+    # uniqueness or format rules (unlike analysis_code, which is the
+    # generated identifier). Defaults to empty rather than nullable so
+    # every read path can treat it as a plain string with no None check.
+    description: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

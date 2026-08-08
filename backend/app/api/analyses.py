@@ -29,7 +29,7 @@ from app.models.analysis_entry import AnalysisEntry, EntryType
 from app.models.analysis_image import AnalysisImage
 from app.models.commodity import Commodity
 from app.models.user import User
-from app.schemas.analysis import AnalysisDetailOut
+from app.schemas.analysis import AnalysisDetailOut, AnalysisUpdate
 from app.schemas.analysis_entry import AnalysisEntryCreate, AnalysisEntryOut, AngledSettingsUpdate
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["analyses"])
@@ -127,6 +127,7 @@ def _analysis_detail_out(project_db: Session, analysis: Analysis) -> AnalysisDet
         commodity_id=analysis.commodity_id,
         analysis_code=analysis.analysis_code,
         sequence_number=analysis.sequence_number,
+        description=analysis.description,
         gap=_entry_out(analysis, gap) if gap else None,
         flush=_entry_out(analysis, flush) if flush else None,
     )
@@ -157,6 +158,22 @@ def get_analysis(
     _: User = Depends(get_current_user),
 ):
     analysis = _get_analysis_or_404(project_db, project_id, analysis_id)
+    return _analysis_detail_out(project_db, analysis)
+
+
+@router.put("/analyses/{analysis_id}", response_model=AnalysisDetailOut)
+def update_analysis(
+    project_id: int,
+    analysis_id: int,
+    body: AnalysisUpdate,
+    db: Session = Depends(get_db),
+    project_db: Session = Depends(get_project_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_project_editor(db, current_user, project_id)
+    analysis = _get_analysis_or_404(project_db, project_id, analysis_id)
+    analysis.description = body.description
+    project_db.commit()
     return _analysis_detail_out(project_db, analysis)
 
 
