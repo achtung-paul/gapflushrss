@@ -72,6 +72,7 @@ def create_standard_tolerance(
         project_id=project_id,
         name=body.name,
         tolerance_value=body.tolerance_value,
+        contributor_type=body.contributor_type,
         updated_by_name=f"{current_user.first_name} {current_user.last_name}",
         updated_at=datetime.now(timezone.utc),
     )
@@ -98,6 +99,7 @@ def update_standard_tolerance(
 
     standard.name = body.name
     standard.tolerance_value = body.tolerance_value
+    standard.contributor_type = body.contributor_type
     standard.updated_by_name = f"{current_user.first_name} {current_user.last_name}"
     standard.updated_at = datetime.now(timezone.utc)
     project_db.commit()

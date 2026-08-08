@@ -39,6 +39,13 @@ class ContributorType(str, enum.Enum):
     PROCESS = "PROCESS"
 
 
+# One shared Enum object, not a fresh Enum(...) at each mapped_column --
+# StandardTolerance (models/standard_tolerance.py) uses the same Postgres
+# type. Two independently-constructed Enum instances with the same `name`
+# would make autogenerate think there are two types to reconcile.
+contributor_type_enum = Enum(ContributorType, name="contributor_type")
+
+
 class ChainComponent(ProjectBase):
     __tablename__ = "chain_components"
     __table_args__ = (UniqueConstraint("entry_id", "sequence_number"),)
@@ -48,9 +55,7 @@ class ChainComponent(ProjectBase):
         ForeignKey("analysis_entries.entry_id", ondelete="CASCADE"), nullable=False, index=True
     )
     sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
-    contributor_type: Mapped[ContributorType] = mapped_column(
-        Enum(ContributorType, name="contributor_type"), nullable=False
-    )
+    contributor_type: Mapped[ContributorType] = mapped_column(contributor_type_enum, nullable=False)
     description: Mapped[str] = mapped_column(String(255), nullable=False)
     tolerance_value: Mapped[float] = mapped_column(Numeric(10, 3), nullable=False)
     tolerance_value_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
