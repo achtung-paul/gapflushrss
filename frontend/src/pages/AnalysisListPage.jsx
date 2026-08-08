@@ -204,6 +204,7 @@ function EntryTableRow({ projectId, analysisId, analysisCode, entryType, entry, 
           ))
         )}
       </td>
+      <td>{entry?.updated_by_name ?? '--'}</td>
     </tr>
   )
 }
@@ -407,6 +408,7 @@ function AnalysisListPage() {
               <th>5σ (mm)</th>
               <th></th>
               <th></th>
+              <th>Last modified by</th>
             </tr>
           </thead>
           <tbody>

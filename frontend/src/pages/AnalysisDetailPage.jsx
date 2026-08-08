@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import {
   createFlushEntry,
   createGapEntry,
@@ -199,6 +199,11 @@ function AnalysisDetailPage() {
 
   return (
     <div>
+      <p>
+        <Link to={`/projects/${projectId}/commodities/${analysis.commodity_id}/analyses`}>
+          &larr; Analyses
+        </Link>
+      </p>
       <h2>Analysis Page: {analysis.analysis_code}</h2>
       <EntrySection
         projectId={projectId}
