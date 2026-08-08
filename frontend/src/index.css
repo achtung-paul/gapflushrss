@@ -70,6 +70,37 @@ main {
   max-width: 160px;
 }
 
+/* NumberInput.jsx: native spinner hidden (step="any" makes it jump by
+   whole units) in favour of the hand-rolled steppers alongside it. */
+.number-input {
+  display: inline-flex;
+  align-items: stretch;
+  vertical-align: middle;
+}
+
+.number-input input::-webkit-outer-spin-button,
+.number-input input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.number-input input {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.number-input-steppers {
+  display: inline-flex;
+  flex-direction: column;
+  margin-left: 0.15rem;
+}
+
+.number-input-steppers button {
+  line-height: 1;
+  padding: 0 0.3rem;
+  font-size: 0.55rem;
+}
+
 .admin-user-search {
   display: block;
   margin: 0.75rem 0;
@@ -664,5 +695,12 @@ td {
 }
 
 .matrix-cell input {
-  width: 3.5rem;
+  /* Narrower than the default number-input width -- the dense matrix
+     grid has 13 rows/cols in typical use, and NumberInput's steppers
+     already add width the plain <input> this replaced didn't have. */
+  width: 2.6rem;
+}
+
+.matrix-cell .number-input-steppers button {
+  padding: 0 0.15rem;
 }

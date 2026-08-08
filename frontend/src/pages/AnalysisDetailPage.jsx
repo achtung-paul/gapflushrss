@@ -8,6 +8,7 @@ import {
   updateGapEntry,
 } from '../api/client.js'
 import AnalysisImageGallery from '../components/AnalysisImageGallery.jsx'
+import NumberInput from '../components/NumberInput.jsx'
 import RichTextEditor from '../components/RichTextEditor.jsx'
 import ToleranceChainSection from '../components/ToleranceChainSection.jsx'
 
@@ -116,36 +117,30 @@ function EntrySection({ projectId, title, entry, onCreate, onUpdate }) {
         </label>
         <label>
           Nominal (mm){' '}
-          <input
-            type="number"
-            step="0.1"
+          <NumberInput
             placeholder="Nominal"
             value={nominalValue}
-            onChange={(e) => setNominalValue(e.target.value)}
+            onChange={setNominalValue}
             required
           />
         </label>
         <label>
           Upper limit + (mm){' '}
-          <input
-            type="number"
-            step="0.1"
+          <NumberInput
             min="0"
             placeholder="Upper limit (+)"
             value={upperLimit}
-            onChange={(e) => setUpperLimit(e.target.value)}
+            onChange={setUpperLimit}
             required
           />
         </label>
         <label>
           Lower limit - (mm){' '}
-          <input
-            type="number"
-            step="0.1"
+          <NumberInput
             min="0"
             placeholder="Lower limit (-)"
             value={lowerLimit}
-            onChange={(e) => setLowerLimit(e.target.value)}
+            onChange={setLowerLimit}
             required
           />
         </label>

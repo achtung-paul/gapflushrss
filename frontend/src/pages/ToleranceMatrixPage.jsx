@@ -10,6 +10,7 @@ import {
   listToleranceValues,
   setToleranceValueCell,
 } from '../api/client.js'
+import NumberInput from '../components/NumberInput.jsx'
 
 function cellKey(groupId, rangeId) {
   return `${groupId}-${rangeId}`
@@ -35,25 +36,21 @@ function CellInputs({ cell, onSave }) {
     <div className="matrix-cell">
       <label title="Tool-specific (mm)">
         T{' '}
-        <input
-          type="number"
-          step="0.1"
+        <NumberInput
           placeholder="T"
           title="Tool-specific"
           value={toolValue}
-          onChange={(e) => setToolValue(e.target.value)}
+          onChange={setToolValue}
           onBlur={handleBlur}
         />
       </label>
       <label title="Non-tool-specific (mm)">
         NT{' '}
-        <input
-          type="number"
-          step="0.1"
+        <NumberInput
           placeholder="NT"
           title="Non-tool-specific"
           value={nonToolValue}
-          onChange={(e) => setNonToolValue(e.target.value)}
+          onChange={setNonToolValue}
           onBlur={handleBlur}
         />
       </label>
@@ -267,25 +264,11 @@ function ToleranceMatrixPage() {
       <form onSubmit={handleAddRange} className="inline-form">
         <label>
           Min (mm){' '}
-          <input
-            type="number"
-            step="0.1"
-            placeholder="Min"
-            value={newRangeMin}
-            onChange={(e) => setNewRangeMin(e.target.value)}
-            required
-          />
+          <NumberInput placeholder="Min" value={newRangeMin} onChange={setNewRangeMin} required />
         </label>
         <label>
           Max (mm){' '}
-          <input
-            type="number"
-            step="0.1"
-            placeholder="Max"
-            value={newRangeMax}
-            onChange={(e) => setNewRangeMax(e.target.value)}
-            required
-          />
+          <NumberInput placeholder="Max" value={newRangeMax} onChange={setNewRangeMax} required />
         </label>
         <button type="submit">Add range</button>
       </form>

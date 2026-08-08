@@ -17,6 +17,7 @@ import {
   uploadImage,
 } from '../api/client.js'
 import ImageAnnotator from '../components/ImageAnnotator.jsx'
+import NumberInput from '../components/NumberInput.jsx'
 
 const DIRECTION_LABELS = { X: 'X', Y: 'Y', Z: 'Z', OTHER: 'Other' }
 const RAG_CLASS = {
@@ -136,13 +137,7 @@ function EntryTableRow({ projectId, analysisId, analysisCode, entryType, entry, 
       </td>
       <td>
         {editing ? (
-          <input
-            type="number"
-            step="0.1"
-            value={nominalValue}
-            onChange={(e) => setNominalValue(e.target.value)}
-            required
-          />
+          <NumberInput value={nominalValue} onChange={setNominalValue} required />
         ) : entry ? (
           `${entry.nominal_value} mm`
         ) : (
@@ -153,25 +148,9 @@ function EntryTableRow({ projectId, analysisId, analysisCode, entryType, entry, 
       <td>
         {editing ? (
           <>
-            <input
-              type="number"
-              step="0.1"
-              min="0"
-              placeholder="+"
-              value={upperLimit}
-              onChange={(e) => setUpperLimit(e.target.value)}
-              required
-            />
+            <NumberInput min="0" placeholder="+" value={upperLimit} onChange={setUpperLimit} required />
             <br />
-            <input
-              type="number"
-              step="0.1"
-              min="0"
-              placeholder="-"
-              value={lowerLimit}
-              onChange={(e) => setLowerLimit(e.target.value)}
-              required
-            />
+            <NumberInput min="0" placeholder="-" value={lowerLimit} onChange={setLowerLimit} required />
           </>
         ) : entry ? (
           <>
