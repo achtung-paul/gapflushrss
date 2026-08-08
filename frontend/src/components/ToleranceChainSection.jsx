@@ -79,13 +79,15 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
   const [selectedVariance, setSelectedVariance] = useState('')
 
   const [note, setNote] = useState('')
+  const [measured, setMeasured] = useState('')
+  const [material, setMaterial] = useState('')
   const [standardTolerances, setStandardTolerances] = useState([])
 
   // Editing an existing contributor swaps its <li> for this same set of
   // fields, pre-filled -- deliberately simpler than the add form: it
   // doesn't re-expose the process-type/group/range/variance or standard-
   // tolerance pickers (those are create-time convenience for prefilling
-  // a value), just the three fields that were actually saved.
+  // a value), just the fields that were actually saved.
   // tolerance_value_id is sent back unchanged on save, since hand-
   // editing the number may no longer match the cell it came from.
   const [editingId, setEditingId] = useState(null)
@@ -93,6 +95,8 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
   const [editDescription, setEditDescription] = useState('')
   const [editToleranceValue, setEditToleranceValue] = useState('')
   const [editNote, setEditNote] = useState('')
+  const [editMeasured, setEditMeasured] = useState('')
+  const [editMaterial, setEditMaterial] = useState('')
 
   const refresh = useCallback(() => {
     listChainComponents(projectId, entryId).then(setComponents).catch((err) => setError(err.message))
@@ -194,12 +198,20 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
         // where this contributor's number came from.
         tolerance_value_id: !selectedStandard && matchedCell ? matchedCell.tolerance_value_id : null,
         note,
+        measured_value: measured === '' ? null : Number(measured),
+        material,
       })
       setTypeSelection('COMPONENT')
       setDescription('')
       setNote('')
+      setMeasured('')
+      setMaterial('')
       setManualToleranceValue('')
-      setSelectedProcessTypeId('')
+      // selectedProcessTypeId deliberately survives the reset -- once a
+      // Tol matrix is picked, it stays the default for the next
+      // contributor too, since a chain is usually built from the same
+      // matrix component after component. Group/range/variance still
+      // reset, since those are specific to the one cell just added.
       setSelectedGroupId('')
       setSelectedRangeId('')
       setSelectedVariance('')
@@ -215,6 +227,8 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
     setEditDescription(component.description)
     setEditToleranceValue(String(component.tolerance_value))
     setEditNote(component.note ?? '')
+    setEditMeasured(component.measured_value === null ? '' : String(component.measured_value))
+    setEditMaterial(component.material ?? '')
     setError(null)
   }
 
@@ -227,6 +241,8 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
         tolerance_value: Number(editToleranceValue),
         tolerance_value_id: component.tolerance_value_id,
         note: editNote,
+        measured_value: editMeasured === '' ? null : Number(editMeasured),
+        material: editMaterial,
       })
       setEditingId(null)
       refresh()
@@ -283,6 +299,19 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
                 <NumberInput min="0" value={editToleranceValue} onChange={setEditToleranceValue} required />
               </label>{' '}
               <label>
+                Measured (mm){' '}
+                <NumberInput value={editMeasured} onChange={setEditMeasured} />
+              </label>{' '}
+              <label>
+                Material{' '}
+                <input
+                  type="text"
+                  maxLength={255}
+                  value={editMaterial}
+                  onChange={(e) => setEditMaterial(e.target.value)}
+                />
+              </label>{' '}
+              <label>
                 Note{' '}
                 <input
                   type="text"
@@ -301,6 +330,17 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
           ) : (
             <li key={component.chain_component_id}>
               [{component.contributor_type}] {component.description}: ±{component.tolerance_value} mm{' '}
+              {(component.tolerance_group_name || component.measured_value !== null || component.material) && (
+                <div className="contributor-details">
+                  {[
+                    component.tolerance_group_name && `Tolerance group: ${component.tolerance_group_name}`,
+                    component.measured_value !== null && `Measured: ${component.measured_value} mm`,
+                    component.material && `Material: ${component.material}`,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </div>
+              )}
               {pendingDeleteId === component.chain_component_id ? (
                 <>
                   <span>Delete this contributor?</span>{' '}
@@ -364,10 +404,24 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
             required
           />
         </label>
+        <label>
+          Measured (mm){' '}
+          <NumberInput placeholder="Optional" value={measured} onChange={setMeasured} />
+        </label>
+        <label>
+          Material{' '}
+          <input
+            type="text"
+            maxLength={255}
+            placeholder="Optional"
+            value={material}
+            onChange={(e) => setMaterial(e.target.value)}
+          />
+        </label>
         {!selectedStandard && (
           <>
             <label>
-              DIN matrix{' '}
+              Tol matrix{' '}
               <select
                 value={selectedProcessTypeId}
                 onChange={(e) => {

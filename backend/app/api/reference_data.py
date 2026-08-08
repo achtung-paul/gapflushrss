@@ -1,8 +1,8 @@
-# Admin-editable reference data: process types, and the DIN
-# 16742-style tolerance matrix (tolerance groups x dimension ranges,
+# Admin-editable reference data: process types, and the
+# tolerance matrix (tolerance groups x dimension ranges,
 # each cell holding an optional tool/non-tool +/- value). The brief's
 # decision still applies: build the generic, editable structure now,
-# load real DIN 16742/16901 figures into it later -- we don't invent
+# load real tolerance-standard figures into it later -- we don't invent
 # values.
 #
 # Reading is open to any logged-in user (these lists feed dropdowns

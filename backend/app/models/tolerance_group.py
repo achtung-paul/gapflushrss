@@ -1,4 +1,4 @@
-# One row of the DIN 16742-style tolerance matrix (e.g. "TG1") -- see
+# One row of the tolerance matrix (e.g. "TG1") -- see
 # models/tolerance_value.py for the matrix cells and models/
 # dimension_range.py for the columns. Scoped per ProcessType so each
 # process (plastics, castings, ...) gets its own independent matrix.

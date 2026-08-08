@@ -65,6 +65,25 @@ class ChainComponent(ProjectBase):
     # text*, unlike AnalysisEntry.notes: it's rendered as an ordinary
     # React string, so it needs no sanitising and can't carry markup.
     note: Mapped[str] = mapped_column(String(500), nullable=False, server_default="")
+
+    # An actual measured value for this component, in mm -- distinct from
+    # tolerance_value (the allowed +/- variation): this is what someone
+    # measured on a real part. Nullable, since a contributor is usually
+    # added before anything's been physically measured.
+    measured_value: Mapped[float | None] = mapped_column(Numeric(10, 3), nullable=True)
+    # Plain text, not markup -- same reasoning as note.
+    material: Mapped[str] = mapped_column(String(255), nullable=False, server_default="")
+
+    # Snapshot of the Tol matrix group this value was prefilled from (e.g.
+    # "TG3"), for display only -- resolved server-side from
+    # tolerance_value_id at write time (api/chain_components.py), not
+    # client-supplied, since ToleranceGroup is central-database reference
+    # data and this table is project-scoped (same cross-database
+    # reasoning as tolerance_value_id itself, just for the group's name
+    # instead of its id). Null whenever tolerance_value_id is null --
+    # manual entry or a standard-tolerance preset has no matrix group.
+    tolerance_group_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

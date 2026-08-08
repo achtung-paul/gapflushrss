@@ -1,4 +1,4 @@
-# One column of the DIN 16742-style tolerance matrix (e.g. "> 3 to 6"
+# One column of the tolerance matrix (e.g. "> 3 to 6"
 # mm) -- see models/tolerance_value.py for the matrix cells and models/
 # tolerance_group.py for the rows. Scoped per ProcessType, same as
 # ToleranceGroup.

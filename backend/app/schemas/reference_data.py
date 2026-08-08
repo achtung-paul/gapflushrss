@@ -61,7 +61,7 @@ class DimensionRangeOut(BaseModel):
 
 
 class ToleranceValueCellIn(BaseModel):
-    # Both are optional -- the DIN table legitimately leaves many cells
+    # Both are optional -- a tolerance table legitimately leaves many cells
     # blank (a tolerance group with no defined value at that range).
     tool_value: float | None = None
     non_tool_value: float | None = None

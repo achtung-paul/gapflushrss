@@ -40,9 +40,9 @@ Project
 
 ## Scope for v1 (material/process)
 
-Initial release targets **plastics only**, per DIN 16742 and the older DIN 16901 standard. Process type list (plastics, castings, pressings, etc.) should be admin-editable from the start so other processes can be added later without a schema change.
+Initial release targets **plastics only**, per an industrial tolerance standard for plastic parts. Process type list (plastics, castings, pressings, etc.) should be admin-editable from the start so other processes can be added later without a schema change.
 
-**Tolerance data decision:** build a generic, editable admin structure now rather than hardcoding DIN figures. Real DIN 16742/16901 values will be typed in later — don't invent or research values in the meantime. See the tolerance matrix decision below for the actual shape of this data.
+**Tolerance data decision:** build a generic, editable admin structure now rather than hardcoding any particular standard's figures. Real tolerance-standard values — or a company's own custom figures — will be typed in later — don't invent or research values in the meantime. See the tolerance matrix decision below for the actual shape of this data.
 
 ## Users, auth, and RBAC
 
@@ -94,7 +94,7 @@ These weren't specified in the source doc and are flagged rather than guessed at
 
 ### Resolved (2026-08-06)
 
-- ~~Tolerance matrix structure~~ — a flat process type → class name → value table can't represent DIN 16742/16901's real shape. Replaced with a per-process-type matrix: user-configurable **tolerance groups** (rows, add/delete) × user-configurable **dimension ranges** (columns, add/delete), each cell holding an optional **tool-specific (T)** and/or **non-tool-specific (NT)** symmetric ± value — matching the standard's table exactly, still with no values pre-filled in. A blank cell (the standard's "–") is just the absence of data for that group/range pair, not a stored zero.
+- ~~Tolerance matrix structure~~ — a flat process type → class name → value table can't represent a real industrial tolerance standard's shape. Replaced with a per-process-type matrix: user-configurable **tolerance groups** (rows, add/delete) × user-configurable **dimension ranges** (columns, add/delete), each cell holding an optional **tool-specific (T)** and/or **non-tool-specific (NT)** symmetric ± value — matching a typical standard's table exactly, still with no values pre-filled in. A blank cell (the standard's "–") is just the absence of data for that group/range pair, not a stored zero.
 
 ### Resolved (2026-08-08)
 

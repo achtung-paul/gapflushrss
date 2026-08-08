@@ -15,7 +15,7 @@ const CONTRIBUTOR_TYPE_LABELS = {
 
 // A project's own named tolerance presets (e.g. "Locator" = +/-0.1mm),
 // offered as a pick-from option in ToleranceChainSection.jsx's merged
-// Type dropdown alongside the separate, global DIN tolerance matrix.
+// Type dropdown alongside the separate, global tolerance matrix.
 // contributor_type is what a chain component created from a given
 // preset saves as -- see models/standard_tolerance.py -- so it needs
 // setting here at the source. Add/edit/delete are Manager-only on the

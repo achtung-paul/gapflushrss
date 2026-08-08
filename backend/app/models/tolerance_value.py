@@ -1,4 +1,4 @@
-# One cell of the DIN 16742-style tolerance matrix: the intersection of
+# One cell of the tolerance matrix: the intersection of
 # a ToleranceGroup (row) and a DimensionRange (column). tool_value and
 # non_tool_value are the tool-specific (T) and non-tool-specific (NT)
 # symmetric +/- deviations from the standard's table -- a group doesn't

@@ -1,7 +1,7 @@
 # A project's own named tolerance presets (e.g. "Locator" = +/-0.1mm),
 # maintained by that project's Managers and offered as a quick pick-from
 # option when building a chain component (see api/chain_components.py),
-# alongside the separate, global, root-admin-only DIN tolerance matrix
+# alongside the separate, global, root-admin-only tolerance matrix
 # (models/tolerance_value.py). Unlike that matrix, this is per-project,
 # not process-type-based, and anyone who can view the project can use
 # it -- only adding/editing/deleting is Manager-only.

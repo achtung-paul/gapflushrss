@@ -661,6 +661,14 @@ td {
   white-space: pre-wrap;
 }
 
+/* Tolerance group / Measured / Material -- a single computed line, not
+   free-typed text, so no pre-wrap (unlike .contributor-note above). */
+.contributor-details {
+  color: #555;
+  font-size: 0.85rem;
+  margin-left: 1rem;
+}
+
 /* Log viewer (pages/LogsPage.jsx). Messages are pre-formatted because
    tracebacks carry their own line breaks and indentation -- collapsing
    them into a paragraph makes them unreadable. */

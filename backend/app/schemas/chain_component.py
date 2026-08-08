@@ -15,6 +15,11 @@ class ChainComponentCreate(BaseModel):
     tolerance_value_id: int | None = None
     # Plain text, not markup -- rendered as an ordinary React string.
     note: str = ""
+    # An actual measured value in mm, distinct from tolerance_value.
+    # Optional -- not every contributor has been physically measured yet.
+    measured_value: float | None = None
+    # Plain text, not markup -- rendered as an ordinary React string.
+    material: str = ""
 
     @field_validator("note")
     @classmethod
@@ -23,6 +28,13 @@ class ChainComponentCreate(BaseModel):
         # rather than a database error.
         if len(value) > 500:
             raise ValueError("note must be 500 characters or fewer")
+        return value
+
+    @field_validator("material")
+    @classmethod
+    def material_must_fit(cls, value: str) -> str:
+        if len(value) > 255:
+            raise ValueError("material must be 255 characters or fewer")
         return value
 
     @field_validator("tolerance_value")
@@ -51,6 +63,12 @@ class ChainComponentOut(BaseModel):
     tolerance_value: float
     tolerance_value_id: int | None
     note: str
+    measured_value: float | None
+    material: str
+    # Server-resolved from tolerance_value_id, not client-settable --
+    # see models/chain_component.py. Absent from ChainComponentCreate on
+    # purpose.
+    tolerance_group_name: str | None
 
 
 class SimulationResultRow(BaseModel):

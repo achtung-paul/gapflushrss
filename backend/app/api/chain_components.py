@@ -13,6 +13,8 @@ from app.core.simulation import run_simulation
 from app.db.session import get_db
 from app.models.analysis_entry import AnalysisEntry
 from app.models.chain_component import ChainComponent
+from app.models.tolerance_group import ToleranceGroup
+from app.models.tolerance_value import ToleranceValue
 from app.models.user import User
 from app.schemas.chain_component import ChainComponentCreate, ChainComponentOut, SimulationResultOut
 
@@ -31,6 +33,25 @@ def _require_manager_for_entry(
 ) -> AnalysisEntry:
     require_project_manager(db, user, project_id)
     return _get_entry_or_404(project_db, project_id, entry_id)
+
+
+def _resolve_tolerance_group_name(db: Session, tolerance_value_id: int | None) -> str | None:
+    """The Tol matrix group name a saved value came from, for display.
+
+    Resolved server-side from tolerance_value_id (a two-hop lookup
+    through the central database's ToleranceValue -> ToleranceGroup)
+    rather than trusting a client-supplied name -- ToleranceGroup is
+    central reference data, chain_components is project-scoped, so this
+    can't be a real join; snapshotting the true recorded name here (not
+    whatever text a client happened to send) keeps that snapshot honest.
+    """
+    if tolerance_value_id is None:
+        return None
+    tolerance_value = db.get(ToleranceValue, tolerance_value_id)
+    if tolerance_value is None:
+        return None
+    group = db.get(ToleranceGroup, tolerance_value.tolerance_group_id)
+    return group.name if group else None
 
 
 @router.get("/entries/{entry_id}/chain-components", response_model=list[ChainComponentOut])
@@ -79,6 +100,9 @@ def create_chain_component(
         tolerance_value=body.tolerance_value,
         tolerance_value_id=body.tolerance_value_id,
         note=body.note,
+        measured_value=body.measured_value,
+        material=body.material,
+        tolerance_group_name=_resolve_tolerance_group_name(db, body.tolerance_value_id),
     )
     project_db.add(component)
     project_db.commit()
@@ -109,6 +133,16 @@ def update_chain_component(
     component.tolerance_value = body.tolerance_value
     component.tolerance_value_id = body.tolerance_value_id
     component.note = body.note
+    component.measured_value = body.measured_value
+    component.material = body.material
+    # Re-resolved rather than left as-is: tolerance_value_id itself is
+    # sent back unchanged by the edit form (see the class comment on
+    # ChainComponentCreate's tolerance_value_id), so in practice this
+    # just re-derives the same id's current name -- which also means an
+    # admin renaming a Tol matrix group is reflected here on next save,
+    # since this is a display label, not a calculation input like
+    # tolerance_value itself.
+    component.tolerance_group_name = _resolve_tolerance_group_name(db, body.tolerance_value_id)
     project_db.commit()
     project_db.refresh(component)
     return component
