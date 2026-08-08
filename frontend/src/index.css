@@ -746,8 +746,27 @@ td {
   font-size: 0.85rem;
 }
 
+.tolerance-matrix-scroll-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
 .tolerance-matrix-scroll {
+  /* Without this, a wide table (many dimension-range columns) makes this
+     div grow to fit its content instead of scrolling -- overflow-x:auto
+     only kicks in once the element itself is width-constrained, so
+     without a max-width the whole page was widening past the viewport
+     instead of showing a contained scrollbar under just the table. */
+  max-width: 100%;
   overflow-x: auto;
+  /* Keep the native scrollbar visible rather than the OS's auto-hiding
+     overlay style (default on macOS unless a device with a mouse is
+     connected) -- the buttons/wheel handling above are the primary way
+     to scroll, but a visible track is still a helpful hint that there's
+     more to the right. */
+  scrollbar-width: auto;
 }
 
 .tolerance-matrix {

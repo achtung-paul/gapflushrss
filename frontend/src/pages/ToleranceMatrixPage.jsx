@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   createDimensionRange,
@@ -61,14 +61,58 @@ function CellInputs({ cell, onSave }) {
 // The admin-editable tolerance matrix for one process type -- rows are
 // user-defined tolerance groups (e.g. "TG1"), columns are user-defined
 // dimension ranges (e.g. "1 to 3" mm), each cell an optional
-// tool-specific/non-tool-specific +/- pair. Matches the DIN 16742
-// "Limit dimensions" table shape, without any values pre-filled in.
+// tool-specific/non-tool-specific +/- pair. Matches a typical industrial
+// tolerance standard's "Limit dimensions" table shape, without any
+// values pre-filled in.
 function ToleranceMatrixPage() {
   const { processTypeId } = useParams()
   const [groups, setGroups] = useState([])
   const [ranges, setRanges] = useState([])
   const [cells, setCells] = useState({})
   const [error, setError] = useState(null)
+  const scrollRef = useRef(null)
+
+  // A wide matrix (many range columns) scrolls inside .tolerance-matrix-
+  // scroll rather than widening the page -- but a plain vertical mouse
+  // wheel does nothing to a horizontal-only overflow container by
+  // itself (confirmed: deltaY never touches scrollLeft), so without this
+  // the only way to reach the far columns is dragging the native
+  // scrollbar thumb exactly, which is easy to miss entirely. This
+  // translates an ordinary wheel scroll into horizontal movement while
+  // the pointer is over the table, matching how this app hand-rolls
+  // controls elsewhere (e.g. NumberInput's steppers) rather than relying
+  // on a browser/OS affordance a user might not discover.
+  //
+  // A plain JSX onWheel handler can't do this: React attaches wheel
+  // listeners as passive by default, so preventDefault() inside one is
+  // silently ignored (with a console warning) and the page would still
+  // scroll vertically underneath. A real, non-passive listener is the
+  // only way to actually take over the event.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    function handleWheel(event) {
+      // Only take over when there's actually somewhere to scroll --
+      // otherwise a normal page scroll over a matrix that happens to fit
+      // would get swallowed for no reason.
+      if (el.scrollWidth <= el.clientWidth) return
+      event.preventDefault()
+      el.scrollLeft += event.deltaY
+    }
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [])
+
+  function scrollMatrix(direction) {
+    // Instant, not smooth -- smooth scrolling is driven by requestAnimationFrame
+    // internally, which some browser/OS/accessibility configurations (e.g.
+    // prefers-reduced-motion, or a backgrounded tab) can throttle or skip
+    // entirely, silently leaving the button looking like it did nothing.
+    // An instant jump has no such dependency -- it just happens.
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollLeft += direction * el.clientWidth * 0.8
+  }
 
   const [newGroupName, setNewGroupName] = useState('')
   const [newRangeMin, setNewRangeMin] = useState('')
@@ -171,7 +215,16 @@ function ToleranceMatrixPage() {
       </p>
       {error && <p className="form-error">{error}</p>}
 
-      <div className="tolerance-matrix-scroll">
+      <div className="tolerance-matrix-scroll-controls">
+        <button type="button" onClick={() => scrollMatrix(-1)}>
+          &larr; Scroll
+        </button>
+        <button type="button" onClick={() => scrollMatrix(1)}>
+          Scroll &rarr;
+        </button>
+        <span className="form-hint">Or point at the table and use the mouse wheel.</span>
+      </div>
+      <div className="tolerance-matrix-scroll" ref={scrollRef}>
         <table className="tolerance-matrix">
           <thead>
             <tr>
