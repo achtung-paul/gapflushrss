@@ -83,7 +83,7 @@ Full target design (per spec):
 These weren't specified in the source doc and are flagged rather than guessed at:
 
 - Report layout/content beyond "printable, plus Excel export" — TBD.
-- Whether Worst Case Analysis or other stack-up methods get added alongside RSS later — not in scope for v1 (RSS only, 3σ/4σ/5σ).
+- ~~Whether Worst Case Analysis or other stack-up methods get added alongside RSS later — not in scope for v1 (RSS only, 3σ/4σ/5σ).~~
 
 ### Resolved (2026-08-05)
 
@@ -95,6 +95,10 @@ These weren't specified in the source doc and are flagged rather than guessed at
 ### Resolved (2026-08-06)
 
 - ~~Tolerance matrix structure~~ — a flat process type → class name → value table can't represent DIN 16742/16901's real shape. Replaced with a per-process-type matrix: user-configurable **tolerance groups** (rows, add/delete) × user-configurable **dimension ranges** (columns, add/delete), each cell holding an optional **tool-specific (T)** and/or **non-tool-specific (NT)** symmetric ± value — matching the standard's table exactly, still with no values pre-filled in. A blank cell (the standard's "–") is just the absence of data for that group/range pair, not a stored zero.
+
+### Resolved (2026-08-08)
+
+- ~~Worst Case Analysis~~ — added, but scoped specifically to **angled interfaces** (a Gap/Flush entry with direction set to "Other"), not the general linear X/Y/Z stack, which stays RSS-only exactly as above. An angled entry gets its own interface angle and a per-component X/Y tolerance table; each row is resolved onto the interface (`Vx = Tx·cos θ`, `Vy = Ty·sin θ`) and combined either as a direct **Worst Case** sum or a direct **RSS** (root-sum-square, no 3σ/4σ/5σ scaling — a deliberately different, simpler basis from the linear stack's Cp=1 assumption above), evaluated against the entry's own nominal/limits using the same RAG rule as step 6. See `core/angled_simulation.py` and `components/AngledInterfaceSection.jsx`.
 
 ## Reference image (from spec)
 
