@@ -99,6 +99,7 @@ These weren't specified in the source doc and are flagged rather than guessed at
 ### Resolved (2026-08-08)
 
 - ~~Worst Case Analysis~~ — added, but scoped specifically to **angled interfaces** (a Gap/Flush entry with direction set to "Other"), not the general linear X/Y/Z stack, which stays RSS-only exactly as above. An angled entry gets its own interface angle and a per-component X/Y tolerance table; each row is resolved onto the interface (`Vx = Tx·cos θ`, `Vy = Ty·sin θ`) and combined either as a direct **Worst Case** sum or a direct **RSS** (root-sum-square, no 3σ/4σ/5σ scaling — a deliberately different, simpler basis from the linear stack's Cp=1 assumption above), evaluated against the entry's own nominal/limits using the same RAG rule as step 6. See `core/angled_simulation.py` and `components/AngledInterfaceSection.jsx`.
+- ~~How tolerance-standard figures get into the matrix~~ — "typed in later" (above) is still true, but a process type's whole matrix can now also be created in one step from a CSV upload on the Process Types page, rather than one group/range/cell at a time. A downloadable blank template shows the expected columns; the number of groups and ranges is whatever the file contains, not fixed to any one standard's shape, so this covers a company's own custom tolerance table equally well. See `core/tolerance_csv_import.py`.
 
 ## Reference image (from spec)
 

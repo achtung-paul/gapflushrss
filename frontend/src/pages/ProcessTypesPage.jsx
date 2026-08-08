@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   createProcessType,
   deleteProcessType,
+  importProcessType,
+  importTemplateUrl,
   listProcessTypes,
   updateProcessType,
 } from '../api/client.js'
@@ -14,6 +16,14 @@ function ProcessTypesPage() {
   const [editingName, setEditingName] = useState('')
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
   const [error, setError] = useState(null)
+
+  const [importName, setImportName] = useState('')
+  const [importFile, setImportFile] = useState(null)
+  const [importing, setImporting] = useState(false)
+  // Controlled <input type="file"> can't have its value set directly
+  // (browsers reject scripted assignment for security) -- a ref is the
+  // standard way to reset the picker after a successful import.
+  const importFileInputRef = useRef(null)
 
   function refresh() {
     listProcessTypes().then(setProcessTypes).catch((err) => setError(err.message))
@@ -30,6 +40,25 @@ function ProcessTypesPage() {
       refresh()
     } catch (err) {
       setError(err.message)
+    }
+  }
+
+  async function handleImport(event) {
+    event.preventDefault()
+    setError(null)
+    setImporting(true)
+    try {
+      await importProcessType(importName, importFile)
+      setImportName('')
+      setImportFile(null)
+      if (importFileInputRef.current) {
+        importFileInputRef.current.value = ''
+      }
+      refresh()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -114,6 +143,35 @@ function ProcessTypesPage() {
           />
         </label>
         <button type="submit">Create</button>
+      </form>
+
+      {/* Always creates a brand-new process type from the file -- there's
+          no existing matrix to merge into, so this is create-only, same
+          as the form above. */}
+      <form onSubmit={handleImport} className="inline-form">
+        <label>
+          Import new process type from CSV{' '}
+          <input
+            placeholder="Name"
+            value={importName}
+            onChange={(e) => setImportName(e.target.value)}
+            required
+          />
+        </label>
+        <label>
+          File{' '}
+          <input
+            ref={importFileInputRef}
+            type="file"
+            accept=".csv"
+            onChange={(e) => setImportFile(e.target.files[0] ?? null)}
+            required
+          />
+        </label>
+        <button type="submit" disabled={importing}>
+          {importing ? 'Importing...' : 'Import'}
+        </button>
+        <a href={importTemplateUrl}>Download template</a>
       </form>
       {error && <p className="form-error">{error}</p>}
     </div>

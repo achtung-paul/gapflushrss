@@ -10,11 +10,16 @@
 # is root_admin only -- this is system-wide config, not project-scoped,
 # so there's no "project manager" equivalent here.
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from io import BytesIO
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_root_admin
+from app.core.tolerance_csv_import import MAX_IMPORT_BYTES, parse_tolerance_csv
+from app.core.tolerance_csv_template import build_import_template
 from app.db.session import get_db
 from app.models.dimension_range import DimensionRange
 from app.models.process_type import ProcessType
@@ -76,6 +81,123 @@ def create_process_type(
 
     process_type = ProcessType(name=body.name)
     db.add(process_type)
+    db.commit()
+    db.refresh(process_type)
+    return process_type
+
+
+@router.get("/process-types/import-template")
+def download_import_template(_: User = Depends(get_current_user)):
+    # A read, not a write -- matches this router's split (any logged-in
+    # user can read reference data, only root_admin can change it). The
+    # template itself is instructional only, no real tolerance figures --
+    # see core/tolerance_csv_template.py.
+    content = build_import_template()
+    return StreamingResponse(
+        BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="tolerance-import-template.xlsx"'},
+    )
+
+
+@router.post("/process-types/import", response_model=ProcessTypeOut, status_code=status.HTTP_201_CREATED)
+async def import_process_type(
+    name: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_root_admin),
+):
+    """Create a brand-new process type and its whole tolerance matrix from
+    one CSV upload -- see core/tolerance_csv_import.py for the expected
+    format. Always creates a new process type; there is no merge/replace
+    path here, since there's nothing to merge into yet.
+    """
+    name = name.strip()
+    if not name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Name must not be blank")
+
+    # Cheap check first -- no point parsing a large file just to fail on
+    # a name collision (same 409 create_process_type already gives).
+    existing = db.query(ProcessType).filter(ProcessType.name == name).first()
+    if existing is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Process type already exists")
+
+    if not (file.filename or "").lower().endswith(".csv"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be a .csv file")
+
+    # Read one byte past the limit, same pattern as core/uploads.py's
+    # read_and_validate_upload -- getting that extra byte is how we know
+    # the file was actually over the cap, not exactly at it.
+    data = await file.read(MAX_IMPORT_BYTES + 1)
+    if len(data) > MAX_IMPORT_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File must be {MAX_IMPORT_BYTES // (1024 * 1024)} MB or smaller",
+        )
+    if not data:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File is empty")
+
+    try:
+        text = data.decode("utf-8-sig")  # tolerate a BOM, which Excel's "CSV UTF-8" export adds
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be UTF-8 text")
+
+    result = parse_tolerance_csv(text)
+    if result.errors:
+        # Same shape as Pydantic's own validation errors ({"msg": ...}
+        # objects) -- client.js's errorMessage() already knows how to
+        # join a list of those, so every problem in the file is surfaced
+        # at once with no frontend changes needed.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=[{"msg": error} for error in result.errors],
+        )
+
+    # Everything below is only reached once the whole file has validated
+    # cleanly -- nothing is added to the session before this point, so a
+    # rejected import creates nothing (get_db rolls back on close if an
+    # exception were to happen here anyway).
+    process_type = ProcessType(name=name)
+    db.add(process_type)
+    db.flush()  # assigns process_type.process_type_id
+
+    dimension_ranges = [
+        DimensionRange(
+            process_type_id=process_type.process_type_id,
+            sequence_number=sequence_number,
+            min_value=parsed_range.min_value,
+            max_value=parsed_range.max_value,
+        )
+        for sequence_number, parsed_range in enumerate(result.ranges, start=1)
+    ]
+    db.add_all(dimension_ranges)
+    db.flush()  # assigns each dimension_range_id
+
+    tolerance_groups = [
+        ToleranceGroup(
+            process_type_id=process_type.process_type_id,
+            sequence_number=sequence_number,
+            name=parsed_group.name,
+        )
+        for sequence_number, parsed_group in enumerate(result.groups, start=1)
+    ]
+    db.add_all(tolerance_groups)
+    db.flush()  # assigns each tolerance_group_id
+
+    # Zip is safe here: tolerance_groups was built by enumerating
+    # result.groups in the same order, one-to-one.
+    for tolerance_group, parsed_group in zip(tolerance_groups, result.groups):
+        cell_positions = set(parsed_group.tool_values) | set(parsed_group.non_tool_values)
+        for range_position in cell_positions:
+            db.add(
+                ToleranceValue(
+                    tolerance_group_id=tolerance_group.tolerance_group_id,
+                    dimension_range_id=dimension_ranges[range_position].dimension_range_id,
+                    tool_value=parsed_group.tool_values.get(range_position),
+                    non_tool_value=parsed_group.non_tool_values.get(range_position),
+                )
+            )
+
     db.commit()
     db.refresh(process_type)
     return process_type

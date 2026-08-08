@@ -231,6 +231,26 @@ export const listProcessTypes = () => apiFetch('/process-types')
 export const createProcessType = (name) =>
   apiFetch('/process-types', { method: 'POST', body: JSON.stringify({ name }) })
 
+export async function importProcessType(name, file) {
+  const formData = new FormData()
+  formData.append('name', name)
+  formData.append('file', file)
+  // No Content-Type header -- the browser sets it (with the right
+  // multipart boundary) automatically when the body is a FormData, same
+  // as uploadAnalysisImage below.
+  const response = await fetch(`${API_BASE}/process-types/import`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  })
+  if (!response.ok) {
+    throw new Error(await errorMessage(response))
+  }
+  return response.json()
+}
+
+export const importTemplateUrl = `${API_BASE}/process-types/import-template`
+
 export const updateProcessType = (processTypeId, name) =>
   apiFetch(`/process-types/${processTypeId}`, { method: 'PUT', body: JSON.stringify({ name }) })
 

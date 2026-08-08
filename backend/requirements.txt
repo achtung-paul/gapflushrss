@@ -16,6 +16,11 @@ slowapi==0.1.9
 # Rust toolchain in the image.
 nh3==0.3.6
 
+# Generates the tolerance-import template (core/tolerance_csv_template.py).
+# Also the library the brief already calls for eventually, for Excel
+# report export -- not wasted, just used earlier than planned.
+openpyxl==3.1.5
+
 # Test-only, but installed in the image because it's a dev image already
 # (uvicorn runs with --reload). Split into a separate requirements-dev.txt
 # when the production command is split out.
