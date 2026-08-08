@@ -8,6 +8,7 @@ import {
   updateGapEntry,
 } from '../api/client.js'
 import AnalysisImageGallery from '../components/AnalysisImageGallery.jsx'
+import AngledInterfaceSection from '../components/AngledInterfaceSection.jsx'
 import NumberInput from '../components/NumberInput.jsx'
 import RichTextEditor from '../components/RichTextEditor.jsx'
 import ToleranceChainSection from '../components/ToleranceChainSection.jsx'
@@ -18,7 +19,7 @@ import ToleranceChainSection from '../components/ToleranceChainSection.jsx'
 // brief), so both start out missing. Create and edit share the same
 // form; which callback Save/Add invokes depends on whether an entry
 // already existed when the form opened.
-function EntrySection({ projectId, title, entry, onCreate, onUpdate }) {
+function EntrySection({ projectId, title, entry, onCreate, onUpdate, onEntryChanged }) {
   const [editing, setEditing] = useState(false)
   const [direction, setDirection] = useState('')
   const [nominalValue, setNominalValue] = useState('')
@@ -86,13 +87,23 @@ function EntrySection({ projectId, title, entry, onCreate, onUpdate }) {
           // here that hasn't been through that.
           <div className="entry-notes" dangerouslySetInnerHTML={{ __html: entry.notes }} />
         )}
-        <ToleranceChainSection
-          projectId={projectId}
-          entryId={entry.entry_id}
-          nominal={entry.nominal_value}
-          upperLimit={entry.upper_limit}
-          lowerLimit={entry.lower_limit}
-        />
+        {entry.direction === 'OTHER' ? (
+          <AngledInterfaceSection
+            projectId={projectId}
+            entryId={entry.entry_id}
+            interfaceAngle={entry.interface_angle}
+            calculationMethod={entry.calculation_method}
+            onEntryChanged={onEntryChanged}
+          />
+        ) : (
+          <ToleranceChainSection
+            projectId={projectId}
+            entryId={entry.entry_id}
+            nominal={entry.nominal_value}
+            upperLimit={entry.upper_limit}
+            lowerLimit={entry.lower_limit}
+          />
+        )}
       </div>
     )
   }
@@ -196,6 +207,7 @@ function AnalysisDetailPage() {
           await updateGapEntry(projectId, analysisId, body)
           refresh()
         }}
+        onEntryChanged={refresh}
       />
       <EntrySection
         projectId={projectId}
@@ -209,6 +221,7 @@ function AnalysisDetailPage() {
           await updateFlushEntry(projectId, analysisId, body)
           refresh()
         }}
+        onEntryChanged={refresh}
       />
       <AnalysisImageGallery projectId={projectId} analysisId={analysisId} />
     </div>

@@ -338,6 +338,33 @@ export const deleteChainComponent = (projectId, chainComponentId) =>
 export const getSimulation = (projectId, entryId) =>
   apiFetch(`/projects/${projectId}/entries/${entryId}/simulation`)
 
+export const listAngledComponents = (projectId, entryId) =>
+  apiFetch(`/projects/${projectId}/entries/${entryId}/angled-components`)
+
+export const createAngledComponent = (projectId, entryId, component) =>
+  apiFetch(`/projects/${projectId}/entries/${entryId}/angled-components`, {
+    method: 'POST',
+    body: JSON.stringify(component),
+  })
+
+export const updateAngledComponent = (projectId, angledComponentId, component) =>
+  apiFetch(`/projects/${projectId}/angled-components/${angledComponentId}`, {
+    method: 'PUT',
+    body: JSON.stringify(component),
+  })
+
+export const deleteAngledComponent = (projectId, angledComponentId) =>
+  apiFetch(`/projects/${projectId}/angled-components/${angledComponentId}`, { method: 'DELETE' })
+
+export const getAngledSimulation = (projectId, entryId) =>
+  apiFetch(`/projects/${projectId}/entries/${entryId}/angled-simulation`)
+
+export const updateAngledSettings = (projectId, entryId, interfaceAngle, calculationMethod) =>
+  apiFetch(`/projects/${projectId}/entries/${entryId}/angled-settings`, {
+    method: 'PUT',
+    body: JSON.stringify({ interface_angle: interfaceAngle, calculation_method: calculationMethod }),
+  })
+
 export const listStandardTolerances = (projectId) =>
   apiFetch(`/projects/${projectId}/standard-tolerances`)
 

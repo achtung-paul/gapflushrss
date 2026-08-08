@@ -10,7 +10,7 @@
 // whole 1mm instead of the intended 0.1mm. Hiding the native spinner
 // (index.css) and driving the step ourselves keeps both properties: any
 // decimal can be typed, and the steppers/arrow keys move by `step`.
-function NumberInput({ value, onChange, onBlur, step = 0.1, min, placeholder, required, title }) {
+function NumberInput({ value, onChange, onBlur, step = 0.1, min, max, placeholder, required, title }) {
   function nudge(direction) {
     const current = Number(value) || 0
     // Round to 3dp -- plain float arithmetic on 0.1 steps produces
@@ -20,6 +20,9 @@ function NumberInput({ value, onChange, onBlur, step = 0.1, min, placeholder, re
     let next = Math.round((current + direction * step) * 1000) / 1000
     if (min !== undefined && next < Number(min)) {
       next = Number(min)
+    }
+    if (max !== undefined && next > Number(max)) {
+      next = Number(max)
     }
     onChange(String(next))
   }
@@ -40,6 +43,7 @@ function NumberInput({ value, onChange, onBlur, step = 0.1, min, placeholder, re
         type="number"
         step="any"
         min={min}
+        max={max}
         placeholder={placeholder}
         title={title}
         value={value}

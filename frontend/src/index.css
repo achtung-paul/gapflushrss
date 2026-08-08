@@ -263,10 +263,66 @@ td {
   border: none;
 }
 
-.tolerance-chain {
+.tolerance-chain,
+.angled-interface {
   margin-top: 0.75rem;
   padding-top: 0.75rem;
   border-top: 1px solid #ddd;
+}
+
+.angled-method-options {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.angled-table td.angled-value {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.angled-note-input {
+  display: block;
+  margin-top: 0.25rem;
+  width: 100%;
+  max-width: 240px;
+}
+
+/* The prominent result box the wireframe calls for -- made prominent by
+   type size, not a heavy new card, matching .entry-notes's border-left
+   callout treatment elsewhere in this app. */
+.angled-total {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  max-width: 600px;
+  border-left: 4px solid var(--color-heading);
+  background: #f5f5f5;
+}
+
+.angled-total-label {
+  color: #555;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.angled-total-value {
+  font-size: 2rem;
+  font-weight: bold;
+  line-height: 1.2;
+}
+
+.angled-total-detail {
+  color: #555;
+  font-size: 0.85rem;
+}
+
+/* Scoped override, not a change to .rag-badge itself -- the sigma
+   table's badge (a <td>) must not shift when this is added. */
+.angled-total .rag-badge {
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  margin-left: 0.5rem;
 }
 
 .analysis-table-scroll {
