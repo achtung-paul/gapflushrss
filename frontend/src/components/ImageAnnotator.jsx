@@ -29,6 +29,20 @@ function extractPointsFromAnnotation(annotation) {
     })
 }
 
+// A marker near the image's left/right edge would have its confirm
+// popup's default centered position push the box past the visible page
+// -- shift the anchor to whichever side has room instead. Thresholds are
+// fractions of image width, matching marker.x's own units.
+function popupAlignmentClass(x) {
+  if (x < 0.15) {
+    return 'marker-confirm-popup-align-start'
+  }
+  if (x > 0.85) {
+    return 'marker-confirm-popup-align-end'
+  }
+  return ''
+}
+
 // Wraps an image with Annotorious for placing markers, plus our own
 // permanently-rendered numbered "balloon" overlay -- see the brief's
 // reference image (red circle containing a number).
@@ -159,7 +173,7 @@ function ImageAnnotator({ projectId, imageUrl, markers, onCreateMarker, onDelete
             &times;
           </button>
           {pendingDeleteId === marker.marker_id && (
-            <div className="marker-confirm-popup">
+            <div className={`marker-confirm-popup ${popupAlignmentClass(marker.x)}`}>
               <p>
                 Delete marker {marker.sequence_number} ({marker.analysis_code})? This also removes
                 its Gap/Flush and tolerance chain data.
