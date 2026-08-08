@@ -16,6 +16,7 @@ from app.api import (
     admin,
     analyses,
     analysis_images,
+    angled_components,
     auth,
     banner,
     chain_components,
@@ -151,6 +152,7 @@ app.include_router(reference_data.router)
 app.include_router(images.router)
 app.include_router(analysis_images.router)
 app.include_router(chain_components.router)
+app.include_router(angled_components.router)
 app.include_router(standard_tolerances.router)
 app.include_router(banner.router)
 app.include_router(logs.router)

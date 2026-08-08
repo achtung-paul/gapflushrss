@@ -30,7 +30,7 @@ from app.models.analysis_image import AnalysisImage
 from app.models.commodity import Commodity
 from app.models.user import User
 from app.schemas.analysis import AnalysisDetailOut
-from app.schemas.analysis_entry import AnalysisEntryCreate, AnalysisEntryOut
+from app.schemas.analysis_entry import AnalysisEntryCreate, AnalysisEntryOut, AngledSettingsUpdate
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["analyses"])
 
@@ -75,6 +75,8 @@ def _entry_out(analysis: Analysis, entry: AnalysisEntry) -> AnalysisEntryOut:
         created_by_name=entry.created_by_name,
         updated_by_name=entry.updated_by_name,
         notes=entry.notes,
+        interface_angle=entry.interface_angle,
+        calculation_method=entry.calculation_method,
     )
 
 
@@ -304,3 +306,31 @@ def update_flush_entry(
     current_user: User = Depends(get_current_user),
 ):
     return _update_entry(project_id, analysis_id, EntryType.FLUSH, body, db, project_db, current_user)
+
+
+@router.put("/entries/{entry_id}/angled-settings", response_model=AnalysisEntryOut)
+def update_angled_settings(
+    project_id: int,
+    entry_id: int,
+    body: AngledSettingsUpdate,
+    db: Session = Depends(get_db),
+    project_db: Session = Depends(get_project_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Deliberately its own narrow endpoint rather than folded into
+    # AnalysisEntryCreate/_update_entry -- that schema is a full-replace
+    # body built independently by two callers (AnalysisDetailPage.jsx and
+    # AnalysisListPage.jsx), and AnalysisListPage's already omits `notes`
+    # from its PUT body, silently resetting it on every save. Adding more
+    # defaulted fields there would let the same trap reset the angle too.
+    require_project_editor(db, current_user, project_id)
+    entry = _get_entry_or_404(project_db, project_id, entry_id)
+
+    entry.interface_angle = body.interface_angle
+    entry.calculation_method = body.calculation_method
+    entry.updated_by_name = f"{current_user.first_name} {current_user.last_name}"
+    project_db.commit()
+    project_db.refresh(entry)
+
+    analysis = _get_analysis_or_404(project_db, project_id, entry.analysis_id)
+    return _entry_out(analysis, entry)

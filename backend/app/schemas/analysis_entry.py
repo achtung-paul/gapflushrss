@@ -1,6 +1,6 @@
 from pydantic import BaseModel, field_validator
 
-from app.models.analysis_entry import Direction, EntryType
+from app.models.analysis_entry import CalculationMethod, Direction, EntryType
 
 
 class AnalysisEntryCreate(BaseModel):
@@ -41,3 +41,26 @@ class AnalysisEntryOut(BaseModel):
     # Already sanitised when it was stored, which is what makes it safe
     # for the frontend to render as markup.
     notes: str
+    # Angled-interface settings -- only meaningful when direction is
+    # OTHER, but always present (see models/analysis_entry.py). Saved via
+    # a dedicated endpoint (AngledSettingsUpdate below), not this schema --
+    # AnalysisEntryCreate is deliberately left without these fields, since
+    # AnalysisListPage.jsx's inline edit form already omits `notes` from
+    # its PUT body and silently resets it; adding more defaulted fields
+    # here would let the same trap reset the angle too.
+    interface_angle: float
+    calculation_method: CalculationMethod
+
+
+class AngledSettingsUpdate(BaseModel):
+    interface_angle: float
+    calculation_method: CalculationMethod
+
+    @field_validator("interface_angle")
+    @classmethod
+    def angle_must_be_in_range(cls, value: float) -> float:
+        # Outside 0-90, cos(theta) goes negative and would *reduce* the
+        # worst-case total -- a sign error masquerading as a result.
+        if not (0 <= value <= 90):
+            raise ValueError("interface_angle must be between 0 and 90 degrees")
+        return value

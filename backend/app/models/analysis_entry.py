@@ -33,6 +33,16 @@ class Direction(str, enum.Enum):
     OTHER = "OTHER"
 
 
+# Only meaningful when direction == OTHER (see api/angled_components.py) --
+# but declared NOT NULL with a default rather than nullable, so the angled
+# maths (core/angled_simulation.py) never has to handle a None angle/method.
+# WORST_CASE is the default, not RSS: worst case is always >= RSS, so an
+# entry nobody has touched yet can never under-report its variation.
+class CalculationMethod(str, enum.Enum):
+    WORST_CASE = "WORST_CASE"
+    RSS = "RSS"
+
+
 class AnalysisEntry(ProjectBase):
     __tablename__ = "analysis_entries"
     __table_args__ = (UniqueConstraint("analysis_id", "entry_type"),)
@@ -46,6 +56,14 @@ class AnalysisEntry(ProjectBase):
     # Which vehicle coordinate axis this Gap/Flush is measured along --
     # blank until set, same as every other optional field here.
     direction: Mapped[Direction | None] = mapped_column(Enum(Direction, name="direction"), nullable=True)
+
+    # Angled-interface settings (direction == OTHER) -- degrees and the
+    # combination method used by core/angled_simulation.py. Irrelevant for
+    # X/Y/Z entries but always populated; see CalculationMethod above for why.
+    interface_angle: Mapped[float] = mapped_column(Numeric(10, 3), nullable=False, server_default="45")
+    calculation_method: Mapped[CalculationMethod] = mapped_column(
+        Enum(CalculationMethod, name="calculation_method"), nullable=False, server_default="WORST_CASE"
+    )
 
     # e.g. nominal=3.5, upper_limit=1, lower_limit=0.2 means the
     # acceptable band is 3.3 to 4.5 (nominal - lower_limit to
