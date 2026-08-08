@@ -26,6 +26,15 @@ const RAG_CLASS = {
   red: 'rag-red',
   not_evaluated: 'rag-not-evaluated',
 }
+// Same pass/caution/fail wording as ToleranceChainSection.jsx's sigma
+// table -- this column is a quick pass/fail glance across the whole
+// list, not the detail page's own numeric spread (still shown there).
+const RAG_LABELS = {
+  green: 'Pass',
+  amber: 'Caution',
+  red: 'Fail',
+  not_evaluated: 'Not evaluated',
+}
 const SIGMA_LEVELS = [3, 4, 5]
 
 // Renders the Max/Min band (nominal + upper limit, over nominal - lower
@@ -165,8 +174,12 @@ function EntryTableRow({ projectId, analysisId, analysisCode, analysisDescriptio
       {SIGMA_LEVELS.map((sigmaLevel) => {
         const result = simulation?.results.find((r) => r.sigma_level === sigmaLevel)
         return (
-          <td key={sigmaLevel} className={result ? RAG_CLASS[result.rag] : undefined}>
-            {result ? `±${result.spread.toFixed(2)} mm` : ''}
+          <td key={sigmaLevel}>
+            {result && (
+              <span className={`rag-badge ${RAG_CLASS[result.rag] ?? ''}`} title={`±${result.spread.toFixed(2)} mm`}>
+                {RAG_LABELS[result.rag] ?? result.rag}
+              </span>
+            )}
           </td>
         )
       })}
@@ -176,7 +189,7 @@ function EntryTableRow({ projectId, analysisId, analysisCode, analysisDescriptio
             Save
           </button>
         ) : (
-          <button type="button" onClick={startEditing}>
+          <button type="button" className="link-button" onClick={startEditing}>
             {entry ? 'Edit' : 'Add'}
           </button>
         )}
@@ -199,7 +212,7 @@ function EntryTableRow({ projectId, analysisId, analysisCode, analysisDescriptio
               </button>
             </>
           ) : (
-            <button type="button" onClick={() => setPendingDelete(true)}>
+            <button type="button" className="link-button" onClick={() => setPendingDelete(true)}>
               Delete
             </button>
           ))
@@ -323,7 +336,7 @@ function AnalysisListPage() {
       <h2>Analyses</h2>
       {error && <p className="form-error">{error}</p>}
 
-      <h3>Images</h3>
+      <h3 className="section-label">Images</h3>
       {images.length === 0 ? (
         <p>No images uploaded yet.</p>
       ) : (
@@ -344,10 +357,10 @@ function AnalysisListPage() {
                 <div className="analysis-gallery-confirm">
                   <p>Delete this image?</p>
                   <div>
-                    <button type="button" onClick={() => handleDeleteImage(image.image_id)}>
+                    <button type="button" className="link-button" onClick={() => handleDeleteImage(image.image_id)}>
                       Yes
                     </button>{' '}
-                    <button type="button" onClick={() => setPendingDeleteImageId(null)}>
+                    <button type="button" className="link-button" onClick={() => setPendingDeleteImageId(null)}>
                       No
                     </button>
                   </div>
@@ -367,6 +380,8 @@ function AnalysisListPage() {
         </div>
       )}
 
+      <div className="section-divider" />
+
       <form onSubmit={handleUpload} className="inline-form">
         <label>
           Image file{' '}
@@ -375,8 +390,11 @@ function AnalysisListPage() {
         <button type="submit">Upload image</button>
       </form>
 
+      <div className="section-divider" />
+
       {selectedImageId !== null && (
         <div>
+          <h3 className="section-label">Assembly diagram &mdash; click a marker to open its analysis</h3>
           <p>
             Click the image to place points along a line, double-click to finish -- this drops a
             numbered marker at the last point (with the line left in place) and creates the next
@@ -393,7 +411,9 @@ function AnalysisListPage() {
         </div>
       )}
 
-      <h3>All analyses</h3>
+      <div className="section-divider" />
+
+      <h3 className="section-label">All analyses</h3>
       <div className="analysis-table-scroll">
         <table className="analysis-table">
           <thead>

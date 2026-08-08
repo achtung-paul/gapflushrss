@@ -89,10 +89,10 @@ function AnalysisImageGallery({ projectId, analysisId }) {
                 <div className="analysis-gallery-confirm">
                   <p>Delete this image?</p>
                   <div>
-                    <button type="button" onClick={() => handleDelete(image.analysis_image_id)}>
+                    <button type="button" className="link-button" onClick={() => handleDelete(image.analysis_image_id)}>
                       Yes
                     </button>{' '}
-                    <button type="button" onClick={() => setPendingDeleteId(null)}>
+                    <button type="button" className="link-button" onClick={() => setPendingDeleteId(null)}>
                       No
                     </button>
                   </div>

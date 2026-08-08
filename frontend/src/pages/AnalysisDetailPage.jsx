@@ -20,7 +20,7 @@ import ToleranceChainSection from '../components/ToleranceChainSection.jsx'
 // brief), so both start out missing. Create and edit share the same
 // form; which callback Save/Add invokes depends on whether an entry
 // already existed when the form opened.
-function EntrySection({ projectId, title, entry, onCreate, onUpdate, onEntryChanged }) {
+function EntrySection({ projectId, title, entry, onCreate, onUpdate, onEntryChanged, showOwnHeading }) {
   const [editing, setEditing] = useState(false)
   const [direction, setDirection] = useState('')
   const [nominalValue, setNominalValue] = useState('')
@@ -28,6 +28,12 @@ function EntrySection({ projectId, title, entry, onCreate, onUpdate, onEntryChan
   const [lowerLimit, setLowerLimit] = useState('')
   const [notes, setNotes] = useState('')
   const [error, setError] = useState(null)
+  // Notes get their own small edit toggle, separate from `editing` above
+  // -- they're shown under the chart, not inside the direction/nominal/
+  // limits form, so editing one shouldn't require opening the other.
+  const [editingNotes, setEditingNotes] = useState(false)
+  const [notesInput, setNotesInput] = useState('')
+  const [notesError, setNotesError] = useState(null)
 
   // e.g. "GAP-X" once a direction is set, or just "GAP" until it is --
   // direction lives on the entry (see api/analyses.py), not the analysis,
@@ -42,6 +48,32 @@ function EntrySection({ projectId, title, entry, onCreate, onUpdate, onEntryChan
     setNotes(entry?.notes ?? '')
     setError(null)
     setEditing(true)
+  }
+
+  function startEditingNotes() {
+    setNotesInput(entry?.notes ?? '')
+    setNotesError(null)
+    setEditingNotes(true)
+  }
+
+  // Reuses the same full-replace onUpdate as the direction/nominal/limits
+  // form (there's no narrower "just update notes" endpoint -- see
+  // AnalysisEntryCreate), carrying the entry's other fields forward
+  // unchanged so this really only ever touches notes.
+  async function handleSaveNotes() {
+    setNotesError(null)
+    try {
+      await onUpdate({
+        nominal_value: entry.nominal_value,
+        upper_limit: entry.upper_limit,
+        lower_limit: entry.lower_limit,
+        direction: entry.direction,
+        notes: notesInput,
+      })
+      setEditingNotes(false)
+    } catch (err) {
+      setNotesError(err.message)
+    }
   }
 
   async function handleSubmit(event) {
@@ -64,35 +96,31 @@ function EntrySection({ projectId, title, entry, onCreate, onUpdate, onEntryChan
 
   if (entry && !editing) {
     // entry_code from the backend never includes direction (see
-    // api/analyses.py's _entry_out) -- append it here, same as the
-    // heading above, so e.g. "IP-001-GAP" becomes "IP-001-GAP-X" once a
-    // direction is set.
+    // api/analyses.py's _entry_out) -- append it here, so e.g.
+    // "IP-001-GAP" becomes "IP-001-GAP-X" once a direction is set.
     const displayCode = entry.entry_code + (entry.direction ? `-${entry.direction}` : '')
     return (
       <div>
-        <h3>{heading}</h3>
-        <p>
+        {/* Whichever entry the page heading above already identifies
+            (see AnalysisDetailPage's primaryEntry) skips repeating its
+            own code here -- the other entry, if any, still needs it. */}
+        {showOwnHeading && <h3>{displayCode}</h3>}
+        <p className="entry-band">
           {/* toFixed(3) matches the Numeric(10,3) column these come from --
               plain subtraction/addition on the floats the API returns can
               produce binary floating-point noise (e.g. 0.10000000000000009)
               that was never actually stored. */}
-          {displayCode}: nominal {entry.nominal_value} mm, band{' '}
+          Nominal {entry.nominal_value} mm, Band{' '}
           {(entry.nominal_value - entry.lower_limit).toFixed(3)} mm{' '}
           to {(entry.nominal_value + entry.upper_limit).toFixed(3)} mm (+{entry.upper_limit} mm{' '}
           / -{entry.lower_limit} mm){' '}
-          <button type="button" onClick={startEditing}>
+          <button type="button" className="link-button" onClick={startEditing}>
             Edit
           </button>
         </p>
         <p className="form-hint">
           Created by {entry.created_by_name} &middot; Last modified by {entry.updated_by_name}
         </p>
-        {entry.notes && (
-          // Safe to render as markup only because the backend sanitises
-          // it on write (core/html_sanitize.py) -- never render a value
-          // here that hasn't been through that.
-          <div className="entry-notes" dangerouslySetInnerHTML={{ __html: entry.notes }} />
-        )}
         {entry.direction === 'OTHER' ? (
           <AngledInterfaceSection
             projectId={projectId}
@@ -110,13 +138,41 @@ function EntrySection({ projectId, title, entry, onCreate, onUpdate, onEntryChan
             lowerLimit={entry.lower_limit}
           />
         )}
+
+        <div className="section-divider" />
+
+        <h4>Notes</h4>
+        {editingNotes ? (
+          <div>
+            <RichTextEditor value={notesInput} onChange={setNotesInput} />
+            <button type="button" onClick={handleSaveNotes}>
+              Save
+            </button>{' '}
+            <button type="button" onClick={() => setEditingNotes(false)}>
+              Cancel
+            </button>
+            {notesError && <p className="form-error">{notesError}</p>}
+          </div>
+        ) : (
+          <div>
+            {entry.notes && (
+              // Safe to render as markup only because the backend
+              // sanitises it on write (core/html_sanitize.py) -- never
+              // render a value here that hasn't been through that.
+              <div className="entry-notes" dangerouslySetInnerHTML={{ __html: entry.notes }} />
+            )}
+            <button type="button" className="link-button" onClick={startEditingNotes}>
+              {entry.notes ? 'Edit' : 'Add notes'}
+            </button>
+          </div>
+        )}
       </div>
     )
   }
 
   return (
     <div>
-      <h3>{heading}</h3>
+      {showOwnHeading && <h3>{heading}</h3>}
       {!entry && <p>Not attached yet.</p>}
       {/* entry-form adds wrapping to .inline-form's single row -- the
           notes editor needs a line of its own, and .inline-form is used
@@ -161,13 +217,18 @@ function EntrySection({ projectId, title, entry, onCreate, onUpdate, onEntryChan
             required
           />
         </label>
-        {/* Outside the inline row: the editor is far taller than the
-            numeric inputs and would wreck the single-line layout. Saved
-            by the same Save button, through the same endpoint. */}
-        <div className="entry-notes-field">
-          <label>Notes</label>
-          <RichTextEditor value={notes} onChange={setNotes} />
-        </div>
+        {/* Only for the create flow -- an existing entry's notes have
+            their own editor under the graph below (see handleSaveNotes),
+            so this field would just be a confusing second place to edit
+            the same thing. Outside the inline row: the editor is far
+            taller than the numeric inputs and would wreck the
+            single-line layout. */}
+        {!entry && (
+          <div className="entry-notes-field">
+            <label>Notes</label>
+            <RichTextEditor value={notes} onChange={setNotes} />
+          </div>
+        )}
         <button type="submit">{entry ? 'Save' : `Add ${title}`}</button>
         {entry && (
           <button type="button" onClick={() => setEditing(false)}>
@@ -218,6 +279,16 @@ function AnalysisDetailPage() {
     return <p>Loading...</p>
   }
 
+  // Whichever of Gap/Flush exists takes over the page heading (e.g.
+  // "DR-001-GAP-X" instead of the bare "DR-001") so that code doesn't
+  // also need its own separate heading line lower down -- see
+  // EntrySection's showOwnHeading. Gap wins if an analysis somehow has
+  // both; a placeholder analysis with neither falls back to the bare code.
+  const primaryEntry = analysis.gap ?? analysis.flush
+  const primaryCode = primaryEntry
+    ? primaryEntry.entry_code + (primaryEntry.direction ? `-${primaryEntry.direction}` : '')
+    : analysis.analysis_code
+
   return (
     <div>
       <p>
@@ -226,7 +297,7 @@ function AnalysisDetailPage() {
         </Link>
       </p>
       <h2>
-        Analysis Page: {analysis.analysis_code}
+        {primaryCode}
         {editingDescription ? (
           <>
             {' - '}
@@ -246,7 +317,7 @@ function AnalysisDetailPage() {
         ) : (
           <>
             {analysis.description && ` - ${analysis.description}`}{' '}
-            <button type="button" onClick={startEditingDescription}>
+            <button type="button" className="link-button" onClick={startEditingDescription}>
               {analysis.description ? 'Edit' : 'Add description'}
             </button>
           </>
@@ -257,6 +328,7 @@ function AnalysisDetailPage() {
         projectId={projectId}
         title="Gap"
         entry={analysis.gap}
+        showOwnHeading={analysis.gap ? analysis.gap !== primaryEntry : true}
         onCreate={async (body) => {
           await createGapEntry(projectId, analysisId, body)
           refresh()
@@ -267,10 +339,14 @@ function AnalysisDetailPage() {
         }}
         onEntryChanged={refresh}
       />
+
+      <div className="section-divider" />
+
       <EntrySection
         projectId={projectId}
         title="Flush"
         entry={analysis.flush}
+        showOwnHeading={analysis.flush ? analysis.flush !== primaryEntry : true}
         onCreate={async (body) => {
           await createFlushEntry(projectId, analysisId, body)
           refresh()
@@ -281,6 +357,9 @@ function AnalysisDetailPage() {
         }}
         onEntryChanged={refresh}
       />
+
+      <div className="section-divider" />
+
       <AnalysisImageGallery projectId={projectId} analysisId={analysisId} />
     </div>
   )

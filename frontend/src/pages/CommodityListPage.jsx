@@ -36,7 +36,7 @@ function CommodityListPage() {
         <Link to={`/projects/${projectId}/standard-tolerances`}>Standard tolerances</Link>
       </p>
       <h2>Commodities</h2>
-      <ul>
+      <ul className="link-list">
         {commodities.map((commodity) => (
           <li key={commodity.commodity_id}>
             <Link to={`/projects/${projectId}/commodities/${commodity.commodity_id}/analyses`}>
@@ -45,6 +45,8 @@ function CommodityListPage() {
           </li>
         ))}
       </ul>
+
+      <div className="section-divider" />
 
       <form onSubmit={handleCreate} className="inline-form">
         <label>

@@ -215,6 +215,8 @@ function ToleranceMatrixPage() {
       </p>
       {error && <p className="form-error">{error}</p>}
 
+      <div className="section-divider" />
+
       <div className="tolerance-matrix-scroll-controls">
         <button type="button" onClick={() => scrollMatrix(-1)}>
           &larr; Scroll
@@ -299,6 +301,8 @@ function ToleranceMatrixPage() {
         </table>
       </div>
 
+      <div className="section-divider" />
+
       <h3>Add a tolerance group (row)</h3>
       <form onSubmit={handleAddGroup} className="inline-form">
         <label>
@@ -312,6 +316,8 @@ function ToleranceMatrixPage() {
         </label>
         <button type="submit">Add group</button>
       </form>
+
+      <div className="section-divider" />
 
       <h3>Add a dimension range (column)</h3>
       <form onSubmit={handleAddRange} className="inline-form">

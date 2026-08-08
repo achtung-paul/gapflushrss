@@ -113,17 +113,31 @@ function ProcessTypesPage() {
               </td>
               <td>
                 {editingId === processType.process_type_id ? (
-                  <button onClick={() => saveEdit(processType.process_type_id)}>Save</button>
+                  <button type="button" onClick={() => saveEdit(processType.process_type_id)}>
+                    Save
+                  </button>
                 ) : pendingDeleteId === processType.process_type_id ? (
                   <>
                     <span>Delete this process type?</span>{' '}
-                    <button onClick={() => handleDelete(processType.process_type_id)}>Yes</button>{' '}
-                    <button onClick={() => setPendingDeleteId(null)}>No</button>
+                    <button type="button" onClick={() => handleDelete(processType.process_type_id)}>
+                      Yes
+                    </button>{' '}
+                    <button type="button" onClick={() => setPendingDeleteId(null)}>
+                      No
+                    </button>
                   </>
                 ) : (
                   <>
-                    <button onClick={() => startEditing(processType)}>Edit</button>{' '}
-                    <button onClick={() => setPendingDeleteId(processType.process_type_id)}>Delete</button>
+                    <button type="button" className="link-button" onClick={() => startEditing(processType)}>
+                      Edit
+                    </button>{' '}
+                    <button
+                      type="button"
+                      className="link-button"
+                      onClick={() => setPendingDeleteId(processType.process_type_id)}
+                    >
+                      Delete
+                    </button>
                   </>
                 )}
               </td>
@@ -131,6 +145,8 @@ function ProcessTypesPage() {
           ))}
         </tbody>
       </table>
+
+      <div className="section-divider" />
 
       <form onSubmit={handleCreate} className="inline-form">
         <label>
@@ -144,6 +160,8 @@ function ProcessTypesPage() {
         </label>
         <button type="submit">Create</button>
       </form>
+
+      <div className="section-divider" />
 
       {/* Always creates a brand-new process type from the file -- there's
           no existing matrix to merge into, so this is create-only, same

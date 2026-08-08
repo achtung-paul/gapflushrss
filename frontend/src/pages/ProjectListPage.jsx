@@ -94,42 +94,68 @@ function ProjectListPage() {
   return (
     <div>
       <h2>Projects</h2>
-      <ul>
+      <ul className="link-list">
         {projects.map((project) => (
           <li key={project.project_id}>
             {isRootAdmin && editingId === project.project_id ? (
               confirmingRenameId === project.project_id ? (
                 <>
-                  <span>Rename to &quot;{editingName}&quot;?</span>{' '}
-                  <button onClick={() => handleConfirmRename(project.project_id)}>Yes</button>{' '}
-                  <button onClick={() => setConfirmingRenameId(null)}>No</button>
+                  <span>Rename to &quot;{editingName}&quot;?</span>
+                  <span className="link-list-actions">
+                    <button type="button" onClick={() => handleConfirmRename(project.project_id)}>
+                      Yes
+                    </button>
+                    <button type="button" onClick={() => setConfirmingRenameId(null)}>
+                      No
+                    </button>
+                  </span>
                 </>
               ) : (
                 <>
                   <label>
                     New name{' '}
                     <input value={editingName} onChange={(e) => setEditingName(e.target.value)} />
-                  </label>{' '}
-                  <button onClick={() => setConfirmingRenameId(project.project_id)}>Save</button>{' '}
-                  <button onClick={() => setEditingId(null)}>Cancel</button>
+                  </label>
+                  <span className="link-list-actions">
+                    <button type="button" onClick={() => setConfirmingRenameId(project.project_id)}>
+                      Save
+                    </button>
+                    <button type="button" onClick={() => setEditingId(null)}>
+                      Cancel
+                    </button>
+                  </span>
                 </>
               )
             ) : isRootAdmin && pendingDeleteId === project.project_id ? (
               <>
-                <span>{project.project_name}</span>{' '}
-                <span>Delete this project?</span>{' '}
-                <button onClick={() => handleDelete(project.project_id)}>Yes</button>{' '}
-                <button onClick={() => setPendingDeleteId(null)}>No</button>
+                <span>{project.project_name}</span>
+                <span className="link-list-actions">
+                  <span>Delete this project?</span>
+                  <button type="button" onClick={() => handleDelete(project.project_id)}>
+                    Yes
+                  </button>
+                  <button type="button" onClick={() => setPendingDeleteId(null)}>
+                    No
+                  </button>
+                </span>
               </>
             ) : (
               <>
-                <Link to={`/projects/${project.project_id}/commodities`}>{project.project_name}</Link>{' '}
-                <span className="form-hint">({project.my_role})</span>{' '}
+                <Link to={`/projects/${project.project_id}/commodities`}>{project.project_name}</Link>
+                <span className="tag">{project.my_role}</span>
                 {isRootAdmin && (
-                  <>
-                    <button onClick={() => startEditing(project)}>Edit</button>{' '}
-                    <button onClick={() => setPendingDeleteId(project.project_id)}>Delete</button>
-                  </>
+                  <span className="link-list-actions">
+                    <button type="button" className="link-button" onClick={() => startEditing(project)}>
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="link-button"
+                      onClick={() => setPendingDeleteId(project.project_id)}
+                    >
+                      Delete
+                    </button>
+                  </span>
                 )}
               </>
             )}
@@ -139,6 +165,8 @@ function ProjectListPage() {
 
       {isRootAdmin && (
         <>
+          <div className="section-divider" />
+
           <form onSubmit={handleCreate} className="inline-form">
             <label>
               Project name{' '}

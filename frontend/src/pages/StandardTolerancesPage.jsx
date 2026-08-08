@@ -133,8 +133,12 @@ function StandardTolerancesPage() {
                   </td>
                   <td>{standard.updated_by_name}</td>
                   <td>
-                    <button onClick={() => saveEdit(standard.standard_tolerance_id)}>Save</button>{' '}
-                    <button onClick={() => setEditingId(null)}>Cancel</button>
+                    <button type="button" onClick={() => saveEdit(standard.standard_tolerance_id)}>
+                      Save
+                    </button>{' '}
+                    <button type="button" onClick={() => setEditingId(null)}>
+                      Cancel
+                    </button>
                   </td>
                 </>
               ) : (
@@ -147,13 +151,23 @@ function StandardTolerancesPage() {
                     {pendingDeleteId === standard.standard_tolerance_id ? (
                       <>
                         <span>Delete this standard tolerance?</span>{' '}
-                        <button onClick={() => handleDelete(standard.standard_tolerance_id)}>Yes</button>{' '}
-                        <button onClick={() => setPendingDeleteId(null)}>No</button>
+                        <button type="button" onClick={() => handleDelete(standard.standard_tolerance_id)}>
+                          Yes
+                        </button>{' '}
+                        <button type="button" onClick={() => setPendingDeleteId(null)}>
+                          No
+                        </button>
                       </>
                     ) : (
                       <>
-                        <button onClick={() => startEditing(standard)}>Edit</button>{' '}
-                        <button onClick={() => setPendingDeleteId(standard.standard_tolerance_id)}>
+                        <button type="button" className="link-button" onClick={() => startEditing(standard)}>
+                          Edit
+                        </button>{' '}
+                        <button
+                          type="button"
+                          className="link-button"
+                          onClick={() => setPendingDeleteId(standard.standard_tolerance_id)}
+                        >
                           Delete
                         </button>
                       </>
@@ -170,6 +184,8 @@ function StandardTolerancesPage() {
           )}
         </tbody>
       </table>
+
+      <div className="section-divider" />
 
       <form onSubmit={handleCreate} className="inline-form">
         <label>

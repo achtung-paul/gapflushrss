@@ -278,10 +278,14 @@ function AdminPage() {
                     </>
                   ) : (
                     <>
-                      <button type="button" onClick={() => startEditingUser(user)}>
+                      <button type="button" className="link-button" onClick={() => startEditingUser(user)}>
                         Edit
                       </button>{' '}
-                      <button type="button" onClick={() => setPendingDeleteUserId(user.user_id)}>
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() => setPendingDeleteUserId(user.user_id)}
+                      >
                         Delete
                       </button>
                     </>
@@ -319,6 +323,8 @@ function AdminPage() {
           </button>
         </nav>
       )}
+
+      <div className="section-divider" />
 
       <form onSubmit={handleCreateUser} className="inline-form">
         <label>
@@ -371,6 +377,8 @@ function AdminPage() {
         </label>
         <button type="submit">Add user</button>
       </form>
+
+      <div className="section-divider" />
 
       <h2>Project groups</h2>
       <p>
@@ -426,7 +434,7 @@ function AdminPage() {
                           </button>
                         </>
                       ) : (
-                        <button type="button" onClick={() => setPendingRemoveKey(key)}>
+                        <button type="button" className="link-button" onClick={() => setPendingRemoveKey(key)}>
                           Remove
                         </button>
                       )}

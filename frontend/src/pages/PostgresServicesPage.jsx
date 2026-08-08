@@ -108,8 +108,10 @@ function PostgresServicesPage() {
               <td>{service.port}</td>
               <td>{service.database}</td>
               <td>{service.username}</td>
-              <td className={`rag-badge rag-${STATUS_RAG[service.status]}`}>
-                {STATUS_LABELS[service.status]}
+              <td>
+                <span className={`rag-badge rag-${STATUS_RAG[service.status]}`}>
+                  {STATUS_LABELS[service.status]}
+                </span>
               </td>
               <td>
                 {service.status !== 'initialized' && (
@@ -134,7 +136,11 @@ function PostgresServicesPage() {
                     </button>
                   </>
                 ) : (
-                  <button type="button" onClick={() => setPendingDeleteId(service.postgres_service_id)}>
+                  <button
+                    type="button"
+                    className="link-button"
+                    onClick={() => setPendingDeleteId(service.postgres_service_id)}
+                  >
                     Delete
                   </button>
                 )}
@@ -148,6 +154,8 @@ function PostgresServicesPage() {
           )}
         </tbody>
       </table>
+
+      <div className="section-divider" />
 
       <form onSubmit={handleCreate} className="inline-form">
         <label>

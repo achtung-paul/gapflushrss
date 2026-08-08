@@ -272,11 +272,12 @@ function AngledInterfaceSection({ projectId, entryId, interfaceAngle, calculatio
                       </>
                     ) : (
                       <>
-                        <button type="button" onClick={() => startEditing(component)}>
+                        <button type="button" className="link-button" onClick={() => startEditing(component)}>
                           Edit
                         </button>{' '}
                         <button
                           type="button"
+                          className="link-button"
                           onClick={() => setPendingDeleteId(component.angled_component_id)}
                         >
                           Delete

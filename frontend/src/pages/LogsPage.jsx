@@ -141,6 +141,8 @@ function LogsPage() {
         </p>
       )}
 
+      <div className="section-divider" />
+
       <div className="analysis-table-scroll">
         <table className="analysis-table log-table">
           <thead>

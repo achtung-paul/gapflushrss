@@ -89,6 +89,8 @@ function BannerPage() {
           guess -- uses the same classes the real banner does. */}
       {message.trim() && (
         <>
+          <div className="section-divider" />
+
           <h3>Preview</h3>
           <div className={`banner banner-${colour}`}>
             <span className="banner-message">{message}</span>

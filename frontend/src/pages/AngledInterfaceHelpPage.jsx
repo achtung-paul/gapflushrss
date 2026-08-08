@@ -21,6 +21,8 @@ function AngledInterfaceHelpPage() {
         direction to <strong>Other</strong> switches it into this angled calculator.
       </p>
 
+      <div className="section-divider" />
+
       <h3>What to enter</h3>
       <p>
         The <strong>interface angle θ</strong> is the angle between the mating faces, in degrees
@@ -28,6 +30,8 @@ function AngledInterfaceHelpPage() {
         <strong>Y tolerance</strong> as positive ± magnitudes -- the manufacturing variation that
         component can have along vehicle X and along vehicle Y, independent of the angle.
       </p>
+
+      <div className="section-divider" />
 
       <h3>How a tolerance gets resolved onto the interface</h3>
       <p>
@@ -42,6 +46,8 @@ function AngledInterfaceHelpPage() {
         one shared constant. At 30° they're 0.866 and 0.500 instead: cos θ and sin θ are always
         computed separately, for whatever angle is actually entered.
       </p>
+
+      <div className="section-divider" />
 
       <h3>Choosing Worst case or Statistical (RSS)</h3>
       <p>
@@ -67,6 +73,8 @@ function AngledInterfaceHelpPage() {
         you'll typically measure.
       </p>
 
+      <div className="section-divider" />
+
       <h3>How the result is judged</h3>
       <p>
         The Total Angled Variation is compared against the entry's own nominal value and upper/
@@ -74,6 +82,8 @@ function AngledInterfaceHelpPage() {
         predicted range stays fully inside the tolerance band, amber if it breaches a limit by up
         to 5% of that limit, red beyond that.
       </p>
+
+      <div className="section-divider" />
 
       <h3>Worked example</h3>
       <p>

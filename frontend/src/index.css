@@ -1,25 +1,57 @@
-/* Base styles only. Full light/dark theme switch is Phase 8 — this just
-   seeds the palette decision from the brief (green headings). */
+/* Base styles. Full light/dark theme switch via [data-theme="dark"] on <html>. */
 :root {
-  --color-heading: #2e7d32;
+  --color-bg: #f2f3f1;
+  --color-surface: #ffffff;
+  --color-text: #1a1f19;
+  --color-muted: color-mix(in srgb, var(--color-text) 55%, transparent);
+  --color-divider: color-mix(in srgb, var(--color-text) 14%, transparent);
+
+  --color-heading: #3f8259; /* green accent -- used throughout for accents/links/borders */
+  --color-accent-100: #eaf7ee;
+  --color-accent-600: #3f8259;
+  --color-accent-700: #2f6345;
+
+  --font-body: 'Barlow', system-ui, sans-serif;
+  --font-heading: 'Barlow Condensed', system-ui, sans-serif;
+}
+
+[data-theme="dark"] {
+  --color-bg: #11160f;
+  --color-surface: #1a2116;
+  --color-text: #eaf2e7;
+  --color-muted: color-mix(in srgb, var(--color-text) 60%, transparent);
+  --color-divider: color-mix(in srgb, var(--color-text) 18%, transparent);
+
+  --color-heading: #7ec293;
+  --color-accent-100: #214a34;
+  --color-accent-600: #7ec293;
+  --color-accent-700: #a8dab9;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
-  color: #111;
+  font-family: var(--font-body);
+  background: var(--color-bg);
+  color: var(--color-text);
 }
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+a { color: var(--color-heading); }
+a:hover { color: var(--color-accent-700); }
 
 .app-header {
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--color-divider);
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
 .app-header h1 {
-  color: var(--color-heading);
+  color: var(--color-text);
   margin: 0;
   font-size: 1.25rem;
 }
@@ -29,10 +61,161 @@ body {
   text-decoration: none;
 }
 
+/* "RSS" half of the "GapFlushRSS" wordmark -- the rest stays the
+   header's plain text colour (see .app-header h1). */
+.brand-accent {
+  color: var(--color-heading);
+}
+
 .app-header-nav {
   display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+/* Section divider -- insert `<div className="section-divider" />` (or <hr>)
+   between logical blocks on every page with more than one section. */
+.section-divider {
+  height: 1px;
+  margin: 1.5rem 0;
+  background: var(--color-divider);
+  border: 0;
+}
+
+/* Dark-mode toggle button in the header */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
+  border: 1px solid var(--color-divider);
+  color: var(--color-text);
+  border-radius: 4px;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+}
+.theme-toggle:hover { border-color: var(--color-heading); }
+
+/* Primary action for a form (Create project, Add contributor, Log in,
+   ...) -- selected by type rather than a class so every existing
+   `<button type="submit">` picks this up with no JSX changes. */
+button[type="submit"] {
+  background: var(--color-heading);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.45rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+button[type="submit"]:hover { background: var(--color-accent-700); }
+button[type="submit"]:disabled { background: var(--color-divider); color: var(--color-muted); cursor: default; }
+
+/* Secondary action (Cancel, Add Flush, Yes/No confirms, pagination,
+   scroll controls, ...) -- the default look for every other button,
+   again by type rather than a class. */
+button[type="button"] {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-divider);
+  border-radius: 4px;
+  padding: 0.35rem 0.8rem;
+  font: inherit;
+  cursor: pointer;
+}
+button[type="button"]:hover { border-color: var(--color-heading); }
+button[type="button"]:disabled { color: var(--color-muted); cursor: default; }
+
+/* Inline row action (Edit/Delete/Remove) -- a plain coloured link, not
+   a bordered button, matching every table/list row in the mockup. Add
+   this class alongside the existing type="button" on just those.
+   Selector includes button[type="button"] so it reliably outranks that
+   rule above regardless of which one the browser happens to read last --
+   .link-button alone ties that rule's specificity and would depend on
+   source order to win. */
+button[type="button"].link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-heading);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+button[type="button"].link-button:hover { text-decoration: underline; border-color: transparent; }
+button[type="button"].link-button:disabled { color: var(--color-muted); cursor: default; text-decoration: none; }
+
+/* Text input box styling. */
+.input,
+input[type="text"], input[type="email"], input[type="password"],
+input[type="number"], input[type="search"], input[type="file"],
+select, textarea {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+textarea { min-height: 90px; resize: vertical; }
+
+.input:hover, input:hover, select:hover { border-color: var(--color-muted); }
+
+.input:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--color-heading);
+  outline-offset: 0;
+  border-color: var(--color-heading);
+}
+
+/* Small pill for a non-semantic label (a project role, a tag) --
+   .rag-badge below is the pass/fail/warning equivalent. */
+.tag {
+  display: inline-block;
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+/* A row of links with trailing actions (ProjectListPage, CommodityListPage) --
+   each row gets its own divider and the actions push to the right edge,
+   matching every list in the mockup. */
+.link-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.link-list > li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--color-divider);
+}
+.link-list > li > .link-list-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* A small, uppercase, accent-coloured label introducing a sub-section
+   within an already-titled page (e.g. "Images", "All analyses") --
+   distinct from a page's own <h2> title. */
+.section-label {
+  color: var(--color-heading);
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  margin: 1.5rem 0 0.75rem;
 }
 
 main {
@@ -70,8 +253,6 @@ main {
   max-width: 160px;
 }
 
-/* NumberInput.jsx: native spinner hidden (step="any" makes it jump by
-   whole units) in favour of the hand-rolled steppers alongside it. */
 .number-input {
   display: inline-flex;
   align-items: stretch;
@@ -130,7 +311,7 @@ th,
 td {
   text-align: left;
   padding: 0.5rem 1rem 0.5rem 0;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--color-divider);
 }
 
 .annotator-wrap {
@@ -139,8 +320,6 @@ td {
   max-width: 100%;
 }
 
-/* Visible frame marking the draw area, so it's clear the image is an
-   interactive annotation surface and not just a static picture. */
 .annotator-image-container {
   display: inline-block;
   line-height: 0;
@@ -153,17 +332,10 @@ td {
   display: block;
   max-width: 100%;
   height: auto;
-  /* Belt-and-braces alongside imageEl.draggable = false in
-     ImageAnnotator.jsx -- stops native image dragging in browsers
-     (notably Safari) that don't fully honor the DOM property. */
   -webkit-user-drag: none;
   user-select: none;
 }
 
-/* Leader-line polylines behind each marker balloon (brief step 2's
-   reference image). Sits on top of the image but below the balloons in
-   DOM order; pointer-events: none so it doesn't block drawing a new
-   one. */
 .marker-polylines {
   position: absolute;
   top: 0;
@@ -180,21 +352,16 @@ td {
   vector-effect: non-scaling-stroke;
 }
 
-/* Positions a marker (and its confirm popup, if open) at the dropped
-   point -- % of image size, set via inline left/top in
-   ImageAnnotator.jsx. */
 .marker-wrap {
   position: absolute;
   transform: translate(-50%, -50%);
 }
 
-/* Numbered "balloon" marker: red circle with a number, per the brief's
-   reference image. */
 .balloon-marker {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: #d32f2f;
+  background: var(--color-heading);
   color: #fff;
   border: 2px solid #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -208,9 +375,6 @@ td {
   text-decoration: none;
 }
 
-/* Small "x" badge overlapping the balloon's corner -- kept separate
-   from .balloon-marker so clicking the number navigates to the
-   analysis while this triggers the delete-confirm popup instead. */
 .marker-delete-btn {
   position: absolute;
   top: -6px;
@@ -218,7 +382,7 @@ td {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--color-surface);
   color: #d32f2f;
   border: 1px solid #d32f2f;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -231,12 +395,6 @@ td {
   cursor: pointer;
 }
 
-/* Confirm-before-delete popup, anchored under the marker it belongs to.
-   Centered by default, but a marker near the image's left/right edge
-   needs a different anchor or the box runs off the visible page --
-   ImageAnnotator.jsx picks one of the two modifiers below based on the
-   marker's x position rather than always centering. max-width + wrapping
-   text (not nowrap) also shrinks the box so edge cases are rarer. */
 .marker-confirm-popup {
   position: absolute;
   top: 100%;
@@ -244,9 +402,9 @@ td {
   transform: translateX(-50%);
   margin-top: 6px;
   max-width: 200px;
-  background: #fff;
-  color: #000;
-  border: 1px solid #ccc;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-divider);
   border-radius: 4px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
   padding: 0.5rem;
@@ -283,7 +441,7 @@ td {
 .angled-interface {
   margin-top: 0.75rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #ddd;
+  border-top: 1px solid var(--color-divider);
 }
 
 .angled-method-options {
@@ -304,19 +462,16 @@ td {
   max-width: 240px;
 }
 
-/* The prominent result box the wireframe calls for -- made prominent by
-   type size, not a heavy new card, matching .entry-notes's border-left
-   callout treatment elsewhere in this app. */
 .angled-total {
   margin-top: 0.75rem;
   padding: 0.5rem 0.75rem;
   max-width: 600px;
   border-left: 4px solid var(--color-heading);
-  background: #f5f5f5;
+  background: var(--color-surface);
 }
 
 .angled-total-label {
-  color: #555;
+  color: var(--color-muted);
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -329,15 +484,11 @@ td {
 }
 
 .angled-total-detail {
-  color: #555;
+  color: var(--color-muted);
   font-size: 0.85rem;
 }
 
-/* Scoped override, not a change to .rag-badge itself -- the sigma
-   table's badge (a <td>) must not shift when this is added. */
 .angled-total .rag-badge {
-  padding: 0.1rem 0.4rem;
-  border-radius: 3px;
   margin-left: 0.5rem;
 }
 
@@ -348,7 +499,7 @@ td {
 .analysis-gallery {
   margin-top: 1.5rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #ddd;
+  border-top: 1px solid var(--color-divider);
 }
 
 .analysis-gallery-grid {
@@ -369,7 +520,7 @@ td {
   aspect-ratio: 1 / 1;
   object-fit: cover;
   border-radius: 4px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--color-divider);
   cursor: pointer;
 }
 
@@ -380,7 +531,7 @@ td {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--color-surface);
   color: #d32f2f;
   border: 1px solid #d32f2f;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -393,13 +544,11 @@ td {
   cursor: pointer;
 }
 
-/* Covers the thumbnail itself while its delete is being confirmed, so
-   "Yes" can't be mistaken for a click on the image below it. */
 .analysis-gallery-confirm {
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid #ccc;
+  background: color-mix(in srgb, var(--color-surface) 95%, transparent);
+  border: 1px solid var(--color-divider);
   border-radius: 4px;
   display: flex;
   flex-direction: column;
@@ -413,7 +562,7 @@ td {
 
 .analysis-gallery-confirm p {
   margin: 0;
-  color: #000;
+  color: var(--color-text);
 }
 
 .analysis-gallery-lightbox {
@@ -434,7 +583,7 @@ td {
 }
 
 .image-thumb-selected {
-  outline: 3px solid #2e7d32;
+  outline: 3px solid var(--color-heading);
 }
 
 .analysis-table {
@@ -443,7 +592,7 @@ td {
 
 .analysis-table th,
 .analysis-table td {
-  border: 1px solid #ddd;
+  border-bottom: 1px solid var(--color-divider);
   padding: 0.35rem 0.6rem;
   text-align: center;
   white-space: nowrap;
@@ -461,43 +610,45 @@ td {
 
 .rss-results th,
 .rss-results td {
-  border: 1px solid #ddd;
+  border-bottom: 1px solid var(--color-divider);
   padding: 0.35rem 0.6rem;
   text-align: left;
 }
 
+/* ToleranceChainSection.jsx's contributor table specifically (not the
+   smaller sigma-results table below it) -- full width always, so
+   switching a row into edit mode doesn't suddenly widen the table out
+   from under the rest of the page. */
+.contributor-table {
+  width: 100%;
+}
+
+/* Soft pill, not a solid block -- colour comes from the .rag-* modifier
+   below. Values match the design handoff's own computed pass/caution/
+   fail tints exactly (its ragStyle() helper). */
 .rag-badge {
-  font-weight: bold;
-  color: #fff;
-  /* Neutral default so a badge is never white-on-white if its status
-     doesn't match one of the classes below -- an invisible badge reads as
-     "no result", which is far more misleading than an odd-looking one. */
-  background: #607d8b;
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  /* Neutral default so a badge is never invisible if its status doesn't
+     match one of the modifiers below. */
+  background: var(--color-divider);
+  color: var(--color-muted);
 }
 
-.rag-green {
-  background: #2e7d32;
-}
+.rag-green { background: #cdecd8; color: #214a34; }
+.rag-amber { background: #f4d9a0; color: #5c4008; }
+.rag-red { background: #f3c9c9; color: #6b1414; }
+.rag-not-evaluated { background: var(--color-divider); color: var(--color-muted); }
 
-.rag-amber {
-  background: #b8860b;
-}
+/* Green is the one status tied to the app's own accent, so -- unlike
+   amber/red, which the handoff keeps as fixed literal colours in both
+   modes -- it inverts under dark mode the same way the rest of the
+   accent ramp does. */
+[data-theme="dark"] .rag-green { background: #214a34; color: #cdecd8; }
 
-.rag-red {
-  background: #d32f2f;
-}
-
-/* No tolerance chain built yet, so there's no pass/fail verdict to show
-   (see core/simulation.py). Deliberately grey rather than any of the
-   three RAG colours -- the whole point is that it must not read as a
-   result, especially not as a passing one. */
-.rag-not-evaluated {
-  background: #9e9e9e;
-}
-
-/* Admin form for the banner (pages/BannerPage.jsx). Same stacked shape as
-   .page-form, but wider -- a 500-character notice needs more room than a
-   login box. */
 .banner-form {
   display: flex;
   flex-direction: column;
@@ -513,8 +664,6 @@ td {
   width: 100%;
 }
 
-/* The "show this banner" checkbox reads as one line, not a stacked
-   label above a control. */
 .banner-form > label.banner-form-check {
   flex-direction: row;
   align-items: center;
@@ -526,9 +675,6 @@ td {
   font-family: inherit;
 }
 
-/* Site-wide admin banner (components/Banner.jsx). Its own classes rather
-   than the .rag-* ones: those are small inline badges, and there is no
-   blue among them. */
 .banner {
   display: flex;
   align-items: flex-start;
@@ -540,8 +686,6 @@ td {
 
 .banner-message {
   flex: 1;
-  /* Admins type these into a textarea, so honour the line breaks they
-     put there instead of collapsing the whole notice onto one line. */
   white-space: pre-wrap;
 }
 
@@ -555,32 +699,16 @@ td {
   cursor: pointer;
 }
 
-.banner-red {
-  background: #c62828;
-}
+.banner-red { background: #c62828; }
+.banner-amber { background: #a8690b; }
+.banner-green { background: #2e7d32; }
+.banner-blue { background: #1565c0; }
 
-.banner-amber {
-  /* Darker than the .rag-amber badge: this is a full-width block behind
-     white text, so it needs more contrast than a small badge does. */
-  background: #a8690b;
-}
-
-.banner-green {
-  background: #2e7d32;
-}
-
-.banner-blue {
-  background: #1565c0;
-}
-
-/* Rich-text notes editor (components/RichTextEditor.jsx). Styled by hand
-   to match the rest of this app rather than pulling in an editor library's
-   own design system. */
 .rich-text-editor {
-  border: 1px solid #ccc;
+  border: 1px solid var(--color-divider);
   border-radius: 4px;
   max-width: 700px;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .rich-text-toolbar {
@@ -588,8 +716,8 @@ td {
   align-items: center;
   gap: 0.25rem;
   padding: 0.3rem;
-  border-bottom: 1px solid #ddd;
-  background: #f6f6f6;
+  border-bottom: 1px solid var(--color-divider);
+  background: var(--color-bg);
   flex-wrap: wrap;
 }
 
@@ -600,17 +728,13 @@ td {
   cursor: pointer;
 }
 
-/* Which formatting is active at the cursor. Without this the toolbar
-   gives no feedback and you can't tell if bold is on. */
 .rich-text-toolbar button.is-active {
-  background: #2e7d32;
+  background: var(--color-heading);
   color: #fff;
-  border-color: #2e7d32;
+  border-color: var(--color-heading);
 }
 
-.rich-text-toolbar-spacer {
-  flex: 1;
-}
+.rich-text-toolbar-spacer { flex: 1; }
 
 .rich-text-content .ProseMirror {
   min-height: 8rem;
@@ -618,17 +742,16 @@ td {
   outline: none;
 }
 
-/* The Gap/Flush form is an .inline-form (a single flex row) plus the
-   notes editor, which is far too tall to sit in that row. Wrapping is
-   added here rather than on .inline-form itself because every other form
-   in the app relies on staying a single line. */
 .entry-form {
   flex-wrap: wrap;
   align-items: flex-start;
 }
 
+.entry-band {
+  font-weight: bold;
+}
+
 .entry-notes-field {
-  /* Take a full row of its own inside the wrapping flex container. */
   flex: 0 0 100%;
   margin: 0.5rem 0;
 }
@@ -638,68 +761,44 @@ td {
   margin-bottom: 0.25rem;
 }
 
-/* Rendered notes. Margins are tightened because note content sits inside
-   a page that already has its own vertical rhythm -- default h2/ul margins
-   make a two-line note look like a new section. */
 .entry-notes {
   max-width: 700px;
   margin: 0.25rem 0 0.75rem;
   padding: 0.5rem 0.75rem;
-  border-left: 3px solid #ddd;
-  background: #fafafa;
+  border-left: 3px solid var(--color-divider);
+  background: var(--color-surface);
 }
 
-.entry-notes > *:first-child {
-  margin-top: 0;
-}
+.entry-notes > *:first-child { margin-top: 0; }
+.entry-notes > *:last-child { margin-bottom: 0; }
 
-.entry-notes > *:last-child {
-  margin-bottom: 0;
-}
-
-.entry-notes h1,
-.entry-notes h2,
-.entry-notes h3 {
+.entry-notes h1, .entry-notes h2, .entry-notes h3 {
   font-size: 1rem;
   margin: 0.5rem 0 0.25rem;
 }
 
-.entry-notes ul,
-.entry-notes ol {
+.entry-notes ul, .entry-notes ol {
   margin: 0.25rem 0;
   padding-left: 1.4rem;
 }
 
+/* AngledInterfaceSection.jsx only -- ToleranceChainSection.jsx's own
+   contributors render as a table now (see ToleranceChainSection.jsx),
+   with each field its own column instead of a muted line underneath. */
 .contributor-note {
-  color: #555;
+  color: var(--color-muted);
   font-size: 0.85rem;
   margin-left: 1rem;
   white-space: pre-wrap;
 }
 
-/* Tolerance group / Measured / Material -- a single computed line, not
-   free-typed text, so no pre-wrap (unlike .contributor-note above). */
-.contributor-details {
-  color: #555;
-  font-size: 0.85rem;
-  margin-left: 1rem;
-}
-
-/* Log viewer (pages/LogsPage.jsx). Messages are pre-formatted because
-   tracebacks carry their own line breaks and indentation -- collapsing
-   them into a paragraph makes them unreadable. */
-/* .analysis-table centres its cells and forbids wrapping, which is right
-   for numeric analysis columns and completely wrong for log text -- a
-   centred, unwrapped traceback is unreadable. Override both here. */
 .log-table td {
   vertical-align: top;
   text-align: left;
   white-space: normal;
 }
 
-.log-time {
-  white-space: nowrap;
-}
+.log-time { white-space: nowrap; }
 
 .log-message {
   margin: 0;
@@ -708,43 +807,17 @@ td {
   white-space: pre-wrap;
   word-break: break-word;
   text-align: left;
-  /* A single traceback can run to 40+ lines. Cap it and let that one cell
-     scroll, rather than letting one error push every other entry off the
-     page -- the point of this view is scanning several at once. */
   max-height: 16em;
   overflow: auto;
 }
 
-.rss-chart {
-  max-width: 600px;
-  display: block;
-}
+.rss-chart { max-width: 600px; display: block; }
+.rss-chart-band { fill: var(--color-heading); opacity: 0.15; }
+.rss-chart-curve { fill: none; stroke: var(--color-heading); stroke-width: 2; }
+.rss-chart-axis { stroke: var(--color-divider); stroke-width: 1; }
+.rss-chart-label { font-size: 11px; fill: var(--color-muted); }
 
-.rss-chart-band {
-  fill: #2e7d32;
-  opacity: 0.15;
-}
-
-.rss-chart-curve {
-  fill: none;
-  stroke: var(--color-heading);
-  stroke-width: 2;
-}
-
-.rss-chart-axis {
-  stroke: #999;
-  stroke-width: 1;
-}
-
-.rss-chart-label {
-  font-size: 11px;
-  fill: #555;
-}
-
-.form-hint {
-  color: #666;
-  font-size: 0.85rem;
-}
+.form-hint { color: var(--color-muted); font-size: 0.85rem; }
 
 .tolerance-matrix-scroll-controls {
   display: flex;
@@ -754,37 +827,22 @@ td {
 }
 
 .tolerance-matrix-scroll {
-  /* Without this, a wide table (many dimension-range columns) makes this
-     div grow to fit its content instead of scrolling -- overflow-x:auto
-     only kicks in once the element itself is width-constrained, so
-     without a max-width the whole page was widening past the viewport
-     instead of showing a contained scrollbar under just the table. */
   max-width: 100%;
   overflow-x: auto;
-  /* Keep the native scrollbar visible rather than the OS's auto-hiding
-     overlay style (default on macOS unless a device with a mouse is
-     connected) -- the buttons/wheel handling above are the primary way
-     to scroll, but a visible track is still a helpful hint that there's
-     more to the right. */
   scrollbar-width: auto;
 }
 
-.tolerance-matrix {
-  border-collapse: collapse;
-}
+.tolerance-matrix { border-collapse: collapse; }
 
 .tolerance-matrix th,
 .tolerance-matrix td {
-  border: 1px solid #ddd;
+  border-bottom: 1px solid var(--color-divider);
   padding: 0.3rem 0.5rem;
   text-align: center;
   white-space: nowrap;
 }
 
-.matrix-cell {
-  display: flex;
-  gap: 0.25rem;
-}
+.matrix-cell { display: flex; gap: 0.25rem; }
 
 .matrix-cell label {
   display: flex;
@@ -793,64 +851,22 @@ td {
   font-size: 0.75rem;
 }
 
-.matrix-cell input {
-  /* Narrower than the default number-input width -- the dense matrix
-     grid has 13 rows/cols in typical use, and NumberInput's steppers
-     already add width the plain <input> this replaced didn't have. */
-  width: 2.6rem;
-}
+.matrix-cell input { width: 2.6rem; }
+.matrix-cell .number-input-steppers button { padding: 0 0.15rem; }
 
-.matrix-cell .number-input-steppers button {
-  padding: 0 0.15rem;
-}
-
-/* AngledInterfaceHelpPage.jsx: a readable prose measure, wider than the
-   700px used for rendered notes since this page also holds a table and
-   two diagrams up to 600px. */
-.help-page {
-  max-width: 800px;
-}
+.help-page { max-width: 800px; }
 
 .help-page code {
-  background: #f5f5f5;
+  background: var(--color-surface);
   padding: 0.1rem 0.3rem;
   border-radius: 3px;
 }
 
-/* AngledInterfaceDiagrams.jsx -- same convention as .rss-chart*:
-   structural geometry stays inline as SVG attributes, only fills/
-   strokes/fonts live here. */
-.angled-diagram {
-  max-width: 600px;
-  display: block;
-  margin: 0.75rem 0;
-}
+.angled-diagram { max-width: 600px; display: block; margin: 0.75rem 0; }
+.angled-diagram-caption { color: var(--color-muted); font-size: 0.85rem; max-width: 600px; }
+.angled-diagram-face { stroke: var(--color-divider); stroke-width: 1.5; }
+.angled-diagram-arc { fill: none; stroke: var(--color-divider); stroke-width: 1; }
 
-.angled-diagram-caption {
-  color: #555;
-  font-size: 0.85rem;
-  max-width: 600px;
-}
-
-.angled-diagram-face {
-  stroke: #999;
-  stroke-width: 1.5;
-}
-
-.angled-diagram-arc {
-  fill: none;
-  stroke: #999;
-  stroke-width: 1;
-}
-
-/* The arrowhead marker is a single shared <defs> element referenced by
-   every vector/projection line (an SVG <marker> isn't a DOM descendant
-   of the line that uses it, so a normal descendant selector can't give
-   it a different colour per line). `color` + `fill: currentColor` is the
-   one part of the SVG spec built for exactly this: a marker's
-   currentColor resolves against the `color` of whichever element
-   referenced it via marker-end, not the marker's own position in the
-   tree -- so each line's own `color` recolours its own arrowhead. */
 .angled-diagram-vector {
   stroke: var(--color-heading);
   color: var(--color-heading);
@@ -864,24 +880,8 @@ td {
   stroke-dasharray: 4 3;
 }
 
-.angled-diagram-arrowhead {
-  fill: currentColor;
-}
-
-.angled-diagram-label {
-  font-size: 12px;
-  fill: #555;
-}
-
-.angled-diagram-bar,
-.angled-diagram-bar-alt {
-  fill: var(--color-heading);
-}
-
-.angled-diagram-bar-alt {
-  opacity: 0.6;
-}
-
-.angled-diagram-bar-rss {
-  fill: #b8860b;
-}
+.angled-diagram-arrowhead { fill: currentColor; }
+.angled-diagram-label { font-size: 12px; fill: var(--color-muted); }
+.angled-diagram-bar, .angled-diagram-bar-alt { fill: var(--color-heading); }
+.angled-diagram-bar-alt { opacity: 0.6; }
+.angled-diagram-bar-rss { fill: #b8860b; }

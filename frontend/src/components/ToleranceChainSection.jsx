@@ -17,17 +17,17 @@ import RssDistributionChart from './RssDistributionChart.jsx'
 // not_evaluated is what the backend returns when the chain is still empty
 // -- there's no verdict to give yet (see core/simulation.py).
 const RAG_LABELS = {
-  green: 'Green',
-  amber: 'Amber',
-  red: 'Red',
+  green: 'Pass',
+  amber: 'Caution',
+  red: 'Fail',
   not_evaluated: 'Not evaluated',
 }
 
 // Mapped explicitly rather than interpolated as `rag-${result.rag}`: the
 // backend's value uses an underscore (not_evaluated) while the CSS class
-// is hyphenated, and .rag-badge sets white text with the background
-// coming from this class -- so a name that doesn't match renders white on
-// white, i.e. an invisible badge rather than an obviously broken one.
+// is hyphenated -- a name that doesn't match one of the four modifiers
+// falls back to .rag-badge's own neutral colour rather than an
+// unstyled, easy-to-miss badge.
 const RAG_CLASS = {
   green: 'rag-green',
   amber: 'rag-amber',
@@ -274,104 +274,122 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
         <p>No chain components yet -- add component tolerances and assembly-process variations below.</p>
       )}
 
-      <ul>
-        {components.map((component) =>
-          editingId === component.chain_component_id ? (
-            <li key={component.chain_component_id}>
-              <label>
-                Type{' '}
-                <select value={editContributorType} onChange={(e) => setEditContributorType(e.target.value)}>
-                  <option value="COMPONENT">Component tolerance</option>
-                  <option value="PROCESS">Assembly process variation</option>
-                </select>
-              </label>{' '}
-              <label>
-                Description{' '}
-                <input
-                  type="text"
-                  value={editDescription}
-                  onChange={(e) => setEditDescription(e.target.value)}
-                  required
-                />
-              </label>{' '}
-              <label>
-                Tolerance (± mm){' '}
-                <NumberInput min="0" value={editToleranceValue} onChange={setEditToleranceValue} required />
-              </label>{' '}
-              <label>
-                Measured (mm){' '}
-                <NumberInput value={editMeasured} onChange={setEditMeasured} />
-              </label>{' '}
-              <label>
-                Material{' '}
-                <input
-                  type="text"
-                  maxLength={255}
-                  value={editMaterial}
-                  onChange={(e) => setEditMaterial(e.target.value)}
-                />
-              </label>{' '}
-              <label>
-                Note{' '}
-                <input
-                  type="text"
-                  maxLength={500}
-                  value={editNote}
-                  onChange={(e) => setEditNote(e.target.value)}
-                />
-              </label>{' '}
-              <button type="button" onClick={() => handleSaveEdit(component)}>
-                Save
-              </button>{' '}
-              <button type="button" onClick={() => setEditingId(null)}>
-                Cancel
-              </button>
-            </li>
-          ) : (
-            <li key={component.chain_component_id}>
-              [{component.contributor_type}] {component.description}: ±{component.tolerance_value} mm{' '}
-              {(component.tolerance_group_name || component.measured_value !== null || component.material) && (
-                <div className="contributor-details">
-                  {[
-                    component.tolerance_group_name && `Tolerance group: ${component.tolerance_group_name}`,
-                    component.measured_value !== null && `Measured: ${component.measured_value} mm`,
-                    component.material && `Material: ${component.material}`,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </div>
-              )}
-              {pendingDeleteId === component.chain_component_id ? (
-                <>
-                  <span>Delete this contributor?</span>{' '}
-                  <button type="button" onClick={() => handleDelete(component.chain_component_id)}>
-                    Yes
-                  </button>{' '}
-                  <button type="button" onClick={() => setPendingDeleteId(null)}>
-                    No
-                  </button>
-                </>
+      {components.length > 0 && (
+        <table className="rss-results contributor-table">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Description</th>
+              <th>Tolerance (± mm)</th>
+              <th>Measured (mm)</th>
+              <th>Material</th>
+              <th>Tolerance group</th>
+              <th>Note</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {components.map((component) =>
+              editingId === component.chain_component_id ? (
+                <tr key={component.chain_component_id}>
+                  <td>
+                    <select
+                      value={editContributorType}
+                      onChange={(e) => setEditContributorType(e.target.value)}
+                    >
+                      <option value="COMPONENT">Component tolerance</option>
+                      <option value="PROCESS">Assembly process variation</option>
+                    </select>
+                  </td>
+                  <td>
+                    <input
+                      type="text"
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      required
+                    />
+                  </td>
+                  <td>
+                    <NumberInput min="0" value={editToleranceValue} onChange={setEditToleranceValue} required />
+                  </td>
+                  <td>
+                    <NumberInput value={editMeasured} onChange={setEditMeasured} />
+                  </td>
+                  <td>
+                    <input
+                      type="text"
+                      maxLength={255}
+                      value={editMaterial}
+                      onChange={(e) => setEditMaterial(e.target.value)}
+                    />
+                  </td>
+                  {/* Not editable here -- see the comment on editingId
+                      above for why (create-time-only pickers). */}
+                  <td>{component.tolerance_group_name || '--'}</td>
+                  <td>
+                    <input
+                      type="text"
+                      maxLength={500}
+                      value={editNote}
+                      onChange={(e) => setEditNote(e.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <button type="button" onClick={() => handleSaveEdit(component)}>
+                      Save
+                    </button>{' '}
+                    <button type="button" onClick={() => setEditingId(null)}>
+                      Cancel
+                    </button>
+                  </td>
+                </tr>
               ) : (
-                <>
-                  <button type="button" onClick={() => startEditing(component)}>
-                    Edit
-                  </button>{' '}
-                  <button type="button" onClick={() => setPendingDeleteId(component.chain_component_id)}>
-                    Delete
-                  </button>
-                </>
-              )}
-              {component.note && (
-                // Plain text, rendered as an ordinary React string -- any
-                // markup someone types here shows as literal characters,
-                // which is why this field needs no sanitising (unlike the
-                // entry notes above).
-                <div className="contributor-note">{component.note}</div>
-              )}
-            </li>
-          ),
-        )}
-      </ul>
+                <tr key={component.chain_component_id}>
+                  <td>{CONTRIBUTOR_TYPE_LABELS[component.contributor_type] ?? component.contributor_type}</td>
+                  <td>{component.description}</td>
+                  <td>±{component.tolerance_value} mm</td>
+                  <td>{component.measured_value !== null ? `${component.measured_value} mm` : '--'}</td>
+                  <td>{component.material || '--'}</td>
+                  <td>{component.tolerance_group_name || '--'}</td>
+                  {/* Plain text, rendered as an ordinary React string -- any
+                      markup someone types here shows as literal characters,
+                      which is why this field needs no sanitising (unlike the
+                      entry notes above). */}
+                  <td>{component.note || '--'}</td>
+                  <td>
+                    {pendingDeleteId === component.chain_component_id ? (
+                      <>
+                        <span>Delete?</span>{' '}
+                        <button type="button" onClick={() => handleDelete(component.chain_component_id)}>
+                          Yes
+                        </button>{' '}
+                        <button type="button" onClick={() => setPendingDeleteId(null)}>
+                          No
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button type="button" className="link-button" onClick={() => startEditing(component)}>
+                          Edit
+                        </button>{' '}
+                        <button
+                          type="button"
+                          className="link-button"
+                          onClick={() => setPendingDeleteId(component.chain_component_id)}
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ),
+            )}
+          </tbody>
+        </table>
+      )}
+
+      <div className="section-divider" />
 
       <form onSubmit={handleSubmit} className="inline-form">
         <label>
@@ -517,6 +535,8 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
         <button type="submit">Add contributor</button>
       </form>
 
+      <div className="section-divider" />
+
       {simulation && (
         <>
           <table className="rss-results">
@@ -536,8 +556,10 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
                   <td>
                     {result.lower_bound.toFixed(3)} to {result.upper_bound.toFixed(3)} mm
                   </td>
-                  <td className={`rag-badge ${RAG_CLASS[result.rag] ?? ''}`}>
-                    {RAG_LABELS[result.rag] ?? result.rag}
+                  <td>
+                    <span className={`rag-badge ${RAG_CLASS[result.rag] ?? ''}`}>
+                      {RAG_LABELS[result.rag] ?? result.rag}
+                    </span>
                   </td>
                 </tr>
               ))}
