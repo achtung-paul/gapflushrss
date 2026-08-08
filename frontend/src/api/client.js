@@ -341,16 +341,16 @@ export const getSimulation = (projectId, entryId) =>
 export const listStandardTolerances = (projectId) =>
   apiFetch(`/projects/${projectId}/standard-tolerances`)
 
-export const createStandardTolerance = (projectId, name, toleranceValue) =>
+export const createStandardTolerance = (projectId, name, toleranceValue, contributorType) =>
   apiFetch(`/projects/${projectId}/standard-tolerances`, {
     method: 'POST',
-    body: JSON.stringify({ name, tolerance_value: toleranceValue }),
+    body: JSON.stringify({ name, tolerance_value: toleranceValue, contributor_type: contributorType }),
   })
 
-export const updateStandardTolerance = (projectId, standardToleranceId, name, toleranceValue) =>
+export const updateStandardTolerance = (projectId, standardToleranceId, name, toleranceValue, contributorType) =>
   apiFetch(`/projects/${projectId}/standard-tolerances/${standardToleranceId}`, {
     method: 'PUT',
-    body: JSON.stringify({ name, tolerance_value: toleranceValue }),
+    body: JSON.stringify({ name, tolerance_value: toleranceValue, contributor_type: contributorType }),
   })
 
 export const deleteStandardTolerance = (projectId, standardToleranceId) =>
