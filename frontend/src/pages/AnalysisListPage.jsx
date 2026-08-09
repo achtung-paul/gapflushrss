@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
+  commodityExportUrl,
   createFlushEntry,
   createGapEntry,
   createMarker,
@@ -335,9 +336,14 @@ function AnalysisListPage() {
       </p>
       <div className="section-header-row">
         <h2>Analyses</h2>
-        <Link className="btn-primary" to={`/projects/${projectId}/commodities/${commodityId}/report`} target="_blank">
-          Print report
-        </Link>
+        <div className="section-header-actions">
+          <Link className="btn-primary" to={`/projects/${projectId}/commodities/${commodityId}/report`} target="_blank">
+            Print report
+          </Link>
+          <a className="btn-primary" href={commodityExportUrl(projectId, commodityId)}>
+            Export to Excel
+          </a>
+        </div>
       </div>
       {error && <p className="form-error">{error}</p>}
 

@@ -235,6 +235,12 @@ export const deleteAnalysisImage = (projectId, analysisImageId) =>
 export const analysisImageFileUrl = (projectId, analysisImageId) =>
   `${API_BASE}/projects/${projectId}/analysis-images/${analysisImageId}/file`
 
+export const entryExportUrl = (projectId, entryId) =>
+  `${API_BASE}/projects/${projectId}/entries/${entryId}/export`
+
+export const commodityExportUrl = (projectId, commodityId) =>
+  `${API_BASE}/projects/${projectId}/commodities/${commodityId}/export`
+
 export const listProcessTypes = () => apiFetch('/process-types')
 
 export const createProcessType = (name) =>

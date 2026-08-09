@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import {
   createFlushEntry,
   createGapEntry,
+  entryExportUrl,
   getAnalysis,
   updateAnalysisDescription,
   updateFlushEntry,
@@ -109,13 +110,18 @@ function EntrySection({ projectId, analysisId, title, entry, onCreate, onUpdate,
         {showOwnHeading && (
           <div className="section-header-row">
             <h3>{displayCode}</h3>
-            <Link
-              className="btn-primary"
-              to={`/projects/${projectId}/analyses/${analysisId}/report/${title.toLowerCase()}`}
-              target="_blank"
-            >
-              Print report
-            </Link>
+            <div className="section-header-actions">
+              <Link
+                className="btn-primary"
+                to={`/projects/${projectId}/analyses/${analysisId}/report/${title.toLowerCase()}`}
+                target="_blank"
+              >
+                Print report
+              </Link>
+              <a className="btn-primary" href={entryExportUrl(projectId, entry.entry_id)}>
+                Export to Excel
+              </a>
+            </div>
           </div>
         )}
         <p className="entry-band">
@@ -347,13 +353,18 @@ function AnalysisDetailPage() {
           )}
         </h2>
         {primaryEntryType && (
-          <Link
-            className="btn-primary"
-            to={`/projects/${projectId}/analyses/${analysisId}/report/${primaryEntryType}`}
-            target="_blank"
-          >
-            Print report
-          </Link>
+          <div className="section-header-actions">
+            <Link
+              className="btn-primary"
+              to={`/projects/${projectId}/analyses/${analysisId}/report/${primaryEntryType}`}
+              target="_blank"
+            >
+              Print report
+            </Link>
+            <a className="btn-primary" href={entryExportUrl(projectId, primaryEntry.entry_id)}>
+              Export to Excel
+            </a>
+          </div>
         )}
       </div>
       {descriptionError && <p className="form-error">{descriptionError}</p>}

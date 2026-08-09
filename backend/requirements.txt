@@ -21,6 +21,11 @@ nh3==0.3.6
 # report export -- not wasted, just used earlier than planned.
 openpyxl==3.1.5
 
+# openpyxl requires this to read an uploaded image's own dimensions when
+# embedding it into a sheet (core/excel_export.py's report photos) --
+# without it, adding an image raises ImportError at export time.
+Pillow==11.0.0
+
 # Test-only, but installed in the image because it's a dev image already
 # (uvicorn runs with --reload). Split into a separate requirements-dev.txt
 # when the production command is split out.

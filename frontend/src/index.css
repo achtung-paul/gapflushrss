@@ -129,6 +129,15 @@ button[type="submit"]:disabled { background: var(--color-divider); color: var(--
   gap: 1rem;
 }
 
+/* Groups multiple right-aligned buttons (Print report, Export to Excel)
+   inside a .section-header-row, which itself only expects two flex
+   children -- a heading and one action -- so a second button needs a
+   wrapper rather than becoming a third child. */
+.section-header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 /* Secondary action (Cancel, Add Flush, Yes/No confirms, pagination,
    scroll controls, ...) -- the default look for every other button,
    again by type rather than a class. */
