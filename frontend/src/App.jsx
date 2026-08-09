@@ -11,6 +11,8 @@ import ProjectListPage from './pages/ProjectListPage.jsx'
 import CommodityListPage from './pages/CommodityListPage.jsx'
 import AnalysisListPage from './pages/AnalysisListPage.jsx'
 import AnalysisDetailPage from './pages/AnalysisDetailPage.jsx'
+import AnalysisReportPage from './pages/AnalysisReportPage.jsx'
+import CommodityReportPage from './pages/CommodityReportPage.jsx'
 import ProcessTypesPage from './pages/ProcessTypesPage.jsx'
 import ToleranceMatrixPage from './pages/ToleranceMatrixPage.jsx'
 import PostgresServicesPage from './pages/PostgresServicesPage.jsx'
@@ -69,10 +71,26 @@ function App() {
             }
           />
           <Route
+            path="/projects/:projectId/commodities/:commodityId/report"
+            element={
+              <ProtectedRoute>
+                <CommodityReportPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/projects/:projectId/analyses/:analysisId"
             element={
               <ProtectedRoute>
                 <AnalysisDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/projects/:projectId/analyses/:analysisId/report/:entryType"
+            element={
+              <ProtectedRoute>
+                <AnalysisReportPage />
               </ProtectedRoute>
             }
           />

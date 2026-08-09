@@ -207,15 +207,18 @@ export const updateFlushEntry = (projectId, analysisId, entry) =>
 export const deleteEntry = (projectId, entryId) =>
   apiFetch(`/projects/${projectId}/entries/${entryId}`, { method: 'DELETE' })
 
-export const listAnalysisImages = (projectId, analysisId) =>
-  apiFetch(`/projects/${projectId}/analyses/${analysisId}/images`)
+// entryId -- these images belong to a specific Gap or Flush entry, not
+// the whole Analysis, so Gap and Flush each get their own gallery (see
+// api/analysis_images.py).
+export const listAnalysisImages = (projectId, entryId) =>
+  apiFetch(`/projects/${projectId}/entries/${entryId}/images`)
 
-export async function uploadAnalysisImage(projectId, analysisId, file) {
+export async function uploadAnalysisImage(projectId, entryId, file) {
   const formData = new FormData()
   formData.append('file', file)
   // No Content-Type header here -- the browser sets it (with the right
   // multipart boundary) automatically when the body is a FormData.
-  const response = await fetch(`${API_BASE}/projects/${projectId}/analyses/${analysisId}/images`, {
+  const response = await fetch(`${API_BASE}/projects/${projectId}/entries/${entryId}/images`, {
     method: 'POST',
     credentials: 'include',
     body: formData,

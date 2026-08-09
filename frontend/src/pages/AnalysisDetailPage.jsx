@@ -20,7 +20,7 @@ import ToleranceChainSection from '../components/ToleranceChainSection.jsx'
 // brief), so both start out missing. Create and edit share the same
 // form; which callback Save/Add invokes depends on whether an entry
 // already existed when the form opened.
-function EntrySection({ projectId, title, entry, onCreate, onUpdate, onEntryChanged, showOwnHeading }) {
+function EntrySection({ projectId, analysisId, title, entry, onCreate, onUpdate, onEntryChanged, showOwnHeading }) {
   const [editing, setEditing] = useState(false)
   const [direction, setDirection] = useState('')
   const [nominalValue, setNominalValue] = useState('')
@@ -103,8 +103,21 @@ function EntrySection({ projectId, title, entry, onCreate, onUpdate, onEntryChan
       <div>
         {/* Whichever entry the page heading above already identifies
             (see AnalysisDetailPage's primaryEntry) skips repeating its
-            own code here -- the other entry, if any, still needs it. */}
-        {showOwnHeading && <h3>{displayCode}</h3>}
+            own code -- and its own Print report button, which lives on
+            the page heading instead (see AnalysisDetailPage) -- here;
+            the other entry, if any, still needs both. */}
+        {showOwnHeading && (
+          <div className="section-header-row">
+            <h3>{displayCode}</h3>
+            <Link
+              className="btn-primary"
+              to={`/projects/${projectId}/analyses/${analysisId}/report/${title.toLowerCase()}`}
+              target="_blank"
+            >
+              Print report
+            </Link>
+          </div>
+        )}
         <p className="entry-band">
           {/* toFixed(3) matches the Numeric(10,3) column these come from --
               plain subtraction/addition on the floats the API returns can
@@ -166,6 +179,13 @@ function EntrySection({ projectId, title, entry, onCreate, onUpdate, onEntryChan
             </button>
           </div>
         )}
+
+        <div className="section-divider" />
+
+        {/* This entry's own photo gallery -- Gap and Flush each get a
+            separate one (see AnalysisImageGallery.jsx), not one shared
+            gallery duplicated under both. */}
+        <AnalysisImageGallery projectId={projectId} entryId={entry.entry_id} />
       </div>
     )
   }
@@ -285,6 +305,7 @@ function AnalysisDetailPage() {
   // EntrySection's showOwnHeading. Gap wins if an analysis somehow has
   // both; a placeholder analysis with neither falls back to the bare code.
   const primaryEntry = analysis.gap ?? analysis.flush
+  const primaryEntryType = analysis.gap ? 'gap' : analysis.flush ? 'flush' : null
   const primaryCode = primaryEntry
     ? primaryEntry.entry_code + (primaryEntry.direction ? `-${primaryEntry.direction}` : '')
     : analysis.analysis_code
@@ -296,36 +317,49 @@ function AnalysisDetailPage() {
           &larr; Analyses
         </Link>
       </p>
-      <h2>
-        {primaryCode}
-        {editingDescription ? (
-          <>
-            {' - '}
-            <input
-              value={descriptionInput}
-              onChange={(e) => setDescriptionInput(e.target.value)}
-              placeholder="e.g. IP to Console"
-              autoFocus
-            />{' '}
-            <button type="button" onClick={handleSaveDescription}>
-              Save
-            </button>{' '}
-            <button type="button" onClick={() => setEditingDescription(false)}>
-              Cancel
-            </button>
-          </>
-        ) : (
-          <>
-            {analysis.description && ` - ${analysis.description}`}{' '}
-            <button type="button" className="link-button" onClick={startEditingDescription}>
-              {analysis.description ? 'Edit' : 'Add description'}
-            </button>
-          </>
+      <div className="section-header-row">
+        <h2>
+          {primaryCode}
+          {editingDescription ? (
+            <>
+              {' - '}
+              <input
+                type="text"
+                value={descriptionInput}
+                onChange={(e) => setDescriptionInput(e.target.value)}
+                placeholder="e.g. IP to Console"
+                autoFocus
+              />{' '}
+              <button type="button" onClick={handleSaveDescription}>
+                Save
+              </button>{' '}
+              <button type="button" onClick={() => setEditingDescription(false)}>
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              {analysis.description && ` - ${analysis.description}`}{' '}
+              <button type="button" className="link-button" onClick={startEditingDescription}>
+                {analysis.description ? 'Edit' : 'Add description'}
+              </button>
+            </>
+          )}
+        </h2>
+        {primaryEntryType && (
+          <Link
+            className="btn-primary"
+            to={`/projects/${projectId}/analyses/${analysisId}/report/${primaryEntryType}`}
+            target="_blank"
+          >
+            Print report
+          </Link>
         )}
-      </h2>
+      </div>
       {descriptionError && <p className="form-error">{descriptionError}</p>}
       <EntrySection
         projectId={projectId}
+        analysisId={analysisId}
         title="Gap"
         entry={analysis.gap}
         showOwnHeading={analysis.gap ? analysis.gap !== primaryEntry : true}
@@ -344,6 +378,7 @@ function AnalysisDetailPage() {
 
       <EntrySection
         projectId={projectId}
+        analysisId={analysisId}
         title="Flush"
         entry={analysis.flush}
         showOwnHeading={analysis.flush ? analysis.flush !== primaryEntry : true}
@@ -357,10 +392,6 @@ function AnalysisDetailPage() {
         }}
         onEntryChanged={refresh}
       />
-
-      <div className="section-divider" />
-
-      <AnalysisImageGallery projectId={projectId} analysisId={analysisId} />
     </div>
   )
 }

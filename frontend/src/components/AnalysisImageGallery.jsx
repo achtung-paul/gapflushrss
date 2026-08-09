@@ -6,12 +6,14 @@ import {
   uploadAnalysisImage,
 } from '../api/client.js'
 
-// A plain photo gallery attached to one Analysis -- distinct from the
-// Commodity's single annotated assembly image with markers (see
-// ImageAnnotator.jsx). Thumbnails in a 3-wide grid; click one to expand
-// it full-width in an overlay, click the overlay (or its close button)
-// to collapse back to the grid.
-function AnalysisImageGallery({ projectId, analysisId }) {
+// A plain photo gallery attached to one Gap or Flush entry -- distinct
+// from the Commodity's single annotated assembly image with markers
+// (see ImageAnnotator.jsx). Gap and Flush each get their own separate
+// gallery (see models/analysis_image.py), so this is mounted once per
+// entry, not once per Analysis. Thumbnails in a 3-wide grid; click one
+// to expand it full-width in an overlay, click the overlay (or its
+// close button) to collapse back to the grid.
+function AnalysisImageGallery({ projectId, entryId }) {
   const [images, setImages] = useState([])
   const [expandedId, setExpandedId] = useState(null)
   // Delete doesn't happen immediately -- it opens a small confirm/cancel
@@ -21,10 +23,10 @@ function AnalysisImageGallery({ projectId, analysisId }) {
   const [error, setError] = useState(null)
 
   function refresh() {
-    listAnalysisImages(projectId, analysisId).then(setImages).catch((err) => setError(err.message))
+    listAnalysisImages(projectId, entryId).then(setImages).catch((err) => setError(err.message))
   }
 
-  useEffect(refresh, [projectId, analysisId])
+  useEffect(refresh, [projectId, entryId])
 
   async function handleUpload(event) {
     event.preventDefault()
@@ -35,7 +37,7 @@ function AnalysisImageGallery({ projectId, analysisId }) {
       // The backend takes one file per request (same as the Commodity
       // image upload endpoint) -- multiple selection just means looping.
       for (const file of files) {
-        await uploadAnalysisImage(projectId, analysisId, file)
+        await uploadAnalysisImage(projectId, entryId, file)
       }
       event.target.reset()
       refresh()

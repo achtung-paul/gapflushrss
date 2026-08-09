@@ -1,7 +1,9 @@
-# Plain photo gallery attached directly to an Analysis (as opposed to
-# the Commodity's single annotated assembly image with markers -- see
-# api/images.py). Any number of these per Analysis; no annotation
-# involved, just upload/view/delete.
+# Plain photo gallery attached directly to a Gap or Flush entry (as
+# opposed to the Commodity's single annotated assembly image with
+# markers -- see api/images.py). Any number of these per entry; no
+# annotation involved, just upload/view/delete. Gap and Flush each get
+# their own separate gallery, even though both hang off the same
+# Analysis -- see models/analysis_image.py.
 
 import uuid
 
@@ -9,7 +11,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.analyses import _get_analysis_or_404
+from app.api.analyses import _get_entry_or_404
 from app.api.deps import (
     get_current_user,
     get_project_db,
@@ -33,68 +35,68 @@ from app.schemas.analysis_image import AnalysisImageOut
 router = APIRouter(prefix="/projects/{project_id}", tags=["analysis-images"])
 
 
-def _require_editor_for_analysis(
-    db: Session, project_db: Session, user: User, project_id: int, analysis_id: int
+def _require_editor_for_entry(
+    db: Session, project_db: Session, user: User, project_id: int, entry_id: int
 ) -> None:
     require_project_editor(db, user, project_id)
-    _get_analysis_or_404(project_db, project_id, analysis_id)
+    _get_entry_or_404(project_db, project_id, entry_id)
 
 
-def _require_manager_for_analysis(
-    db: Session, project_db: Session, user: User, project_id: int, analysis_id: int
+def _require_manager_for_entry(
+    db: Session, project_db: Session, user: User, project_id: int, entry_id: int
 ) -> None:
     require_project_manager(db, user, project_id)
-    _get_analysis_or_404(project_db, project_id, analysis_id)
+    _get_entry_or_404(project_db, project_id, entry_id)
 
 
 def _get_analysis_image_or_404(project_db: Session, project_id: int, analysis_image_id: int) -> AnalysisImage:
     image = project_db.get(AnalysisImage, analysis_image_id)
     if image is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
-    _get_analysis_or_404(project_db, project_id, image.analysis_id)  # ownership check
+    _get_entry_or_404(project_db, project_id, image.entry_id)  # ownership check
     return image
 
 
-@router.get("/analyses/{analysis_id}/images", response_model=list[AnalysisImageOut])
+@router.get("/entries/{entry_id}/images", response_model=list[AnalysisImageOut])
 def list_analysis_images(
     project_id: int,
-    analysis_id: int,
+    entry_id: int,
     project_db: Session = Depends(get_project_db),
     _: User = Depends(get_current_user),
 ):
-    _get_analysis_or_404(project_db, project_id, analysis_id)
+    _get_entry_or_404(project_db, project_id, entry_id)
     return (
         project_db.query(AnalysisImage)
-        .filter(AnalysisImage.analysis_id == analysis_id)
+        .filter(AnalysisImage.entry_id == entry_id)
         .order_by(AnalysisImage.uploaded_at)
         .all()
     )
 
 
 @router.post(
-    "/analyses/{analysis_id}/images",
+    "/entries/{entry_id}/images",
     response_model=AnalysisImageOut,
     status_code=status.HTTP_201_CREATED,
 )
 async def upload_analysis_image(
     project_id: int,
-    analysis_id: int,
+    entry_id: int,
     db: Session = Depends(get_db),
     project_db: Session = Depends(get_project_db),
     minio_service: MinioService = Depends(get_project_minio_service),
     current_user: User = Depends(get_current_user),
     file: UploadFile = File(...),
 ):
-    _require_editor_for_analysis(db, project_db, current_user, project_id, analysis_id)
+    _require_editor_for_entry(db, project_db, current_user, project_id, entry_id)
 
     # content_type here is what the file actually is, not what the client
     # claimed -- see core/uploads.py.
     data, content_type = await read_and_validate_upload(file)
-    object_key = f"analyses/{analysis_id}/{uuid.uuid4()}{EXTENSION_BY_TYPE[content_type]}"
+    object_key = f"entries/{entry_id}/{uuid.uuid4()}{EXTENSION_BY_TYPE[content_type]}"
     service_storage.upload_image(minio_service, object_key, data, content_type)
 
     image = AnalysisImage(
-        analysis_id=analysis_id,
+        entry_id=entry_id,
         object_key=object_key,
         original_filename=file.filename or object_key,
         content_type=content_type,
@@ -134,7 +136,7 @@ def delete_analysis_image(
     current_user: User = Depends(get_current_user),
 ):
     image = _get_analysis_image_or_404(project_db, project_id, analysis_image_id)
-    _require_manager_for_analysis(db, project_db, current_user, project_id, image.analysis_id)
+    _require_manager_for_entry(db, project_db, current_user, project_id, image.entry_id)
 
     # MinIO never cascades at the DB level -- delete the object before
     # the row disappears, since object_key is the only record of where

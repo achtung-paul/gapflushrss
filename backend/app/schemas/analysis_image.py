@@ -9,7 +9,7 @@ class AnalysisImageOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     analysis_image_id: int
-    analysis_id: int
+    entry_id: int
     original_filename: str
     content_type: str
     uploaded_at: datetime

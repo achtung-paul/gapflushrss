@@ -333,7 +333,12 @@ function AnalysisListPage() {
       <p>
         <Link to="/projects">&larr; Projects</Link>
       </p>
-      <h2>Analyses</h2>
+      <div className="section-header-row">
+        <h2>Analyses</h2>
+        <Link className="btn-primary" to={`/projects/${projectId}/commodities/${commodityId}/report`} target="_blank">
+          Print report
+        </Link>
+      </div>
       {error && <p className="form-error">{error}</p>}
 
       <h3 className="section-label">Images</h3>

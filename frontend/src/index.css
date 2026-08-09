@@ -556,6 +556,20 @@ td {
   cursor: pointer;
 }
 
+/* AnalysisReportPage.jsx's printed gallery -- 2 up and much larger than
+   the interactive gallery's 3-wide thumbnail picker (which stays small
+   on purpose, since it also carries delete controls), so a photo is
+   actually legible on a printed A4 portrait sheet. */
+.report-gallery-grid {
+  grid-template-columns: repeat(2, 1fr);
+  max-width: 100%;
+}
+
+.report-gallery-thumb {
+  aspect-ratio: 4 / 3;
+  cursor: default;
+}
+
 .analysis-gallery-delete-btn {
   position: absolute;
   top: -6px;
@@ -917,3 +931,30 @@ td {
 .angled-diagram-bar, .angled-diagram-bar-alt { fill: var(--color-heading); }
 .angled-diagram-bar-alt { opacity: 0.6; }
 .angled-diagram-bar-rss { fill: #b8860b; }
+
+/* AnalysisReportPage.jsx / CommodityReportPage.jsx -- everything on
+   those pages is meant to be printed via the browser's own Print ->
+   Save as PDF, not a generated file, so this is the only "export"
+   mechanism the reports feature needs. */
+@media print {
+  .app-header,
+  .banner,
+  .no-print {
+    display: none;
+  }
+
+  /* The app's own on-screen padding just wastes space once the
+     browser's own print margins are already applied. */
+  main {
+    padding: 0;
+  }
+
+  /* Best-effort -- browsers can't always honour this on <tr> across a
+     page boundary, but it avoids the common case of a chart or a short
+     table splitting when it didn't need to. */
+  .contributor-table tr,
+  .rss-chart,
+  .angled-total {
+    break-inside: avoid;
+  }
+}
