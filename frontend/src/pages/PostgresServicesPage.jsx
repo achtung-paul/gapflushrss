@@ -160,11 +160,11 @@ function PostgresServicesPage() {
       <form onSubmit={handleCreate} className="inline-form">
         <label>
           Name{' '}
-          <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+          <input type="text" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
         </label>
         <label>
           Host{' '}
-          <input placeholder="Host" value={host} onChange={(e) => setHost(e.target.value)} required />
+          <input type="text" placeholder="Host" value={host} onChange={(e) => setHost(e.target.value)} required />
         </label>
         <label>
           Port{' '}
@@ -179,6 +179,7 @@ function PostgresServicesPage() {
         <label>
           Database{' '}
           <input
+            type="text"
             placeholder="Database"
             value={database}
             onChange={(e) => setDatabase(e.target.value)}
@@ -188,6 +189,7 @@ function PostgresServicesPage() {
         <label>
           Username{' '}
           <input
+            type="text"
             placeholder="Username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}

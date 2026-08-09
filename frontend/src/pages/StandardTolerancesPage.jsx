@@ -113,7 +113,7 @@ function StandardTolerancesPage() {
               {editingId === standard.standard_tolerance_id ? (
                 <>
                   <td>
-                    <input value={editingName} onChange={(e) => setEditingName(e.target.value)} />
+                    <input type="text" value={editingName} onChange={(e) => setEditingName(e.target.value)} />
                   </td>
                   <td>
                     <select
@@ -191,6 +191,7 @@ function StandardTolerancesPage() {
         <label>
           Name{' '}
           <input
+            type="text"
             placeholder="e.g. Locator"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}

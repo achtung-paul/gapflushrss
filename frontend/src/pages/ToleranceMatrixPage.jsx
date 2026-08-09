@@ -308,6 +308,7 @@ function ToleranceMatrixPage() {
         <label>
           Group name{' '}
           <input
+            type="text"
             placeholder="Group name (e.g. TG1)"
             value={newGroupName}
             onChange={(e) => setNewGroupName(e.target.value)}

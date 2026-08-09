@@ -104,7 +104,7 @@ function ProcessTypesPage() {
             <tr key={processType.process_type_id}>
               <td>
                 {editingId === processType.process_type_id ? (
-                  <input value={editingName} onChange={(e) => setEditingName(e.target.value)} />
+                  <input type="text" value={editingName} onChange={(e) => setEditingName(e.target.value)} />
                 ) : (
                   <Link to={`/admin/process-types/${processType.process_type_id}/tolerance-matrix`}>
                     {processType.name}
@@ -152,6 +152,7 @@ function ProcessTypesPage() {
         <label>
           New process type{' '}
           <input
+            type="text"
             placeholder="New process type"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
@@ -170,6 +171,7 @@ function ProcessTypesPage() {
         <label>
           Import new process type from CSV{' '}
           <input
+            type="text"
             placeholder="Name"
             value={importName}
             onChange={(e) => setImportName(e.target.value)}

@@ -32,10 +32,13 @@ function CommodityListPage() {
     <div>
       <p>
         <Link to="/projects">&larr; Projects</Link>
-        {' | '}
-        <Link to={`/projects/${projectId}/standard-tolerances`}>Standard tolerances</Link>
       </p>
-      <h2>Commodities</h2>
+      <div className="section-header-row">
+        <h2>Commodities</h2>
+        <Link className="btn-primary" to={`/projects/${projectId}/standard-tolerances`}>
+          Add Standard Tolerance
+        </Link>
+      </div>
       <ul className="link-list">
         {commodities.map((commodity) => (
           <li key={commodity.commodity_id}>
@@ -51,11 +54,12 @@ function CommodityListPage() {
       <form onSubmit={handleCreate} className="inline-form">
         <label>
           Name{' '}
-          <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+          <input type="text" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
         </label>
         <label>
           Code (2 letters){' '}
           <input
+            type="text"
             placeholder="Code (2 letters)"
             value={code}
             onChange={(e) => setCode(e.target.value)}

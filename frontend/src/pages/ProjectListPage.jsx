@@ -94,74 +94,83 @@ function ProjectListPage() {
   return (
     <div>
       <h2>Projects</h2>
-      <ul className="link-list">
-        {projects.map((project) => (
-          <li key={project.project_id}>
-            {isRootAdmin && editingId === project.project_id ? (
-              confirmingRenameId === project.project_id ? (
-                <>
-                  <span>Rename to &quot;{editingName}&quot;?</span>
-                  <span className="link-list-actions">
-                    <button type="button" onClick={() => handleConfirmRename(project.project_id)}>
+      <table className="rss-results contributor-table">
+        <thead>
+          <tr>
+            <th>Project</th>
+            <th>Role</th>
+            {isRootAdmin && <th>Actions</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {projects.map((project) => (
+            <tr key={project.project_id}>
+              {isRootAdmin && editingId === project.project_id ? (
+                confirmingRenameId === project.project_id ? (
+                  <td colSpan={isRootAdmin ? 3 : 2}>
+                    <span>Rename to &quot;{editingName}&quot;?</span>{' '}
+                    <button type="button" className="link-button" onClick={() => handleConfirmRename(project.project_id)}>
                       Yes
-                    </button>
-                    <button type="button" onClick={() => setConfirmingRenameId(null)}>
+                    </button>{' '}
+                    <button type="button" className="link-button" onClick={() => setConfirmingRenameId(null)}>
                       No
                     </button>
-                  </span>
+                  </td>
+                ) : (
+                  <td colSpan={isRootAdmin ? 3 : 2}>
+                    <label>
+                      New name{' '}
+                      <input type="text" value={editingName} onChange={(e) => setEditingName(e.target.value)} />
+                    </label>{' '}
+                    <button type="button" className="link-button" onClick={() => setConfirmingRenameId(project.project_id)}>
+                      Save
+                    </button>{' '}
+                    <button type="button" className="link-button" onClick={() => setEditingId(null)}>
+                      Cancel
+                    </button>
+                  </td>
+                )
+              ) : isRootAdmin && pendingDeleteId === project.project_id ? (
+                <>
+                  <td>{project.project_name}</td>
+                  <td colSpan={2}>
+                    <span>Delete this project?</span>{' '}
+                    <button type="button" className="link-button" onClick={() => handleDelete(project.project_id)}>
+                      Yes
+                    </button>{' '}
+                    <button type="button" className="link-button" onClick={() => setPendingDeleteId(null)}>
+                      No
+                    </button>
+                  </td>
                 </>
               ) : (
                 <>
-                  <label>
-                    New name{' '}
-                    <input value={editingName} onChange={(e) => setEditingName(e.target.value)} />
-                  </label>
-                  <span className="link-list-actions">
-                    <button type="button" onClick={() => setConfirmingRenameId(project.project_id)}>
-                      Save
-                    </button>
-                    <button type="button" onClick={() => setEditingId(null)}>
-                      Cancel
-                    </button>
-                  </span>
+                  <td>
+                    <Link to={`/projects/${project.project_id}/commodities`}>{project.project_name}</Link>
+                  </td>
+                  <td>
+                    <span className="tag">{project.my_role}</span>
+                  </td>
+                  {isRootAdmin && (
+                    <td>
+                      <button type="button" className="link-button" onClick={() => startEditing(project)}>
+                        Edit
+                      </button>{' '}
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() => setPendingDeleteId(project.project_id)}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  )}
                 </>
-              )
-            ) : isRootAdmin && pendingDeleteId === project.project_id ? (
-              <>
-                <span>{project.project_name}</span>
-                <span className="link-list-actions">
-                  <span>Delete this project?</span>
-                  <button type="button" onClick={() => handleDelete(project.project_id)}>
-                    Yes
-                  </button>
-                  <button type="button" onClick={() => setPendingDeleteId(null)}>
-                    No
-                  </button>
-                </span>
-              </>
-            ) : (
-              <>
-                <Link to={`/projects/${project.project_id}/commodities`}>{project.project_name}</Link>
-                <span className="tag">{project.my_role}</span>
-                {isRootAdmin && (
-                  <span className="link-list-actions">
-                    <button type="button" className="link-button" onClick={() => startEditing(project)}>
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      className="link-button"
-                      onClick={() => setPendingDeleteId(project.project_id)}
-                    >
-                      Delete
-                    </button>
-                  </span>
-                )}
-              </>
-            )}
-          </li>
-        ))}
-      </ul>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
       {isRootAdmin && (
         <>
@@ -171,6 +180,7 @@ function ProjectListPage() {
             <label>
               Project name{' '}
               <input
+                type="text"
                 placeholder="New project name"
                 value={newProjectName}
                 onChange={(e) => setNewProjectName(e.target.value)}

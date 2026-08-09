@@ -229,10 +229,10 @@ function AdminPage() {
             editingUserId === user.user_id ? (
               <tr key={user.user_id}>
                 <td>
-                  <input value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} />
+                  <input type="text" value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} />
                 </td>
                 <td>
-                  <input value={editLastName} onChange={(e) => setEditLastName(e.target.value)} />
+                  <input type="text" value={editLastName} onChange={(e) => setEditLastName(e.target.value)} />
                 </td>
                 <td>
                   <input
@@ -330,6 +330,7 @@ function AdminPage() {
         <label>
           First name{' '}
           <input
+            type="text"
             placeholder="First name"
             value={newFirstName}
             onChange={(e) => setNewFirstName(e.target.value)}
@@ -339,6 +340,7 @@ function AdminPage() {
         <label>
           Last name{' '}
           <input
+            type="text"
             placeholder="Last name"
             value={newLastName}
             onChange={(e) => setNewLastName(e.target.value)}
@@ -454,6 +456,7 @@ function AdminPage() {
             <label>
               Search users{' '}
               <input
+                type="text"
                 placeholder="Search users..."
                 value={memberSearchInput}
                 onChange={(e) => setMemberSearchInput(e.target.value)}

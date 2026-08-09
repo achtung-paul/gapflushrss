@@ -98,8 +98,13 @@ a:hover { color: var(--color-accent-700); }
 
 /* Primary action for a form (Create project, Add contributor, Log in,
    ...) -- selected by type rather than a class so every existing
-   `<button type="submit">` picks this up with no JSX changes. */
-button[type="submit"] {
+   `<button type="submit">` picks this up with no JSX changes.
+   .btn-primary is the same look for a non-button primary action (Print
+   report is a link, not a form submit) -- one shared rule so the two
+   can never quietly drift apart. */
+button[type="submit"],
+.btn-primary {
+  display: inline-block;
   background: var(--color-heading);
   color: #fff;
   border: none;
@@ -107,10 +112,22 @@ button[type="submit"] {
   padding: 0.45rem 1rem;
   font: inherit;
   font-weight: 600;
+  text-decoration: none;
   cursor: pointer;
 }
-button[type="submit"]:hover { background: var(--color-accent-700); }
+button[type="submit"]:hover,
+.btn-primary:hover { background: var(--color-accent-700); color: #fff; }
 button[type="submit"]:disabled { background: var(--color-divider); color: var(--color-muted); cursor: default; }
+
+/* A heading with a primary action pinned to the right edge of the page
+   (e.g. "Print report" alongside an <h2>/<h3>) -- see
+   AnalysisDetailPage.jsx and AnalysisListPage.jsx. */
+.section-header-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
 
 /* Secondary action (Cancel, Add Flush, Yes/No confirms, pagination,
    scroll controls, ...) -- the default look for every other button,
@@ -245,8 +262,23 @@ main {
 .inline-form {
   display: flex;
   gap: 0.5rem;
-  align-items: center;
+  align-items: flex-end;
   margin-top: 1rem;
+}
+
+/* Label text stacked above its control, matching the mockup -- except a
+   checkbox's label (e.g. MinioServicesPage's "Secure (HTTPS)"), which
+   stays inline since there's no separate control to stack it above. */
+.inline-form label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+
+.inline-form label:has(input[type="checkbox"]) {
+  flex-direction: row;
+  align-items: center;
 }
 
 .inline-form input {

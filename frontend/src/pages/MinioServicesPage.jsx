@@ -160,11 +160,12 @@ function MinioServicesPage() {
       <form onSubmit={handleCreate} className="inline-form">
         <label>
           Name{' '}
-          <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+          <input type="text" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
         </label>
         <label>
           Endpoint{' '}
           <input
+            type="text"
             placeholder="Endpoint (host:port)"
             value={endpoint}
             onChange={(e) => setEndpoint(e.target.value)}
@@ -174,6 +175,7 @@ function MinioServicesPage() {
         <label>
           Access key{' '}
           <input
+            type="text"
             placeholder="Access key"
             value={accessKey}
             onChange={(e) => setAccessKey(e.target.value)}
@@ -192,7 +194,7 @@ function MinioServicesPage() {
         </label>
         <label>
           Bucket{' '}
-          <input placeholder="Bucket" value={bucket} onChange={(e) => setBucket(e.target.value)} required />
+          <input type="text" placeholder="Bucket" value={bucket} onChange={(e) => setBucket(e.target.value)} required />
         </label>
         <label>
           <input type="checkbox" checked={secure} onChange={(e) => setSecure(e.target.checked)} /> Secure

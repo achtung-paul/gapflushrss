@@ -11,13 +11,13 @@ import {
 import NumberInput from './NumberInput.jsx'
 
 // Same RAG maps as ToleranceChainSection.jsx -- backend value uses an
-// underscore (not_evaluated), CSS class is hyphenated, and .rag-badge sets
-// white text with the background coming from this class, so a name that
-// doesn't match renders white on white rather than obviously broken.
+// underscore (not_evaluated), CSS class is hyphenated -- a name that
+// doesn't match one of the four modifiers falls back to .rag-badge's own
+// neutral colour rather than an unstyled, easy-to-miss badge.
 const RAG_LABELS = {
-  green: 'Green',
-  amber: 'Amber',
-  red: 'Red',
+  green: 'Pass',
+  amber: 'Caution',
+  red: 'Fail',
   not_evaluated: 'Not evaluated',
 }
 const RAG_CLASS = {
