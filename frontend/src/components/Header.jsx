@@ -31,7 +31,7 @@ function Header() {
     <header className="app-header">
       <h1>
         <Link to="/">
-          GapFlush<span className="brand-accent">RSS</span>
+          Gap<span className="brand-accent">Fit Pro</span>
         </Link>
       </h1>
       <nav className="app-header-nav">

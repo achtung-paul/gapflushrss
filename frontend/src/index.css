@@ -61,7 +61,7 @@ a:hover { color: var(--color-accent-700); }
   text-decoration: none;
 }
 
-/* "RSS" half of the "GapFlushRSS" wordmark -- the rest stays the
+/* "Fit Pro" half of the "GapFit Pro" wordmark -- "Gap" stays the
    header's plain text colour (see .app-header h1). */
 .brand-accent {
   color: var(--color-heading);

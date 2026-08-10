@@ -40,7 +40,7 @@ def build_import_template() -> bytes:
     sheet.append(["TG1", "NT"])
     sheet.append(["TG2", ""])
 
-    sheet["A1"].comment = Comment(_INSTRUCTIONS, "GapFlushRSS")
+    sheet["A1"].comment = Comment(_INSTRUCTIONS, "GapFit Pro")
 
     buffer = BytesIO()
     workbook.save(buffer)

@@ -108,7 +108,7 @@ async def lifespan(app: FastAPI):
         cleanup_task.cancel()
 
 
-app = FastAPI(title="GapFlushRSS API", lifespan=lifespan)
+app = FastAPI(title="GapFit Pro API", lifespan=lifespan)
 
 # Rate limiting for the auth endpoints (see core/rate_limit.py). slowapi
 # reads the limiter off app.state, and needs its own handler registered to
@@ -163,4 +163,4 @@ app.include_router(internal_logs.router)
 
 @app.get("/")
 def root():
-    return {"message": "GapFlushRSS API is running"}
+    return {"message": "GapFit Pro API is running"}

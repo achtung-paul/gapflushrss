@@ -1,5 +1,5 @@
 function Home() {
-  return <p>GapFlushRSS is running.</p>
+  return <p>GapFit Pro is running.</p>
 }
 
 export default Home
