@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     smtp_username: str = ""
     smtp_password: str = ""
     smtp_use_tls: bool = False
-    smtp_from_address: str = "noreply@gapfitpro.com"
+    smtp_from_address: str = "noreply@stackfitpro.com"
 
     # First-run bootstrap: if no root_admin user exists yet, one is
     # created from these on startup (see app/main.py). Only takes effect

@@ -113,7 +113,7 @@ def request_password_reset(
         try:
             send_email(
                 to_address=user.email,
-                subject="GapFit Pro password reset",
+                subject="StackFit Pro password reset",
                 body=f"Reset your password using this link (valid for 1 hour):\n\n{reset_link}",
             )
         except OSError:

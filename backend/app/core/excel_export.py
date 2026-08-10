@@ -262,7 +262,7 @@ def build_entry_workbook(
     ws.column_dimensions["H"].width = 24
 
     ws.merge_cells("A1:H1")
-    ws["A1"] = "GapFit Pro -- Analysis Report"
+    ws["A1"] = "StackFit Pro -- Analysis Report"
     ws["A1"].font = HEADING_FONT
 
     row = 3
@@ -277,7 +277,7 @@ def build_entry_workbook(
     export_date = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     link_cell_row = row
     _label_value_row(ws, row, "Exported:", export_date)
-    link_cell = ws.cell(row=link_cell_row, column=5, value="Open in GapFit Pro")
+    link_cell = ws.cell(row=link_cell_row, column=5, value="Open in StackFit Pro")
     link_cell.hyperlink = f"{frontend_origin}/projects/{project_id}/analyses/{analysis_id}"
     link_cell.font = Font(color="1155CC", underline="single")
     row += 2
@@ -473,7 +473,7 @@ def build_commodity_workbook(
         ws.column_dimensions[letter].width = width
 
     ws.merge_cells("A1:K1")
-    ws["A1"] = "GapFit Pro -- Commodity Report"
+    ws["A1"] = "StackFit Pro -- Commodity Report"
     ws["A1"].font = HEADING_FONT
 
     row = 3

@@ -61,7 +61,22 @@ a:hover { color: var(--color-accent-700); }
   text-decoration: none;
 }
 
-/* "Fit Pro" half of the "GapFit Pro" wordmark -- "Gap" stays the
+/* Icon + "StackFitPro" text side by side -- see Header.jsx for why the
+   text is real markup rather than baked into the logo SVG. */
+.brand-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* StackFitPro-header-logo.svg is a 1:1 icon (viewBox 64x64). */
+.brand-logo {
+  display: block;
+  height: 1.75rem;
+  width: 1.75rem;
+}
+
+/* "Pro" half of the "StackFitPro" wordmark -- "StackFit" stays the
    header's plain text colour (see .app-header h1). */
 .brand-accent {
   color: var(--color-heading);

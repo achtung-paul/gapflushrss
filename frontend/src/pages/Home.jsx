@@ -1,5 +1,5 @@
 function Home() {
-  return <p>GapFit Pro is running.</p>
+  return <p>StackFit Pro is running.</p>
 }
 
 export default Home
