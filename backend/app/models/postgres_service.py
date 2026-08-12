@@ -9,7 +9,7 @@
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -25,6 +25,14 @@ class PostgresService(Base):
     database: Mapped[str] = mapped_column(String(255), nullable=False)
     username: Mapped[str] = mapped_column(String(255), nullable=False)
     encrypted_password: Mapped[str] = mapped_column(String(500), nullable=False)
+    # NULL for a service an admin registered by hand (pointing at a
+    # database that already existed). Set only when
+    # core/service_provisioning.py created this service's database and
+    # role itself -- purely informational (which PostgresServer this came
+    # from), nothing reads it to make a decision.
+    provisioned_from_server_id: Mapped[int | None] = mapped_column(
+        ForeignKey("postgres_servers.postgres_server_id"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

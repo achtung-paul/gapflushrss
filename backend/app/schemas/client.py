@@ -1,15 +1,24 @@
 # Request/response shapes for /admin/clients (root admin) and the parts
 # of /client-admin that report a client's own identity back to itself.
 
-from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
+from pydantic import BaseModel, EmailStr, ConfigDict, field_validator, model_validator
 
 from app.core.security import validate_password_strength
 
 
 class ClientCreate(BaseModel):
     name: str
-    postgres_service_id: int
-    minio_service_id: int
+    # Exactly one of (postgres_service_id) or (postgres_server_id) must be
+    # given, and likewise for the MinIO pair -- either pick an existing,
+    # already-dedicated service, or hand over a registered server to
+    # auto-provision a brand-new one from (see
+    # core/service_provisioning.py). Enforced below rather than as two
+    # separate required fields, so the request shape stays one schema
+    # instead of a branching union.
+    postgres_service_id: int | None = None
+    postgres_server_id: int | None = None
+    minio_service_id: int | None = None
+    minio_server_id: int | None = None
     # A client can never exist without at least one admin (requirement 2
     # of the brief) -- so the first one is created in the same request,
     # the same transaction, as the client itself.
@@ -22,6 +31,14 @@ class ClientCreate(BaseModel):
     @classmethod
     def password_must_be_strong(cls, value: str) -> str:
         return validate_password_strength(value)
+
+    @model_validator(mode="after")
+    def exactly_one_postgres_and_one_minio_source(self) -> "ClientCreate":
+        if (self.postgres_service_id is None) == (self.postgres_server_id is None):
+            raise ValueError("Provide exactly one of postgres_service_id or postgres_server_id")
+        if (self.minio_service_id is None) == (self.minio_server_id is None):
+            raise ValueError("Provide exactly one of minio_service_id or minio_server_id")
+        return self
 
 
 class ClientUpdate(BaseModel):

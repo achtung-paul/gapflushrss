@@ -16,12 +16,14 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require_root_admin
 from app.api.projects import purge_project_data
-from app.core import service_db, service_storage
+from app.core import service_db, service_provisioning, service_storage
 from app.core.security import force_password_reset, hash_password
 from app.db.session import get_db
 from app.models.client import Client
+from app.models.minio_server import MinioServer
 from app.models.minio_service import MinioService
 from app.models.password_reset_token import PasswordResetToken
+from app.models.postgres_server import PostgresServer
 from app.models.postgres_service import PostgresService
 from app.models.process_type import ProcessType
 from app.models.project import Project
@@ -98,47 +100,89 @@ def create_client(
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Client name already exists")
 
-    # A project can never point at a service that isn't ready -- same
-    # guard api/projects.py's create_project used to make directly, now
-    # made once here since a client's projects all inherit its services.
-    postgres_service = db.get(PostgresService, body.postgres_service_id)
-    if postgres_service is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Postgres service not found")
-    if service_db.check_status(postgres_service) != "initialized":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Postgres service isn't initialized yet")
-
-    minio_service = db.get(MinioService, body.minio_service_id)
-    if minio_service is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MinIO service not found")
-    if service_storage.check_status(minio_service) != "initialized":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="MinIO service isn't initialized yet")
-
-    # Isolation is by dedicated infrastructure -- a service already
-    # assigned to another client can't be handed to a second one, or
-    # their Commodity-and-below data would end up colocated on one
-    # physical database/bucket with only application code (not a real
-    # boundary) telling their rows apart. See CLAUDE.md.
-    postgres_in_use = db.query(Client).filter(Client.postgres_service_id == body.postgres_service_id).first()
-    if postgres_in_use is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="That Postgres service is already assigned to another client",
-        )
-    minio_in_use = db.query(Client).filter(Client.minio_service_id == body.minio_service_id).first()
-    if minio_in_use is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="That MinIO service is already assigned to another client",
-        )
-
     email_taken = db.query(User).filter(User.email == body.admin_email).first()
     if email_taken is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use")
 
+    # Every check in this block has to pass *before* anything below can
+    # provision real infrastructure. CREATE DATABASE / mc admin commands
+    # commit on the external server the instant they run, independent of
+    # this request's own db transaction -- a later db.rollback() can't
+    # undo them the way it undoes an ordinary INSERT, so every avoidable
+    # failure needs to happen first. ClientCreate's own validator already
+    # guarantees exactly one of each pair (service id / server id) is set.
+    postgres_server: PostgresServer | None = None
+    if body.postgres_service_id is not None:
+        # A project can never point at a service that isn't ready -- same
+        # guard api/projects.py's create_project used to make directly,
+        # now made once here since a client's projects all inherit its
+        # services.
+        postgres_service = db.get(PostgresService, body.postgres_service_id)
+        if postgres_service is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Postgres service not found")
+        if service_db.check_status(postgres_service) != "initialized":
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Postgres service isn't initialized yet")
+        # Isolation is by dedicated infrastructure -- a service already
+        # assigned to another client can't be handed to a second one, or
+        # their Commodity-and-below data would end up colocated on one
+        # physical database with only application code (not a real
+        # boundary) telling their rows apart. See CLAUDE.md.
+        postgres_in_use = db.query(Client).filter(Client.postgres_service_id == body.postgres_service_id).first()
+        if postgres_in_use is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="That Postgres service is already assigned to another client",
+            )
+    else:
+        postgres_server = db.get(PostgresServer, body.postgres_server_id)
+        if postgres_server is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Postgres server not found")
+
+    minio_server: MinioServer | None = None
+    if body.minio_service_id is not None:
+        minio_service = db.get(MinioService, body.minio_service_id)
+        if minio_service is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MinIO service not found")
+        if service_storage.check_status(minio_service) != "initialized":
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="MinIO service isn't initialized yet")
+        minio_in_use = db.query(Client).filter(Client.minio_service_id == body.minio_service_id).first()
+        if minio_in_use is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="That MinIO service is already assigned to another client",
+            )
+    else:
+        minio_server = db.get(MinioServer, body.minio_server_id)
+        if minio_server is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MinIO server not found")
+
+    # Postgres first, MinIO second -- deliberate order, since the
+    # cleanup below only runs "undo Postgres if MinIO then fails", not
+    # the other way around.
+    if postgres_server is not None:
+        try:
+            postgres_service = service_provisioning.provision_postgres_service(db, postgres_server, body.name)
+        except Exception as error:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Could not provision a dedicated Postgres database: {error}",
+            )
+
+    if minio_server is not None:
+        try:
+            minio_service = service_provisioning.provision_minio_service(db, minio_server, body.name)
+        except Exception as error:
+            if postgres_server is not None:
+                service_provisioning.deprovision_postgres_service(postgres_server, postgres_service)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Could not provision a dedicated MinIO bucket: {error}",
+            )
+
     client = Client(
         name=body.name,
-        postgres_service_id=body.postgres_service_id,
-        minio_service_id=body.minio_service_id,
+        postgres_service_id=postgres_service.postgres_service_id,
+        minio_service_id=minio_service.minio_service_id,
     )
     db.add(client)
     db.flush()  # assigns client.client_id without ending the transaction

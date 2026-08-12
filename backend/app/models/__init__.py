@@ -14,6 +14,8 @@ from app.models.user_session import UserSession  # noqa: F401
 from app.models.password_reset_token import PasswordResetToken  # noqa: F401
 from app.models.postgres_service import PostgresService  # noqa: F401
 from app.models.minio_service import MinioService  # noqa: F401
+from app.models.postgres_server import PostgresServer  # noqa: F401
+from app.models.minio_server import MinioServer  # noqa: F401
 from app.models.process_type import ProcessType  # noqa: F401
 from app.models.tolerance_group import ToleranceGroup  # noqa: F401
 from app.models.dimension_range import DimensionRange  # noqa: F401

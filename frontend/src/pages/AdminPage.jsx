@@ -117,6 +117,10 @@ function AdminPage() {
         {' | '}
         <Link to="/admin/minio-services">MinIO services</Link>
         {' | '}
+        <Link to="/admin/postgres-servers">Postgres servers</Link>
+        {' | '}
+        <Link to="/admin/minio-servers">MinIO servers</Link>
+        {' | '}
         <Link to="/admin/logs">Service logs</Link>
         {' | '}
         <Link to="/admin/banner">Site banner</Link>

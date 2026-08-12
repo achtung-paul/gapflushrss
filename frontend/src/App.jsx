@@ -19,6 +19,8 @@ import ProcessTypesPage from './pages/ProcessTypesPage.jsx'
 import ToleranceMatrixPage from './pages/ToleranceMatrixPage.jsx'
 import PostgresServicesPage from './pages/PostgresServicesPage.jsx'
 import MinioServicesPage from './pages/MinioServicesPage.jsx'
+import PostgresServersPage from './pages/PostgresServersPage.jsx'
+import MinioServersPage from './pages/MinioServersPage.jsx'
 import StandardTolerancesPage from './pages/StandardTolerancesPage.jsx'
 import LogsPage from './pages/LogsPage.jsx'
 import BannerPage from './pages/BannerPage.jsx'
@@ -157,6 +159,22 @@ function App() {
             element={
               <ProtectedRoute requireRootAdmin>
                 <MinioServicesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/postgres-servers"
+            element={
+              <ProtectedRoute requireRootAdmin>
+                <PostgresServersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/minio-servers"
+            element={
+              <ProtectedRoute requireRootAdmin>
+                <MinioServersPage />
               </ProtectedRoute>
             }
           />

@@ -169,27 +169,56 @@ export const deleteProject = (projectId) => apiFetch(`/projects/${projectId}`, {
 
 export const listClients = () => apiFetch('/admin/clients')
 
-export const createClient = (
+// postgresServiceId/postgresServerId are mutually exclusive -- pass
+// exactly one (same for the minio pair). A *service* id picks an
+// already-registered, already-dedicated database/bucket; a *server* id
+// asks the backend to provision a brand-new one on that registered
+// server instead (see api/admin_clients.py's create_client,
+// core/service_provisioning.py). Passed as one options object rather
+// than more positional params -- this was already a 7-argument
+// function before the auto-provisioning choice doubled the service
+// arguments to four.
+export const createClient = ({
   name,
   postgresServiceId,
+  postgresServerId,
   minioServiceId,
+  minioServerId,
   adminFirstName,
   adminLastName,
   adminEmail,
   adminPassword,
-) =>
+}) =>
   apiFetch('/admin/clients', {
     method: 'POST',
     body: JSON.stringify({
       name,
-      postgres_service_id: postgresServiceId,
-      minio_service_id: minioServiceId,
+      postgres_service_id: postgresServiceId ?? null,
+      postgres_server_id: postgresServerId ?? null,
+      minio_service_id: minioServiceId ?? null,
+      minio_server_id: minioServerId ?? null,
       admin_first_name: adminFirstName,
       admin_last_name: adminLastName,
       admin_email: adminEmail,
       admin_password: adminPassword,
     }),
   })
+
+export const listPostgresServers = () => apiFetch('/admin/postgres-servers')
+
+export const createPostgresServer = (server) =>
+  apiFetch('/admin/postgres-servers', { method: 'POST', body: JSON.stringify(server) })
+
+export const deletePostgresServer = (postgresServerId) =>
+  apiFetch(`/admin/postgres-servers/${postgresServerId}`, { method: 'DELETE' })
+
+export const listMinioServers = () => apiFetch('/admin/minio-servers')
+
+export const createMinioServer = (server) =>
+  apiFetch('/admin/minio-servers', { method: 'POST', body: JSON.stringify(server) })
+
+export const deleteMinioServer = (minioServerId) =>
+  apiFetch(`/admin/minio-servers/${minioServerId}`, { method: 'DELETE' })
 
 export const updateClient = (clientId, name, isActive) =>
   apiFetch(`/admin/clients/${clientId}`, {

@@ -6,7 +6,9 @@ import {
   forceClientAdminPasswordReset,
   listClientAdmins,
   listClients,
+  listMinioServers,
   listMinioServices,
+  listPostgresServers,
   listPostgresServices,
   updateClient,
 } from '../api/client.js'
@@ -20,11 +22,23 @@ function ClientsPage() {
   const [clients, setClients] = useState([])
   const [postgresServices, setPostgresServices] = useState([])
   const [minioServices, setMinioServices] = useState([])
+  const [postgresServers, setPostgresServers] = useState([])
+  const [minioServers, setMinioServers] = useState([])
   const [error, setError] = useState(null)
 
   const [name, setName] = useState('')
+  // "existing" picks an already-registered, already-dedicated service
+  // (the original flow); "provision" hands a registered server to
+  // core/service_provisioning.py to create a brand-new dedicated
+  // database/bucket for this client instead. Independent per side --
+  // Postgres can auto-provision while MinIO reuses an existing service,
+  // or vice versa.
+  const [postgresMode, setPostgresMode] = useState('existing')
+  const [minioMode, setMinioMode] = useState('existing')
   const [postgresServiceId, setPostgresServiceId] = useState('')
   const [minioServiceId, setMinioServiceId] = useState('')
+  const [postgresServerId, setPostgresServerId] = useState('')
+  const [minioServerId, setMinioServerId] = useState('')
   const [adminFirstName, setAdminFirstName] = useState('')
   const [adminLastName, setAdminLastName] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
@@ -68,24 +82,30 @@ function ClientsPage() {
     listMinioServices()
       .then((services) => setMinioServices(services.filter((s) => s.status === 'initialized')))
       .catch((err) => setError(err.message))
+    listPostgresServers().then(setPostgresServers).catch((err) => setError(err.message))
+    listMinioServers().then(setMinioServers).catch((err) => setError(err.message))
   }, [])
 
   async function handleCreate(event) {
     event.preventDefault()
     setError(null)
     try {
-      await createClient(
+      await createClient({
         name,
-        Number(postgresServiceId),
-        Number(minioServiceId),
+        postgresServiceId: postgresMode === 'existing' ? Number(postgresServiceId) : undefined,
+        postgresServerId: postgresMode === 'provision' ? Number(postgresServerId) : undefined,
+        minioServiceId: minioMode === 'existing' ? Number(minioServiceId) : undefined,
+        minioServerId: minioMode === 'provision' ? Number(minioServerId) : undefined,
         adminFirstName,
         adminLastName,
         adminEmail,
         adminPassword,
-      )
+      })
       setName('')
       setPostgresServiceId('')
       setMinioServiceId('')
+      setPostgresServerId('')
+      setMinioServerId('')
       setAdminFirstName('')
       setAdminLastName('')
       setAdminEmail('')
@@ -380,27 +400,69 @@ function ClientsPage() {
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
         </label>
         <label>
-          Postgres service{' '}
-          <select value={postgresServiceId} onChange={(e) => setPostgresServiceId(e.target.value)} required>
-            <option value="">Postgres service...</option>
-            {postgresServices.map((service) => (
-              <option key={service.postgres_service_id} value={service.postgres_service_id}>
-                {service.name}
-              </option>
-            ))}
+          Postgres{' '}
+          <select value={postgresMode} onChange={(e) => setPostgresMode(e.target.value)}>
+            <option value="existing">Use existing service</option>
+            <option value="provision">Auto-provision new</option>
           </select>
         </label>
+        {postgresMode === 'existing' ? (
+          <label>
+            Postgres service{' '}
+            <select value={postgresServiceId} onChange={(e) => setPostgresServiceId(e.target.value)} required>
+              <option value="">Postgres service...</option>
+              {postgresServices.map((service) => (
+                <option key={service.postgres_service_id} value={service.postgres_service_id}>
+                  {service.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <label>
+            Postgres server{' '}
+            <select value={postgresServerId} onChange={(e) => setPostgresServerId(e.target.value)} required>
+              <option value="">Postgres server...</option>
+              {postgresServers.map((server) => (
+                <option key={server.postgres_server_id} value={server.postgres_server_id}>
+                  {server.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
-          MinIO service{' '}
-          <select value={minioServiceId} onChange={(e) => setMinioServiceId(e.target.value)} required>
-            <option value="">MinIO service...</option>
-            {minioServices.map((service) => (
-              <option key={service.minio_service_id} value={service.minio_service_id}>
-                {service.name}
-              </option>
-            ))}
+          MinIO{' '}
+          <select value={minioMode} onChange={(e) => setMinioMode(e.target.value)}>
+            <option value="existing">Use existing service</option>
+            <option value="provision">Auto-provision new</option>
           </select>
         </label>
+        {minioMode === 'existing' ? (
+          <label>
+            MinIO service{' '}
+            <select value={minioServiceId} onChange={(e) => setMinioServiceId(e.target.value)} required>
+              <option value="">MinIO service...</option>
+              {minioServices.map((service) => (
+                <option key={service.minio_service_id} value={service.minio_service_id}>
+                  {service.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <label>
+            MinIO server{' '}
+            <select value={minioServerId} onChange={(e) => setMinioServerId(e.target.value)} required>
+              <option value="">MinIO server...</option>
+              {minioServers.map((server) => (
+                <option key={server.minio_server_id} value={server.minio_server_id}>
+                  {server.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           Admin first name{' '}
           <input type="text" value={adminFirstName} onChange={(e) => setAdminFirstName(e.target.value)} required />
@@ -424,12 +486,25 @@ function ClientsPage() {
         </label>
         <button type="submit">Create client</button>
       </form>
-      {(postgresServices.length === 0 || minioServices.length === 0) && (
+      {postgresMode === 'existing' && postgresServices.length === 0 && (
         <p className="form-hint">
-          A client needs one initialized Postgres service and one initialized MinIO service, each
-          dedicated to that client alone -- set one up from Postgres services or MinIO services
-          first.
+          No initialized Postgres services available -- set one up from Postgres services, or
+          switch to "Auto-provision new" if a Postgres server is registered.
         </p>
+      )}
+      {postgresMode === 'provision' && postgresServers.length === 0 && (
+        <p className="form-hint">
+          No Postgres servers registered yet -- add one from Postgres servers first.
+        </p>
+      )}
+      {minioMode === 'existing' && minioServices.length === 0 && (
+        <p className="form-hint">
+          No initialized MinIO services available -- set one up from MinIO services, or switch to
+          "Auto-provision new" if a MinIO server is registered.
+        </p>
+      )}
+      {minioMode === 'provision' && minioServers.length === 0 && (
+        <p className="form-hint">No MinIO servers registered yet -- add one from MinIO servers first.</p>
       )}
     </div>
   )

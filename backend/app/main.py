@@ -28,7 +28,9 @@ from app.api import (
     images,
     internal_logs,
     logs,
+    minio_servers,
     minio_services,
+    postgres_servers,
     postgres_services,
     projects,
     reference_data,
@@ -148,6 +150,8 @@ app.include_router(admin_clients.router)
 app.include_router(client_admin.router)
 app.include_router(postgres_services.router)
 app.include_router(minio_services.router)
+app.include_router(postgres_servers.router)
+app.include_router(minio_servers.router)
 app.include_router(projects.router)
 app.include_router(commodities.router)
 app.include_router(analyses.router)

@@ -34,6 +34,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && apt-get install -y --no-install-recommends postgresql-client-16 \
     && rm -rf /var/lib/apt/lists/*
 
+# core/service_provisioning.py shells out to `mc` (the MinIO client) to
+# create a bucket-scoped IAM user + policy when auto-provisioning a
+# client's MinIO service -- the `minio` Python SDK already used
+# elsewhere in this app (core/service_storage.py) is a plain S3-protocol
+# client with no admin/IAM operations at all, so there's no pure-Python
+# way to do this. Pinned to a specific dated release, not the floating
+# "latest" symlink -- same reasoning as postgresql-client-16 above: an
+# unpinned tool can change under us between builds.
+RUN curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/archive/mc.RELEASE.2025-08-13T08-35-41Z \
+    -o /usr/local/bin/mc \
+    && chmod +x /usr/local/bin/mc \
+    && mc --version
+
 # Install dependencies first so Docker can cache this layer when only
 # application code changes.
 COPY requirements.txt .
