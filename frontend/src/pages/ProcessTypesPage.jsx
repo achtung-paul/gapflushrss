@@ -106,7 +106,7 @@ function ProcessTypesPage() {
                 {editingId === processType.process_type_id ? (
                   <input type="text" value={editingName} onChange={(e) => setEditingName(e.target.value)} />
                 ) : (
-                  <Link to={`/admin/process-types/${processType.process_type_id}/tolerance-matrix`}>
+                  <Link to={`/client-admin/process-types/${processType.process_type_id}/tolerance-matrix`}>
                     {processType.name}
                   </Link>
                 )}

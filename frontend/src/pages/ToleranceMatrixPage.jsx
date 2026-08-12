@@ -206,7 +206,7 @@ function ToleranceMatrixPage() {
   return (
     <div>
       <p>
-        <Link to="/admin/process-types">&larr; Process types</Link>
+        <Link to="/client-admin/process-types">&larr; Process types</Link>
       </p>
       <h2>Tolerance matrix</h2>
       <p>

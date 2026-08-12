@@ -41,16 +41,46 @@ def require_root_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
-def _user_is_in_project_group(db: Session, user: User, project_id: int, role_name: str) -> bool:
-    if user.global_role == GlobalRole.root_admin:
-        return True
+def require_client_admin(user: User = Depends(get_current_user)) -> User:
+    # The client-side mirror of require_root_admin. root_admin is
+    # deliberately NOT accepted here: per the brief, root admin
+    # configures databases and storage and can never see inside a
+    # client's sandbox -- not its users, not its projects, not its
+    # reference data. Their client_id is NULL (see models/user.py), so
+    # they fail this check for the same reason every other outsider does.
+    if user.global_role != GlobalRole.client_admin or user.client_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Client admin access required")
+    return user
 
+
+def _user_is_client_admin_for(user: User, project: Project) -> bool:
+    # A client admin implicitly has Manager rights on every project in
+    # their own client -- the same short-circuit root_admin used to have
+    # system-wide, now bounded to exactly one client. They need no
+    # UserGroupProject row for it.
+    return (
+        user.global_role == GlobalRole.client_admin
+        and user.client_id is not None
+        and user.client_id == project.client_id
+    )
+
+
+def _user_is_in_project_group(db: Session, user: User, project_id: int, role_name: str) -> bool:
     project = db.get(Project, project_id)
     if project is None:
         return False
 
-    group_name = f"Project-{project.project_name}-{role_name}"
-    group = db.query(Group).filter(Group.group_name == group_name).first()
+    # The tenancy boundary, checked before anything else. A user can only
+    # ever have rights inside their own client -- root_admin (client_id
+    # NULL) never passes this, and neither would a stale UserGroupProject
+    # row somehow left pointing at another client's project.
+    if user.client_id is None or user.client_id != project.client_id:
+        return False
+
+    if _user_is_client_admin_for(user, project):
+        return True
+
+    group = db.query(Group).filter_by(project_id=project_id, role_name=role_name).first()
     if group is None:
         return False
 
@@ -62,16 +92,24 @@ def _user_is_in_project_group(db: Session, user: User, project_id: int, role_nam
     return membership is not None
 
 
-def user_can_view_project(db: Session, user: User, project_id: int) -> bool:
+def user_can_view_project(db: Session, user: User, project: Project) -> bool:
     # Unlike user_can_manage_project/user_can_edit_project, this doesn't
     # care *which* of the three groups the membership is in -- Managers,
     # Contributors, and Viewers can all see that the project exists.
     # Used by get_project below to 404 (not 403) a project a user isn't
     # a member of, so its existence isn't leaked to non-members either.
-    if user.global_role == GlobalRole.root_admin:
+    #
+    # Takes the Project itself, not a project_id -- its only caller
+    # (get_project) already has it loaded, and the tenancy check below
+    # needs the row anyway.
+    if user.client_id is None or user.client_id != project.client_id:
+        return False
+    if _user_is_client_admin_for(user, project):
         return True
     return (
-        db.query(UserGroupProject).filter_by(user_id=user.user_id, project_id=project_id).first()
+        db.query(UserGroupProject)
+        .filter_by(user_id=user.user_id, project_id=project.project_id)
+        .first()
         is not None
     )
 
@@ -100,7 +138,7 @@ def require_project_manager(db: Session, user: User, project_id: int) -> None:
     if not user_can_manage_project(db, user, project_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Must be root admin or a manager of this project",
+            detail="Must be a manager of this project (or its client admin)",
         )
 
 
@@ -108,7 +146,7 @@ def require_project_editor(db: Session, user: User, project_id: int) -> None:
     if not user_can_edit_project(db, user, project_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Must be root admin, a manager, or a contributor of this project",
+            detail="Must be a manager or contributor of this project (or its client admin)",
         )
 
 
@@ -116,12 +154,13 @@ def get_project(
     project_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> Project:
     project = db.get(Project, project_id)
-    # A non-member gets the same 404 as a project that doesn't exist at
-    # all -- every project-scoped route resolves through here (directly
-    # or via get_project_db/get_project_minio_service below), so this is
-    # the one place that needs to hide a project's existence for it to
-    # be hidden everywhere.
-    if project is None or not user_can_view_project(db, current_user, project_id):
+    # A non-member (or a member of a *different* client entirely) gets
+    # the same 404 as a project that doesn't exist at all -- every
+    # project-scoped route resolves through here (directly or via
+    # get_project_db/get_project_minio_service below), so this is the
+    # one place that needs to hide a project's existence for it to be
+    # hidden everywhere, including from root_admin.
+    if project is None or not user_can_view_project(db, current_user, project):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     return project
 

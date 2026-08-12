@@ -13,6 +13,7 @@ from app.core.simulation import run_simulation
 from app.db.session import get_db
 from app.models.analysis_entry import AnalysisEntry
 from app.models.chain_component import ChainComponent
+from app.models.process_type import ProcessType
 from app.models.tolerance_group import ToleranceGroup
 from app.models.tolerance_value import ToleranceValue
 from app.models.user import User
@@ -35,7 +36,7 @@ def _require_manager_for_entry(
     return _get_entry_or_404(project_db, project_id, entry_id)
 
 
-def _resolve_tolerance_group_name(db: Session, tolerance_value_id: int | None) -> str | None:
+def _resolve_tolerance_group_name(db: Session, current_user: User, tolerance_value_id: int | None) -> str | None:
     """The Tol matrix group name a saved value came from, for display.
 
     Resolved server-side from tolerance_value_id (a two-hop lookup
@@ -44,6 +45,12 @@ def _resolve_tolerance_group_name(db: Session, tolerance_value_id: int | None) -
     central reference data, chain_components is project-scoped, so this
     can't be a real join; snapshotting the true recorded name here (not
     whatever text a client happened to send) keeps that snapshot honest.
+
+    tolerance_value_id is a client-supplied plain integer into the
+    central database (no FK -- see CLAUDE.md), and reference data is
+    per-client now: without the ownership check below, a user could
+    submit another client's tolerance_value_id here and read that
+    client's tolerance group name back out of the response.
     """
     if tolerance_value_id is None:
         return None
@@ -51,7 +58,12 @@ def _resolve_tolerance_group_name(db: Session, tolerance_value_id: int | None) -
     if tolerance_value is None:
         return None
     group = db.get(ToleranceGroup, tolerance_value.tolerance_group_id)
-    return group.name if group else None
+    if group is None:
+        return None
+    process_type = db.get(ProcessType, group.process_type_id)
+    if process_type is None or process_type.client_id != current_user.client_id:
+        return None
+    return group.name
 
 
 @router.get("/entries/{entry_id}/chain-components", response_model=list[ChainComponentOut])
@@ -102,7 +114,7 @@ def create_chain_component(
         note=body.note,
         measured_value=body.measured_value,
         material=body.material,
-        tolerance_group_name=_resolve_tolerance_group_name(db, body.tolerance_value_id),
+        tolerance_group_name=_resolve_tolerance_group_name(db, current_user, body.tolerance_value_id),
     )
     project_db.add(component)
     project_db.commit()
@@ -142,7 +154,7 @@ def update_chain_component(
     # admin renaming a Tol matrix group is reflected here on next save,
     # since this is a display label, not a calculation input like
     # tolerance_value itself.
-    component.tolerance_group_name = _resolve_tolerance_group_name(db, body.tolerance_value_id)
+    component.tolerance_group_name = _resolve_tolerance_group_name(db, current_user, body.tolerance_value_id)
     project_db.commit()
     project_db.refresh(component)
     return component

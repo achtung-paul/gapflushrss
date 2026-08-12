@@ -1,24 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  createProject,
-  deleteProject,
-  listMinioServices,
-  listPostgresServices,
-  listProjects,
-  updateProject,
-} from '../api/client.js'
+import { createProject, deleteProject, listProjects, updateProject } from '../api/client.js'
 import { useAuth } from '../auth/AuthContext.jsx'
 
 function ProjectListPage() {
   const { user } = useAuth()
-  const isRootAdmin = user?.global_role === 'root_admin'
+  const isClientAdmin = user?.global_role === 'client_admin'
   const [projects, setProjects] = useState([])
   const [newProjectName, setNewProjectName] = useState('')
-  const [postgresServices, setPostgresServices] = useState([])
-  const [minioServices, setMinioServices] = useState([])
-  const [postgresServiceId, setPostgresServiceId] = useState('')
-  const [minioServiceId, setMinioServiceId] = useState('')
   const [error, setError] = useState(null)
 
   const [editingId, setEditingId] = useState(null)
@@ -32,29 +21,15 @@ function ProjectListPage() {
 
   useEffect(refresh, [])
 
-  // Only an already-initialized service can be picked -- the backend
-  // rejects creating a project against one that isn't (see
-  // api/projects.py's create_project). Set up services first from
-  // Admin > Postgres services / MinIO services.
-  //
-  // These endpoints (like create/rename/delete below) are root_admin
-  // only -- skip fetching for anyone else, both to avoid a pointless 403
-  // and because non-admins shouldn't see the create-project form at all.
-  useEffect(() => {
-    if (!isRootAdmin) return
-    listPostgresServices()
-      .then((services) => setPostgresServices(services.filter((s) => s.status === 'initialized')))
-      .catch((err) => setError(err.message))
-    listMinioServices()
-      .then((services) => setMinioServices(services.filter((s) => s.status === 'initialized')))
-      .catch((err) => setError(err.message))
-  }, [isRootAdmin])
-
+  // No service picker here any more -- a new project always inherits its
+  // client's own dedicated Postgres/MinIO (set once, at the client level,
+  // by root admin -- see api/projects.py's create_project). A client
+  // admin never sees the service list at all.
   async function handleCreate(event) {
     event.preventDefault()
     setError(null)
     try {
-      await createProject(newProjectName, Number(postgresServiceId), Number(minioServiceId))
+      await createProject(newProjectName)
       setNewProjectName('')
       refresh()
     } catch (err) {
@@ -99,15 +74,15 @@ function ProjectListPage() {
           <tr>
             <th>Project</th>
             <th>Role</th>
-            {isRootAdmin && <th>Actions</th>}
+            {isClientAdmin && <th>Actions</th>}
           </tr>
         </thead>
         <tbody>
           {projects.map((project) => (
             <tr key={project.project_id}>
-              {isRootAdmin && editingId === project.project_id ? (
+              {isClientAdmin && editingId === project.project_id ? (
                 confirmingRenameId === project.project_id ? (
-                  <td colSpan={isRootAdmin ? 3 : 2}>
+                  <td colSpan={isClientAdmin ? 3 : 2}>
                     <span>Rename to &quot;{editingName}&quot;?</span>{' '}
                     <button type="button" className="link-button" onClick={() => handleConfirmRename(project.project_id)}>
                       Yes
@@ -117,7 +92,7 @@ function ProjectListPage() {
                     </button>
                   </td>
                 ) : (
-                  <td colSpan={isRootAdmin ? 3 : 2}>
+                  <td colSpan={isClientAdmin ? 3 : 2}>
                     <label>
                       New name{' '}
                       <input type="text" value={editingName} onChange={(e) => setEditingName(e.target.value)} />
@@ -130,7 +105,7 @@ function ProjectListPage() {
                     </button>
                   </td>
                 )
-              ) : isRootAdmin && pendingDeleteId === project.project_id ? (
+              ) : isClientAdmin && pendingDeleteId === project.project_id ? (
                 <>
                   <td>{project.project_name}</td>
                   <td colSpan={2}>
@@ -151,7 +126,7 @@ function ProjectListPage() {
                   <td>
                     <span className="tag">{project.my_role}</span>
                   </td>
-                  {isRootAdmin && (
+                  {isClientAdmin && (
                     <td>
                       <button type="button" className="link-button" onClick={() => startEditing(project)}>
                         Edit
@@ -172,7 +147,7 @@ function ProjectListPage() {
         </tbody>
       </table>
 
-      {isRootAdmin && (
+      {isClientAdmin && (
         <>
           <div className="section-divider" />
 
@@ -187,37 +162,8 @@ function ProjectListPage() {
                 required
               />
             </label>
-            <label>
-              Postgres service{' '}
-              <select value={postgresServiceId} onChange={(e) => setPostgresServiceId(e.target.value)} required>
-                <option value="">Postgres service...</option>
-                {postgresServices.map((service) => (
-                  <option key={service.postgres_service_id} value={service.postgres_service_id}>
-                    {service.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              MinIO service{' '}
-              <select value={minioServiceId} onChange={(e) => setMinioServiceId(e.target.value)} required>
-                <option value="">MinIO service...</option>
-                {minioServices.map((service) => (
-                  <option key={service.minio_service_id} value={service.minio_service_id}>
-                    {service.name}
-                  </option>
-                ))}
-              </select>
-            </label>
             <button type="submit">Create project</button>
           </form>
-          {(postgresServices.length === 0 || minioServices.length === 0) && (
-            <p className="form-hint">
-              No initialized services available yet -- set one up from{' '}
-              <Link to="/admin/postgres-services">Postgres services</Link> or{' '}
-              <Link to="/admin/minio-services">MinIO services</Link>.
-            </p>
-          )}
         </>
       )}
       {error && <p className="form-error">{error}</p>}

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
 from app.core.security import validate_password_strength
@@ -16,44 +18,53 @@ class UserOut(BaseModel):
     global_role: GlobalRole
 
 
-class UserCreate(BaseModel):
+class CurrentUserOut(UserOut):
+    # Returned by both /auth/login and /auth/me -- see api/auth.py's
+    # _current_user_out, which is the one place that builds this, so the
+    # two routes can never drift into returning different shapes (the
+    # frontend's AuthContext hydrates from one and refreshes from the
+    # other and assumes they match).
+    client_id: int | None
+    client_name: str | None
+
+
+def _name_must_not_be_blank(value: str) -> str:
+    if not value.strip():
+        raise ValueError("must not be blank")
+    return value
+
+
+class RootAdminCreate(BaseModel):
+    # No global_role field at all -- every account created through
+    # /admin/root-admins is a root_admin by definition, so there's
+    # nothing to pick and nothing that could be picked wrong.
     first_name: str
     last_name: str
     email: EmailStr
     password: str
-    global_role: GlobalRole = GlobalRole.standard
 
     @field_validator("first_name", "last_name")
     @classmethod
     def must_not_be_blank(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("must not be blank")
-        return value
+        return _name_must_not_be_blank(value)
 
     @field_validator("password")
     @classmethod
     def password_must_be_strong(cls, value: str) -> str:
-        # Same rule as the password-reset flow -- see core/security.py.
         return validate_password_strength(value)
 
 
-class UserUpdate(BaseModel):
-    # Same shape as UserCreate minus password -- password changes stay
-    # on the existing email-based reset-token flow (api/auth.py), not
-    # this endpoint. Added alongside the username -> first/last name
-    # migration so a user backfilled with a placeholder surname (see
-    # that migration) can actually be fixed afterward.
+class RootAdminUpdate(BaseModel):
+    # Password isn't editable here -- that stays on the existing
+    # email-based reset-token flow (api/auth.py).
     first_name: str
     last_name: str
     email: EmailStr
-    global_role: GlobalRole
 
     @field_validator("first_name", "last_name")
     @classmethod
     def must_not_be_blank(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("must not be blank")
-        return value
+        return _name_must_not_be_blank(value)
 
 
 class UserListOut(BaseModel):
@@ -62,3 +73,40 @@ class UserListOut(BaseModel):
     # second request.
     items: list[UserOut]
     total: int
+
+
+# The two roles a client admin is allowed to hand out within their own
+# sandbox. Deliberately a Literal, not the full GlobalRole enum -- a
+# client admin sending "root_admin" here is rejected by Pydantic with a
+# 422 before any code runs, rather than needing a runtime check.
+ClientUserRole = Literal["standard", "client_admin"]
+
+
+class ClientUserCreate(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    password: str
+    global_role: ClientUserRole = "standard"
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def must_not_be_blank(cls, value: str) -> str:
+        return _name_must_not_be_blank(value)
+
+    @field_validator("password")
+    @classmethod
+    def password_must_be_strong(cls, value: str) -> str:
+        return validate_password_strength(value)
+
+
+class ClientUserUpdate(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    global_role: ClientUserRole
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def must_not_be_blank(cls, value: str) -> str:
+        return _name_must_not_be_blank(value)

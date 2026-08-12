@@ -114,6 +114,7 @@ services:
       LOG_DIR: /var/log/gapflushrss
       POSTGRES_LOG_DIR: /pgdata/log
       MINIO_LOG_WEBHOOK_TOKEN: ${MINIO_LOG_WEBHOOK_TOKEN}
+      BACKUP_DIR: /var/backups/gapflushrss
     volumes:
       # Log files have to outlive the container: the image is rebuilt on
       # every deploy, which would otherwise discard the whole history the
@@ -126,6 +127,12 @@ services:
       # holds full credentials for that database, so it grants nothing
       # new, but it is the one untidy part of this arrangement.
       - pgdata:/pgdata:ro
+      # Per-client backup snapshots (scripts/backup_client.py,
+      # scripts/restore_client.py) -- has to outlive the container for
+      # the same reason logs does, and holds a full tenant's data per
+      # snapshot, so it needs the same access control as the database
+      # itself (see CLAUDE.md's production checklist).
+      - backups:/var/backups/gapflushrss
     depends_on:
       postgres:
         condition: service_healthy
@@ -159,3 +166,4 @@ volumes:
   pgdata:
   miniodata:
   logs:
+  backups:

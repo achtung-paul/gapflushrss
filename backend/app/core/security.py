@@ -5,10 +5,24 @@
 # so two users with the same password still get different hashes.
 
 import secrets
+from datetime import datetime, timedelta, timezone
 
 import bcrypt
+from sqlalchemy.orm import Session
+
+from app.models.user import User
+from app.models.user_session import UserSession
 
 MIN_PASSWORD_LENGTH = 12
+
+# Password-based accounts have to reset every 30 days. Lives here (rather
+# than in api/auth.py, where the check itself is) because both
+# api/admin_clients.py and api/client_admin.py need it too for
+# force_password_reset below, and importing it from api/auth.py would
+# make one API router depend on another. Only applies to password auth --
+# there's no OAuth login in this codebase yet (see PROJECT_BRIEF.md's
+# phasing decision), so every account is a password account today.
+PASSWORD_EXPIRY = timedelta(days=30)
 
 # bcrypt hashes at most 72 bytes and *silently ignores* anything beyond
 # that -- a 100-character passphrase is really only its first 72 bytes,
@@ -46,3 +60,18 @@ def generate_token() -> str:
     # Used for both session tokens and password-reset tokens. 32 random
     # bytes, URL-safe encoded -- unguessable and safe to put in a URL.
     return secrets.token_urlsafe(32)
+
+
+def force_password_reset(db: Session, user: User) -> None:
+    """Make a user's current password stop working, without knowing it.
+
+    Reuses the existing 30-day-expiry path rather than adding a second
+    mechanism: backdating password_changed_at makes api/auth.py's login()
+    return its existing PASSWORD_EXPIRED_ERROR, which already tells the
+    user to use "Forgot your password?". Sessions are killed too, so an
+    already-open browser doesn't keep working with the old password.
+    Caller is responsible for the commit (both call sites already have
+    other changes to commit in the same transaction).
+    """
+    user.password_changed_at = datetime.now(timezone.utc) - PASSWORD_EXPIRY - timedelta(days=1)
+    db.query(UserSession).filter(UserSession.user_id == user.user_id).delete()

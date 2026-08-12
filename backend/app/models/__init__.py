@@ -6,6 +6,7 @@
 # Alembic chain only looks at its own base's metadata (see
 # db/base.py vs db/project_base.py), so mixing the imports here is
 # harmless and keeps this file simple.
+from app.models.client import Client  # noqa: F401
 from app.models.user import User  # noqa: F401
 from app.models.project import Project  # noqa: F401
 from app.models.group import Group, UserGroupProject  # noqa: F401

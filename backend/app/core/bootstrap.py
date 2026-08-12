@@ -14,7 +14,6 @@ from app.core import service_db
 from app.core.config import settings
 from app.core.security import hash_password
 from app.models.postgres_service import PostgresService
-from app.models.process_type import ProcessType
 from app.models.user import GlobalRole, User
 
 logger = logging.getLogger(__name__)
@@ -46,19 +45,6 @@ def create_root_admin_if_needed(db: Session) -> None:
     )
     db.commit()
     logger.info("Created initial root_admin user %r", settings.root_admin_email)
-
-
-def create_default_process_types_if_needed(db: Session) -> None:
-    # v1 scope is plastics only (per the brief) -- the process type list
-    # itself is admin-editable from here on, this just seeds that one
-    # starting entry so the app isn't empty on first run.
-    any_process_type_exists = db.query(ProcessType).first() is not None
-    if any_process_type_exists:
-        return
-
-    db.add(ProcessType(name="Plastics"))
-    db.commit()
-    logger.info("Seeded default process type 'Plastics'")
 
 
 def adopt_default_service_if_needed(db: Session) -> None:

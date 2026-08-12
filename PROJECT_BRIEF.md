@@ -9,11 +9,12 @@ A web application for automotive dimensional engineers to run Dimensional Variat
 ## Data hierarchy
 
 ```
-Project
- └─ Commodity
-     └─ Analysis (unique ID, e.g. XX-001)
-         ├─ Gap analysis (optional, ID suffix -GAP)
-         └─ Flush analysis (optional, ID suffix -FLUSH)
+Client (SaaS tenant, see Resolved 2026-08-11)
+ └─ Project
+     └─ Commodity
+         └─ Analysis (unique ID, e.g. XX-001)
+             ├─ Gap analysis (optional, ID suffix -GAP)
+             └─ Flush analysis (optional, ID suffix -FLUSH)
 ```
 
 - Projects and Commodities are only definable by Site Admins or Project Admins, added via the GUI.
@@ -53,6 +54,10 @@ Full target design (per spec):
 - DB shape: `Users(user_id, username, global_role)`, `Projects(project_id, project_name)`, `Groups(group_id, group_name)`, join table `User_Group_Project(user_id, group_id, project_id)`.
 - Onboarding/offboarding is a single group-membership change; Root Admin bypasses project-scope checks entirely via `global_role == 'Root'`.
 - Auth options: Microsoft OAuth (Entra ID in production, Keycloak in dev) **or** a simple username/password system with recovery — selectable, not mutually exclusive.
+
+**Superseded by the Client layer (2026-08-11)** — Root Admin no longer bypasses
+project-scope checks; see below. The Managers/Contributors/Viewers group
+shape and the "permissions only via groups" rule are unchanged.
 
 **Phasing decision:** build the RBAC hierarchy and a simple username/password auth system in the first pass. Defer OAuth/Entra ID/Keycloak integration to a later phase — don't block core functionality on it.
 
@@ -95,6 +100,25 @@ These weren't specified in the source doc and are flagged rather than guessed at
 ### Resolved (2026-08-06)
 
 - ~~Tolerance matrix structure~~ — a flat process type → class name → value table can't represent a real industrial tolerance standard's shape. Replaced with a per-process-type matrix: user-configurable **tolerance groups** (rows, add/delete) × user-configurable **dimension ranges** (columns, add/delete), each cell holding an optional **tool-specific (T)** and/or **non-tool-specific (NT)** symmetric ± value — matching a typical standard's table exactly, still with no values pre-filled in. A blank cell (the standard's "–") is just the absence of data for that group/range pair, not a stored zero.
+
+### Resolved (2026-08-11)
+
+- ~~Multi-tenant SaaS structure~~ — the product is sold to more than one
+  customer now, so a **Client** tier sits above Project: `Client → Project →
+  Commodity → Analysis`. Each Client is a sandbox with its own users,
+  projects, and tolerance matrix, on dedicated Postgres/MinIO infrastructure,
+  invisible to every other Client. Root Admin's role changes from
+  system-wide superuser to infrastructure operator: it registers
+  Postgres/MinIO services and Clients (and each Client's first admin), and
+  can force a client admin's password reset or freeze/purge a Client — but,
+  per the requirement, has **no visibility of any Client's projects, users,
+  or tolerance matrix**, and no visibility of a Client's ordinary employees
+  even when registering that Client's admin accounts. A new **Client Admin**
+  role replaces "Project Admin" as the per-tenant administrator: creates
+  projects, creates users, and assigns project group membership within their
+  own Client only, and implicitly holds Manager rights on every project in
+  that Client. See `CLAUDE.md`'s "Client → Project → Commodity → Analysis"
+  section and its tenancy-boundary gotchas for the implementation.
 
 ### Resolved (2026-08-08)
 

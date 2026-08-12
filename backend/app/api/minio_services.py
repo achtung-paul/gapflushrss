@@ -11,6 +11,7 @@ from app.api.deps import require_root_admin
 from app.core import service_storage
 from app.core.crypto import encrypt_secret
 from app.db.session import get_db
+from app.models.client import Client
 from app.models.minio_service import MinioService
 from app.models.project import Project
 from app.models.user import User
@@ -90,11 +91,20 @@ def delete_minio_service(
 ):
     service = _get_minio_service_or_404(db, minio_service_id)
 
-    in_use = db.query(Project).filter(Project.minio_service_id == minio_service_id).first()
-    if in_use is not None:
+    in_use_by_project = db.query(Project).filter(Project.minio_service_id == minio_service_id).first()
+    if in_use_by_project is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="At least one project is still assigned to this service",
+        )
+    # A client can be assigned a service before it has any project (its
+    # projects would inherit the assignment), so that has to be checked
+    # too -- not just the Project FK above.
+    in_use_by_client = db.query(Client).filter(Client.minio_service_id == minio_service_id).first()
+    if in_use_by_client is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A client is still assigned to this service",
         )
 
     service_storage.evict(service)

@@ -2,15 +2,13 @@ from pydantic import BaseModel, ConfigDict
 
 
 class ProjectCreate(BaseModel):
-    project_name: str
     # Which Postgres/MinIO this project's Commodity-and-below data will
-    # live on -- picked once, from the admin's list of already-initialized
-    # services (see api/postgres_services.py, api/minio_services.py).
-    # There's no update path: moving a live project to a different
-    # physical service would mean copying all its data, which isn't
-    # supported.
-    postgres_service_id: int
-    minio_service_id: int
+    # live on is no longer chosen here -- a client admin can't see the
+    # service list. It's copied from the caller's own Client at creation
+    # (see api/projects.py's create_project) instead. There's no update
+    # path: moving a live project to a different physical service would
+    # mean copying all its data, which isn't supported.
+    project_name: str
 
 
 class ProjectUpdate(BaseModel):

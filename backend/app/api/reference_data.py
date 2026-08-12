@@ -1,14 +1,17 @@
-# Admin-editable reference data: process types, and the
-# tolerance matrix (tolerance groups x dimension ranges,
-# each cell holding an optional tool/non-tool +/- value). The brief's
-# decision still applies: build the generic, editable structure now,
-# load real tolerance-standard figures into it later -- we don't invent
-# values.
+# Client-editable reference data: process types, and the tolerance
+# matrix (tolerance groups x dimension ranges, each cell holding an
+# optional tool/non-tool +/- value). The brief's decision still applies:
+# build the generic, editable structure now, load real tolerance-standard
+# figures into it later -- we don't invent values.
 #
-# Reading is open to any logged-in user (these lists feed dropdowns
-# throughout the app, e.g. the Phase 5 tolerance chain builder). Writing
-# is root_admin only -- this is system-wide config, not project-scoped,
-# so there's no "project manager" equivalent here.
+# Reference data is per-client now (models/process_type.py): reading is
+# open to any logged-in user of that client (these lists feed dropdowns
+# throughout the app, e.g. the tolerance chain builder), and every read
+# and write is scoped to current_user.client_id. root_admin's client_id
+# is NULL, so it matches nothing -- see CLAUDE.md's tenancy-boundary
+# gotcha. Writing is client_admin only -- this is workspace-wide config
+# within a client, not project-scoped, so there's no "project manager"
+# equivalent here.
 
 from io import BytesIO
 
@@ -17,7 +20,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_root_admin
+from app.api.deps import get_current_user, require_client_admin
 from app.core.tolerance_csv_import import MAX_IMPORT_BYTES, parse_tolerance_csv
 from app.core.tolerance_csv_template import build_import_template
 from app.db.session import get_db
@@ -43,43 +46,60 @@ from app.schemas.reference_data import (
 router = APIRouter(tags=["reference-data"])
 
 
-def _get_process_type_or_404(db: Session, process_type_id: int) -> ProcessType:
+def _get_process_type_or_404(db: Session, current_user: User, process_type_id: int) -> ProcessType:
     process_type = db.get(ProcessType, process_type_id)
-    if process_type is None:
+    # Reference data is per-client now, so an id from another client's
+    # matrix must be indistinguishable from one that doesn't exist --
+    # root_admin's client_id is NULL and never matches, which is how
+    # they lose all access to the tolerance matrix.
+    if process_type is None or process_type.client_id != current_user.client_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Process type not found")
     return process_type
 
 
-def _get_tolerance_group_or_404(db: Session, tolerance_group_id: int) -> ToleranceGroup:
+def _get_tolerance_group_or_404(db: Session, current_user: User, tolerance_group_id: int) -> ToleranceGroup:
     tolerance_group = db.get(ToleranceGroup, tolerance_group_id)
     if tolerance_group is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tolerance group not found")
+    # Ownership hop: a ToleranceGroup has no client_id of its own, so
+    # verify via the ProcessType it belongs to.
+    _get_process_type_or_404(db, current_user, tolerance_group.process_type_id)
     return tolerance_group
 
 
-def _get_dimension_range_or_404(db: Session, dimension_range_id: int) -> DimensionRange:
+def _get_dimension_range_or_404(db: Session, current_user: User, dimension_range_id: int) -> DimensionRange:
     dimension_range = db.get(DimensionRange, dimension_range_id)
     if dimension_range is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dimension range not found")
+    _get_process_type_or_404(db, current_user, dimension_range.process_type_id)
     return dimension_range
 
 
 @router.get("/process-types", response_model=list[ProcessTypeOut])
-def list_process_types(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return db.query(ProcessType).order_by(ProcessType.name).all()
+def list_process_types(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return (
+        db.query(ProcessType)
+        .filter(ProcessType.client_id == current_user.client_id)
+        .order_by(ProcessType.name)
+        .all()
+    )
 
 
 @router.post("/process-types", response_model=ProcessTypeOut, status_code=status.HTTP_201_CREATED)
 def create_process_type(
     body: ProcessTypeCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_client_admin),
 ):
-    existing = db.query(ProcessType).filter(ProcessType.name == body.name).first()
+    existing = (
+        db.query(ProcessType)
+        .filter(ProcessType.client_id == current_user.client_id, ProcessType.name == body.name)
+        .first()
+    )
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Process type already exists")
 
-    process_type = ProcessType(name=body.name)
+    process_type = ProcessType(client_id=current_user.client_id, name=body.name)
     db.add(process_type)
     db.commit()
     db.refresh(process_type)
@@ -89,9 +109,9 @@ def create_process_type(
 @router.get("/process-types/import-template")
 def download_import_template(_: User = Depends(get_current_user)):
     # A read, not a write -- matches this router's split (any logged-in
-    # user can read reference data, only root_admin can change it). The
-    # template itself is instructional only, no real tolerance figures --
-    # see core/tolerance_csv_template.py.
+    # user can read reference data, only client_admin can change it). The
+    # template itself is instructional only, no real tolerance figures,
+    # and isn't client-specific -- see core/tolerance_csv_template.py.
     content = build_import_template()
     return StreamingResponse(
         BytesIO(content),
@@ -105,7 +125,7 @@ async def import_process_type(
     name: str = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_client_admin),
 ):
     """Create a brand-new process type and its whole tolerance matrix from
     one CSV upload -- see core/tolerance_csv_import.py for the expected
@@ -118,7 +138,11 @@ async def import_process_type(
 
     # Cheap check first -- no point parsing a large file just to fail on
     # a name collision (same 409 create_process_type already gives).
-    existing = db.query(ProcessType).filter(ProcessType.name == name).first()
+    existing = (
+        db.query(ProcessType)
+        .filter(ProcessType.client_id == current_user.client_id, ProcessType.name == name)
+        .first()
+    )
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Process type already exists")
 
@@ -157,7 +181,7 @@ async def import_process_type(
     # cleanly -- nothing is added to the session before this point, so a
     # rejected import creates nothing (get_db rolls back on close if an
     # exception were to happen here anyway).
-    process_type = ProcessType(name=name)
+    process_type = ProcessType(client_id=current_user.client_id, name=name)
     db.add(process_type)
     db.flush()  # assigns process_type.process_type_id
 
@@ -208,9 +232,9 @@ def update_process_type(
     process_type_id: int,
     body: ProcessTypeUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_client_admin),
 ):
-    process_type = _get_process_type_or_404(db, process_type_id)
+    process_type = _get_process_type_or_404(db, current_user, process_type_id)
     process_type.name = body.name
     db.commit()
     db.refresh(process_type)
@@ -221,9 +245,9 @@ def update_process_type(
 def delete_process_type(
     process_type_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_client_admin),
 ):
-    process_type = _get_process_type_or_404(db, process_type_id)
+    process_type = _get_process_type_or_404(db, current_user, process_type_id)
     db.delete(process_type)  # cascades to its tolerance groups/ranges (ondelete="CASCADE")
     db.commit()
 
@@ -235,9 +259,9 @@ def delete_process_type(
 def list_tolerance_groups(
     process_type_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    _get_process_type_or_404(db, process_type_id)
+    _get_process_type_or_404(db, current_user, process_type_id)
     return (
         db.query(ToleranceGroup)
         .filter(ToleranceGroup.process_type_id == process_type_id)
@@ -255,9 +279,9 @@ def create_tolerance_group(
     process_type_id: int,
     body: ToleranceGroupCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_client_admin),
 ):
-    _get_process_type_or_404(db, process_type_id)
+    _get_process_type_or_404(db, current_user, process_type_id)
 
     highest_sequence = (
         db.query(func.max(ToleranceGroup.sequence_number))
@@ -280,9 +304,9 @@ def update_tolerance_group(
     tolerance_group_id: int,
     body: ToleranceGroupUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_client_admin),
 ):
-    tolerance_group = _get_tolerance_group_or_404(db, tolerance_group_id)
+    tolerance_group = _get_tolerance_group_or_404(db, current_user, tolerance_group_id)
     tolerance_group.name = body.name
     db.commit()
     db.refresh(tolerance_group)
@@ -293,9 +317,9 @@ def update_tolerance_group(
 def delete_tolerance_group(
     tolerance_group_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_client_admin),
 ):
-    tolerance_group = _get_tolerance_group_or_404(db, tolerance_group_id)
+    tolerance_group = _get_tolerance_group_or_404(db, current_user, tolerance_group_id)
     db.delete(tolerance_group)  # cascades to its matrix cells (ondelete="CASCADE")
     db.commit()
 
@@ -307,9 +331,9 @@ def delete_tolerance_group(
 def list_dimension_ranges(
     process_type_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    _get_process_type_or_404(db, process_type_id)
+    _get_process_type_or_404(db, current_user, process_type_id)
     return (
         db.query(DimensionRange)
         .filter(DimensionRange.process_type_id == process_type_id)
@@ -327,9 +351,9 @@ def create_dimension_range(
     process_type_id: int,
     body: DimensionRangeCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_client_admin),
 ):
-    _get_process_type_or_404(db, process_type_id)
+    _get_process_type_or_404(db, current_user, process_type_id)
 
     highest_sequence = (
         db.query(func.max(DimensionRange.sequence_number))
@@ -353,9 +377,9 @@ def update_dimension_range(
     dimension_range_id: int,
     body: DimensionRangeUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_client_admin),
 ):
-    dimension_range = _get_dimension_range_or_404(db, dimension_range_id)
+    dimension_range = _get_dimension_range_or_404(db, current_user, dimension_range_id)
     dimension_range.min_value = body.min_value
     dimension_range.max_value = body.max_value
     db.commit()
@@ -367,9 +391,9 @@ def update_dimension_range(
 def delete_dimension_range(
     dimension_range_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_client_admin),
 ):
-    dimension_range = _get_dimension_range_or_404(db, dimension_range_id)
+    dimension_range = _get_dimension_range_or_404(db, current_user, dimension_range_id)
     db.delete(dimension_range)  # cascades to its matrix cells (ondelete="CASCADE")
     db.commit()
 
@@ -381,13 +405,13 @@ def delete_dimension_range(
 def list_tolerance_values(
     process_type_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     # Flat list of every populated cell for this process type's matrix
     # -- the frontend cross-references this against its group/range
     # lists (by id) to lay the matrix out. A cell with no row here is a
     # blank "-" cell.
-    _get_process_type_or_404(db, process_type_id)
+    _get_process_type_or_404(db, current_user, process_type_id)
     return (
         db.query(ToleranceValue)
         .join(ToleranceGroup, ToleranceValue.tolerance_group_id == ToleranceGroup.tolerance_group_id)
@@ -405,10 +429,21 @@ def set_tolerance_value_cell(
     dimension_range_id: int,
     body: ToleranceValueCellIn,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_client_admin),
 ):
-    _get_tolerance_group_or_404(db, tolerance_group_id)
-    _get_dimension_range_or_404(db, dimension_range_id)
+    tolerance_group = _get_tolerance_group_or_404(db, current_user, tolerance_group_id)
+    dimension_range = _get_dimension_range_or_404(db, current_user, dimension_range_id)
+
+    # Both are client-verified above, but neither check confirms they
+    # belong to the *same* matrix -- without this, a request could pair
+    # a group from one process type with a range from another and write
+    # a cell into a matrix that would render wrong for both. One extra
+    # comparison, no extra query (both rows are already loaded).
+    if tolerance_group.process_type_id != dimension_range.process_type_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tolerance group and dimension range belong to different process types",
+        )
 
     cell = (
         db.query(ToleranceValue)

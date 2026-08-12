@@ -60,15 +60,41 @@ export const confirmPasswordReset = (token, newPassword) =>
     body: JSON.stringify({ token, new_password: newPassword }),
   })
 
-export const listUsers = (search, page) => {
+// Root admin's own account list -- /admin/root-admins only ever returns
+// root_admin accounts (see api/admin.py), so there's no global_role
+// param to send: every account created here is a root_admin by definition.
+export const listRootAdmins = (search, page) => {
   const params = new URLSearchParams()
   if (search) params.set('search', search)
   params.set('page', page)
-  return apiFetch(`/admin/users?${params.toString()}`)
+  return apiFetch(`/admin/root-admins?${params.toString()}`)
 }
 
-export const createUser = (firstName, lastName, email, password, globalRole) =>
-  apiFetch('/admin/users', {
+export const createRootAdmin = (firstName, lastName, email, password) =>
+  apiFetch('/admin/root-admins', {
+    method: 'POST',
+    body: JSON.stringify({ first_name: firstName, last_name: lastName, email, password }),
+  })
+
+export const updateRootAdmin = (userId, firstName, lastName, email) =>
+  apiFetch(`/admin/root-admins/${userId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ first_name: firstName, last_name: lastName, email }),
+  })
+
+export const deleteRootAdmin = (userId) => apiFetch(`/admin/root-admins/${userId}`, { method: 'DELETE' })
+
+// A client admin's own client's users -- /client-admin/users is scoped
+// server-side to current_user.client_id (see api/client_admin.py).
+export const listClientUsers = (search, page) => {
+  const params = new URLSearchParams()
+  if (search) params.set('search', search)
+  params.set('page', page)
+  return apiFetch(`/client-admin/users?${params.toString()}`)
+}
+
+export const createClientUser = (firstName, lastName, email, password, globalRole) =>
+  apiFetch('/client-admin/users', {
     method: 'POST',
     body: JSON.stringify({
       first_name: firstName,
@@ -79,8 +105,8 @@ export const createUser = (firstName, lastName, email, password, globalRole) =>
     }),
   })
 
-export const updateUser = (userId, firstName, lastName, email, globalRole) =>
-  apiFetch(`/admin/users/${userId}`, {
+export const updateClientUser = (userId, firstName, lastName, email, globalRole) =>
+  apiFetch(`/client-admin/users/${userId}`, {
     method: 'PUT',
     body: JSON.stringify({
       first_name: firstName,
@@ -90,7 +116,10 @@ export const updateUser = (userId, firstName, lastName, email, globalRole) =>
     }),
   })
 
-export const deleteUser = (userId) => apiFetch(`/admin/users/${userId}`, { method: 'DELETE' })
+export const deleteClientUser = (userId) => apiFetch(`/client-admin/users/${userId}`, { method: 'DELETE' })
+
+export const forceClientUserPasswordReset = (userId) =>
+  apiFetch(`/client-admin/users/${userId}/force-password-reset`, { method: 'POST' })
 
 export const getBanner = () => apiFetch('/banner')
 
@@ -108,28 +137,27 @@ export const listLogs = (service, level, limit) => {
   return apiFetch(`/admin/logs?${params.toString()}`)
 }
 
-export const listProjectMembers = (projectId) => apiFetch(`/admin/projects/${projectId}/members`)
+// Moved from /admin/projects/... to /client-admin/projects/... -- only a
+// client admin can manage their own client's project memberships now
+// (see api/client_admin.py).
+export const listProjectMembers = (projectId) => apiFetch(`/client-admin/projects/${projectId}/members`)
 
 export const addProjectMember = (projectId, userId, groupRole) =>
-  apiFetch(`/admin/projects/${projectId}/members`, {
+  apiFetch(`/client-admin/projects/${projectId}/members`, {
     method: 'POST',
     body: JSON.stringify({ user_id: userId, group_role: groupRole }),
   })
 
 export const removeProjectMember = (projectId, groupRole, userId) =>
-  apiFetch(`/admin/projects/${projectId}/members/${groupRole}/${userId}`, { method: 'DELETE' })
+  apiFetch(`/client-admin/projects/${projectId}/members/${groupRole}/${userId}`, { method: 'DELETE' })
 
 export const listProjects = () => apiFetch('/projects')
 
-export const createProject = (projectName, postgresServiceId, minioServiceId) =>
-  apiFetch('/projects', {
-    method: 'POST',
-    body: JSON.stringify({
-      project_name: projectName,
-      postgres_service_id: postgresServiceId,
-      minio_service_id: minioServiceId,
-    }),
-  })
+// No service ids -- a project always inherits its client's dedicated
+// Postgres/MinIO now (see api/projects.py's create_project); a client
+// admin never picks one.
+export const createProject = (projectName) =>
+  apiFetch('/projects', { method: 'POST', body: JSON.stringify({ project_name: projectName }) })
 
 export const updateProject = (projectId, projectName) =>
   apiFetch(`/projects/${projectId}`, {
@@ -138,6 +166,51 @@ export const updateProject = (projectId, projectName) =>
   })
 
 export const deleteProject = (projectId) => apiFetch(`/projects/${projectId}`, { method: 'DELETE' })
+
+export const listClients = () => apiFetch('/admin/clients')
+
+export const createClient = (
+  name,
+  postgresServiceId,
+  minioServiceId,
+  adminFirstName,
+  adminLastName,
+  adminEmail,
+  adminPassword,
+) =>
+  apiFetch('/admin/clients', {
+    method: 'POST',
+    body: JSON.stringify({
+      name,
+      postgres_service_id: postgresServiceId,
+      minio_service_id: minioServiceId,
+      admin_first_name: adminFirstName,
+      admin_last_name: adminLastName,
+      admin_email: adminEmail,
+      admin_password: adminPassword,
+    }),
+  })
+
+export const updateClient = (clientId, name, isActive) =>
+  apiFetch(`/admin/clients/${clientId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ name, is_active: isActive }),
+  })
+
+export const listClientAdmins = (clientId) => apiFetch(`/admin/clients/${clientId}/admins`)
+
+export const addClientAdmin = (clientId, firstName, lastName, email, password) =>
+  apiFetch(`/admin/clients/${clientId}/admins`, {
+    method: 'POST',
+    body: JSON.stringify({ first_name: firstName, last_name: lastName, email, password }),
+  })
+
+export const forceClientAdminPasswordReset = (clientId, userId) =>
+  apiFetch(`/admin/clients/${clientId}/admins/${userId}/force-password-reset`, { method: 'POST' })
+
+// Permanent: snapshots the client first, then purges every project,
+// user, and the client itself (see api/admin_clients.py's delete_client).
+export const deleteClient = (clientId) => apiFetch(`/admin/clients/${clientId}`, { method: 'DELETE' })
 
 export const listPostgresServices = () => apiFetch('/admin/postgres-services')
 

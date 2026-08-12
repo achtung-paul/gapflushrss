@@ -79,6 +79,13 @@ class Settings(BaseSettings):
     # disables that endpoint entirely rather than leaving it unauthenticated.
     minio_log_webhook_token: str = ""
 
+    # Where scripts/backup_client.py writes per-client snapshots, and
+    # where scripts/restore_client.py reads them back from. Must be a
+    # Docker volume in any real deployment -- same reasoning as log_dir
+    # above -- and see docs/BACKUP_RESTORE.md for what a snapshot
+    # contains and why it can't be a plain pg_dump of the whole database.
+    backup_dir: str = "/var/backups/gapflushrss"
+
     @property
     def database_url(self) -> str:
         return (

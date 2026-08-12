@@ -7,6 +7,8 @@ import LoginPage from './pages/LoginPage.jsx'
 import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx'
 import ResetPasswordPage from './pages/ResetPasswordPage.jsx'
 import AdminPage from './pages/AdminPage.jsx'
+import ClientsPage from './pages/ClientsPage.jsx'
+import ClientAdminPage from './pages/ClientAdminPage.jsx'
 import ProjectListPage from './pages/ProjectListPage.jsx'
 import CommodityListPage from './pages/CommodityListPage.jsx'
 import AnalysisListPage from './pages/AnalysisListPage.jsx'
@@ -43,6 +45,22 @@ function App() {
             element={
               <ProtectedRoute requireRootAdmin>
                 <AdminPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/clients"
+            element={
+              <ProtectedRoute requireRootAdmin>
+                <ClientsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/client-admin"
+            element={
+              <ProtectedRoute requireClientAdmin>
+                <ClientAdminPage />
               </ProtectedRoute>
             }
           />
@@ -111,17 +129,17 @@ function App() {
             }
           />
           <Route
-            path="/admin/process-types"
+            path="/client-admin/process-types"
             element={
-              <ProtectedRoute requireRootAdmin>
+              <ProtectedRoute requireClientAdmin>
                 <ProcessTypesPage />
               </ProtectedRoute>
             }
           />
           <Route
-            path="/admin/process-types/:processTypeId/tolerance-matrix"
+            path="/client-admin/process-types/:processTypeId/tolerance-matrix"
             element={
-              <ProtectedRoute requireRootAdmin>
+              <ProtectedRoute requireClientAdmin>
                 <ToleranceMatrixPage />
               </ProtectedRoute>
             }

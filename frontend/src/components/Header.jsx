@@ -56,6 +56,7 @@ function Header() {
           <>
             <Link to="/projects">Projects</Link>
             {user.global_role === 'root_admin' && <Link to="/admin">Admin</Link>}
+            {user.global_role === 'client_admin' && <Link to="/client-admin">Admin</Link>}
             <span>
               {user.last_name}, {user.first_name}
             </span>

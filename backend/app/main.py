@@ -14,12 +14,14 @@ from slowapi.errors import RateLimitExceeded
 
 from app.api import (
     admin,
+    admin_clients,
     analyses,
     analysis_images,
     angled_components,
     auth,
     banner,
     chain_components,
+    client_admin,
     commodities,
     exports,
     health,
@@ -34,7 +36,6 @@ from app.api import (
 )
 from app.core.bootstrap import (
     adopt_default_service_if_needed,
-    create_default_process_types_if_needed,
     create_root_admin_if_needed,
     upgrade_initialized_services,
 )
@@ -91,7 +92,6 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         create_root_admin_if_needed(db)
-        create_default_process_types_if_needed(db)
         adopt_default_service_if_needed(db)
         # After adoption, so a service adopted just above is included in
         # the same pass rather than waiting for the next restart.
@@ -144,6 +144,8 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(admin_clients.router)
+app.include_router(client_admin.router)
 app.include_router(postgres_services.router)
 app.include_router(minio_services.router)
 app.include_router(projects.router)

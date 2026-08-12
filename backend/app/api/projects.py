@@ -1,27 +1,36 @@
-# Project creation, listing, rename, and delete. Only a root_admin can
-# create/rename/delete -- there's no "manager of this project" to check
-# for create (the project, and its groups, don't exist yet), and
-# rename/delete are treated the same way since they're structural
-# actions on the project itself, not on assets within it (which project
-# managers already handle elsewhere). Reading the list is open to any
-# logged-in user, but only shows projects they're actually a member of
-# (root_admin sees everything) -- see api/deps.py's get_project for the
-# matching 404-not-403 treatment of a project a user isn't a member of,
-# which is what actually hides its existence from direct navigation too.
+# Project creation, listing, rename, and delete -- scoped to the caller's
+# own Client throughout. Only a client_admin can create/rename/delete --
+# there's no "manager of this project" to check for create (the project,
+# and its groups, don't exist yet), and rename/delete are treated the
+# same way since they're structural actions on the project itself, not
+# on assets within it (which project managers already handle elsewhere).
+# Reading the list is open to any logged-in user, but only shows projects
+# within their own client that they're actually a member of (a client
+# admin sees every project in their client) -- see api/deps.py's
+# get_project for the matching 404-not-403 treatment of a project a user
+# can't see, which is what actually hides its existence from direct
+# navigation too, including from root_admin.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.analyses import delete_analysis_images_from_storage
-from app.api.deps import get_current_user, get_project_db, get_project_minio_service, require_root_admin
-from app.core import service_db, service_storage
+from app.api.deps import (
+    _user_is_client_admin_for,
+    get_current_user,
+    get_project,
+    get_project_db,
+    get_project_minio_service,
+    require_client_admin,
+)
+from app.core import service_storage
 from app.db.session import get_db
 from app.models.analysis import Analysis
+from app.models.client import Client
 from app.models.commodity import Commodity
 from app.models.group import CONTRIBUTORS, MANAGERS, VIEWERS, Group, UserGroupProject
 from app.models.image import Image
 from app.models.minio_service import MinioService
-from app.models.postgres_service import PostgresService
 from app.models.project import Project
 from app.models.user import GlobalRole, User
 from app.schemas.project import ProjectCreate, ProjectOut, ProjectUpdate
@@ -29,30 +38,16 @@ from app.schemas.project import ProjectCreate, ProjectOut, ProjectUpdate
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-def _get_project_or_404(db: Session, project_id: int) -> Project:
-    project = db.get(Project, project_id)
-    if project is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-    return project
-
-
-# A project's three groups aren't linked to it by a foreign key (see
-# models/group.py) -- they're found purely by reconstructing this name
-# string, so renaming/deleting a project has to keep this in sync by
-# hand.
-def _group_name(project_name: str, role_name: str) -> str:
-    return f"Project-{project_name}-{role_name}"
-
-
-# Root admin access doesn't come from group membership, so it's reported
-# as its own role rather than whichever group they might incidentally be
-# in. Everyone else's role is whichever of the three groups they belong
-# to -- highest-privilege one wins if they're somehow in more than one.
+# Everyone's role is whichever of the three groups they belong to --
+# highest-privilege one wins if they're somehow in more than one. A
+# client admin isn't a member of any group (see
+# _user_is_client_admin_for) but implicitly outranks all three, so it's
+# checked first and reported as its own label.
 def _resolve_my_role(db: Session, user: User, project: Project) -> str:
-    if user.global_role == GlobalRole.root_admin:
-        return "Root Admin"
+    if _user_is_client_admin_for(user, project):
+        return "Client Admin"
     for role_name, display_name in ((MANAGERS, "Manager"), (CONTRIBUTORS, "Contributor"), (VIEWERS, "Viewer")):
-        group = db.query(Group).filter(Group.group_name == _group_name(project.project_name, role_name)).first()
+        group = db.query(Group).filter_by(project_id=project.project_id, role_name=role_name).first()
         if group is None:
             continue
         membership = (
@@ -75,102 +70,21 @@ def _project_out(db: Session, project: Project, current_user: User) -> ProjectOu
     )
 
 
-@router.get("", response_model=list[ProjectOut])
-def list_projects(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    query = db.query(Project)
-    if current_user.global_role != GlobalRole.root_admin:
-        # Membership in any of a project's three groups is enough to see
-        # it in the list -- same "any group counts" rule as
-        # api/deps.py's user_can_view_project.
-        query = query.join(UserGroupProject, UserGroupProject.project_id == Project.project_id).filter(
-            UserGroupProject.user_id == current_user.user_id
-        )
-    projects = query.order_by(Project.project_name).distinct().all()
-    return [_project_out(db, project, current_user) for project in projects]
+def _is_client_admin(user: User) -> bool:
+    return user.global_role == GlobalRole.client_admin and user.client_id is not None
 
 
-@router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
-def create_project(
-    body: ProjectCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_root_admin),
-):
-    existing = db.query(Project).filter(Project.project_name == body.project_name).first()
-    if existing is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Project name already exists")
+def purge_project_data(project_db: Session, minio_service: MinioService, project_id: int) -> None:
+    """Delete every Commodity (and everything under it) for one project.
 
-    # A project can never point at a service that isn't ready -- there'd
-    # be nowhere for its data to actually go. The admin has to click
-    # Initialize on the service first (see api/postgres_services.py,
-    # api/minio_services.py).
-    postgres_service = db.get(PostgresService, body.postgres_service_id)
-    if postgres_service is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Postgres service not found")
-    if service_db.check_status(postgres_service) != "initialized":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Postgres service isn't initialized yet")
-
-    minio_service = db.get(MinioService, body.minio_service_id)
-    if minio_service is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MinIO service not found")
-    if service_storage.check_status(minio_service) != "initialized":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="MinIO service isn't initialized yet")
-
-    project = Project(
-        project_name=body.project_name,
-        postgres_service_id=body.postgres_service_id,
-        minio_service_id=body.minio_service_id,
-    )
-    db.add(project)
-    db.flush()  # assigns project.project_id without ending the transaction
-
-    for role_name in (MANAGERS, CONTRIBUTORS, VIEWERS):
-        db.add(Group(group_name=_group_name(body.project_name, role_name)))
-
-    db.commit()
-    db.refresh(project)
-    return _project_out(db, project, current_user)
-
-
-@router.put("/{project_id}", response_model=ProjectOut)
-def update_project(
-    project_id: int,
-    body: ProjectUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_root_admin),
-):
-    project = _get_project_or_404(db, project_id)
-
-    existing = db.query(Project).filter(Project.project_name == body.project_name).first()
-    if existing is not None and existing.project_id != project_id:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Project name already exists")
-
-    old_name = project.project_name
-    project.project_name = body.project_name
-
-    # Keep the three groups' names in sync with the new project name --
-    # user_can_manage_project (api/deps.py) finds a group by
-    # reconstructing this same name string, so leaving the old name in
-    # place would silently break every member's permissions.
-    for role_name in (MANAGERS, CONTRIBUTORS, VIEWERS):
-        group = db.query(Group).filter(Group.group_name == _group_name(old_name, role_name)).first()
-        if group is not None:
-            group.group_name = _group_name(body.project_name, role_name)
-
-    db.commit()
-    db.refresh(project)
-    return _project_out(db, project, current_user)
-
-
-@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_project(
-    project_id: int,
-    db: Session = Depends(get_db),
-    project_db: Session = Depends(get_project_db),
-    minio_service: MinioService = Depends(get_project_minio_service),
-    _: User = Depends(require_root_admin),
-):
-    project = _get_project_or_404(db, project_id)
-
+    Shared by delete_project below and api/admin_clients.py's
+    delete_client, which purges every project of a client one at a time
+    -- kept as one function so there's only one place that has to get
+    the MinIO-before-rows ordering right (CLAUDE.md's MinIO gotcha).
+    Does not touch the Project row itself or its Groups -- callers do
+    that afterward, on the central `db` session, since those tables
+    aren't reachable from here.
+    """
     # MinIO objects have to be removed by hand before the rows below --
     # once they're gone, object_key (the only record of where a file
     # lives) is gone for good. Covers both galleries: the Commodity's
@@ -205,12 +119,104 @@ def delete_project(
         project_db.delete(commodity)
     project_db.commit()
 
-    # Groups aren't linked to the project by a foreign key, so nothing
-    # cascades them -- delete by the same reconstructed name.
-    for role_name in (MANAGERS, CONTRIBUTORS, VIEWERS):
-        group = db.query(Group).filter(Group.group_name == _group_name(project.project_name, role_name)).first()
-        if group is not None:
-            db.delete(group)
 
+@router.get("", response_model=list[ProjectOut])
+def list_projects(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Always scoped to the caller's own client first -- root_admin's
+    # client_id is NULL, which matches no project's client_id, so they
+    # get an empty list rather than a 403 (their Projects link is simply
+    # empty, not an error).
+    query = db.query(Project).filter(Project.client_id == current_user.client_id)
+    if not _is_client_admin(current_user):
+        # Membership in any of a project's three groups is enough to see
+        # it in the list -- same "any group counts" rule as
+        # api/deps.py's user_can_view_project. A client admin skips this
+        # join entirely and sees every project in their client.
+        query = query.join(UserGroupProject, UserGroupProject.project_id == Project.project_id).filter(
+            UserGroupProject.user_id == current_user.user_id
+        )
+    projects = query.order_by(Project.project_name).distinct().all()
+    return [_project_out(db, project, current_user) for project in projects]
+
+
+@router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
+def create_project(
+    body: ProjectCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_client_admin),
+):
+    existing = (
+        db.query(Project)
+        .filter(Project.client_id == current_user.client_id, Project.project_name == body.project_name)
+        .first()
+    )
+    if existing is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Project name already exists")
+
+    # A client admin can't choose a service -- a new project always
+    # inherits its client's dedicated Postgres/MinIO (see
+    # models/client.py). Both are guaranteed already initialized: a
+    # Client can't be created pointing at a service that isn't (see
+    # api/admin_clients.py's create_client), so there's nothing left to
+    # re-check here the way the old root-admin create_project had to.
+    client = db.get(Client, current_user.client_id)
+
+    project = Project(
+        client_id=client.client_id,
+        project_name=body.project_name,
+        postgres_service_id=client.postgres_service_id,
+        minio_service_id=client.minio_service_id,
+    )
+    db.add(project)
+    db.flush()  # assigns project.project_id without ending the transaction
+
+    for role_name in (MANAGERS, CONTRIBUTORS, VIEWERS):
+        db.add(Group(project_id=project.project_id, role_name=role_name))
+
+    db.commit()
+    db.refresh(project)
+    return _project_out(db, project, current_user)
+
+
+@router.put("/{project_id}", response_model=ProjectOut)
+def update_project(
+    project_id: int,
+    body: ProjectUpdate,
+    db: Session = Depends(get_db),
+    project: Project = Depends(get_project),
+    current_user: User = Depends(require_client_admin),
+):
+    existing = (
+        db.query(Project)
+        .filter(Project.client_id == project.client_id, Project.project_name == body.project_name)
+        .first()
+    )
+    if existing is not None and existing.project_id != project_id:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Project name already exists")
+
+    # Renaming no longer touches groups at all -- they're linked to this
+    # project by project_id, not by a name string built from
+    # project_name, so nothing here can go out of sync.
+    project.project_name = body.project_name
+
+    db.commit()
+    db.refresh(project)
+    return _project_out(db, project, current_user)
+
+
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_project(
+    project_id: int,
+    db: Session = Depends(get_db),
+    project: Project = Depends(get_project),
+    project_db: Session = Depends(get_project_db),
+    minio_service: MinioService = Depends(get_project_minio_service),
+    _: User = Depends(require_client_admin),
+):
+    purge_project_data(project_db, minio_service, project_id)
+
+    # Groups now carry a real FK to Project (ondelete="CASCADE"), so
+    # deleting the project below takes its three groups -- and every
+    # UserGroupProject row pointing at them -- with it automatically.
     db.delete(project)
     db.commit()

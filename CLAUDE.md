@@ -28,6 +28,8 @@ backend/app/
               (Commodity-and-below's separate declarative base)
   alembic/versions/           central-DB migrations
   alembic_project/versions/   project-scoped-DB migrations (own chain)
+backend/scripts/  host-run backup/restore (scripts/backup_client.py,
+                   backup_all.py, restore_client.py) -- see docs/BACKUP_RESTORE.md
 
 frontend/src/
   pages/       route-level components
@@ -36,26 +38,47 @@ frontend/src/
   auth/        AuthContext + ProtectedRoute
 ```
 
+### Client → Project → Commodity → Analysis
+
+The app is multi-tenant: a `Client` (`models/client.py`) is one SaaS tenant's
+sandbox, holding its own users, projects, and reference data (the Process
+Type/tolerance matrix), invisible to every other client **and to root_admin**.
+`root_admin` is an infrastructure operator, not a superuser — it registers
+Postgres/MinIO services and clients, and can never read a client's projects,
+users, or tolerance matrix (`User.client_id` is `NULL` for a root_admin; see
+the gotcha below). A `client_admin` implicitly has Manager rights on every
+project in their own client. See `PROJECT_BRIEF.md`'s RBAC section for the
+brief's original two-tier model — this is that plus the Client layer on top.
+
+Isolation is by dedicated infrastructure: root admin assigns each Client
+exactly one Postgres service and one MinIO service, and a service is never
+assigned to more than one client (`api/admin_clients.py`'s `create_client`).
+Projects inherit both from their Client at creation.
+
 ### Central DB vs. per-project services
 
-Users, Projects (the registry), Groups/memberships, admin config, Postgres/MinIO
-service definitions, and the Process Type/tolerance matrix all live in the
-app's one fixed central database (`db/session.py`, `alembic/`). `Commodity`
-and everything under it (`Analysis`, `AnalysisEntry`, `ChainComponent`,
-`Marker`, `Image`, `AnalysisImage`) live on whichever Postgres service that
-row's `Project` is assigned to (`db/project_base.py`, `alembic_project/`,
-`core/service_db.py`) — different projects can be on different physical
-services. Every API route for Commodity-and-below is nested under
-`/projects/{project_id}/...` specifically so the backend knows which
-database to open *before* touching any data (see `api/deps.py`'s
+Users, Clients, Projects (the registry), Groups/memberships, admin config,
+Postgres/MinIO service definitions, and the Process Type/tolerance matrix all
+live in the app's one fixed central database (`db/session.py`, `alembic/`).
+`Commodity` and everything under it (`Analysis`, `AnalysisEntry`,
+`ChainComponent`, `Marker`, `Image`, `AnalysisImage`) live on whichever
+Postgres service that row's `Project` is assigned to (`db/project_base.py`,
+`alembic_project/`, `core/service_db.py`) — different projects can be on
+different physical services, though every project of one Client is always on
+that Client's one assigned service. Every API route for Commodity-and-below
+is nested under `/projects/{project_id}/...` specifically so the backend
+knows which database to open *before* touching any data (see `api/deps.py`'s
 `get_project_db`) — there's no other way to resolve it, since a bare
 `analysis_id`/`marker_id`/etc. doesn't say which service it lives on.
 
 ## Critical gotchas (read before touching related code)
 
-- **Groups have no FK to Project.** A project's three groups (`Project-<Name>-Managers/Contributors/Viewers`) are found only by reconstructing that name string (`_group_name` in `api/projects.py`, `user_can_manage_project` in `api/deps.py`). Renaming a project **must** rename its three groups or members silently lose access; deleting a project **must** explicitly delete its groups since nothing cascades them.
+- **Groups are found by `(project_id, role_name)`, a real FK + column pair, not a name string** (`models/group.py`). This used to be a name like `"Project-<Name>-Managers"`, reconstructed by hand in two places on every lookup — renaming a project had to remember to rewrite all three names or members silently lost access, and deleting a project had to remember to delete its groups since nothing cascaded them. Both problems are gone now: `groups.project_id` has `ondelete="CASCADE"`, so deleting a `Project` takes its Groups (and their `UserGroupProject` rows) with it automatically, and a rename touches no Group row at all. Don't reintroduce a derived-string lookup here.
+- **The tenancy boundary lives in exactly three helpers.** `api/deps.py`'s `_user_is_in_project_group` and `user_can_view_project` (both check `user.client_id == project.client_id` before anything else), and `api/reference_data.py`'s `_get_process_type_or_404` (checks `process_type.client_id == current_user.client_id`). Every project-scoped route inherits the first two through `get_project`/`get_project_db`/`get_project_minio_service` — that's what makes root_admin and other clients unable to reach a project's data. A new route that fetches a central-DB row by a client-supplied id **without** going through one of these three (or a helper that itself goes through one) is a cross-tenant read. `api/chain_components.py`'s `_resolve_tolerance_group_name` was exactly this bug — it resolved a client-supplied `tolerance_value_id` with a bare `db.get()` and echoed another client's tolerance group name back in the response; fixed by checking the resolved `ProcessType.client_id` before returning anything.
+- **`root_admin` has `User.client_id IS NULL` by design — this is the mechanism, not a gap.** Every tenancy check in `api/deps.py` and `api/reference_data.py` compares `user.client_id` against something; `NULL` matches nothing, which is *how* root_admin ends up with no access to any client's projects, users, or tolerance matrix (per the brief: root admin configures databases/storage and nothing else). Don't "fix" this by giving root_admin a client, and don't add a root_admin short-circuit back into `_user_is_in_project_group`/`user_can_view_project`/`_get_process_type_or_404` the way earlier code had one — that would silently undo the whole tenancy boundary above.
+- **Adding a value to a Postgres enum type needs its own transaction, and autogenerate won't do it at all.** `ALTER TYPE ... ADD VALUE` must run inside `op.get_context().autocommit_block()` — Postgres rejects using a new enum value inside the same transaction that added it — and `IF NOT EXISTS` makes a re-run safe. See `alembic/versions/2c3d4e5f6071_client_tenancy.py` (adding `client_admin` to `global_role`). This is a different gotcha from adding an enum *column* to an existing table (below) — enum *values* need the autocommit block; enum *columns* need explicit `CREATE TYPE`.
 - **MinIO never cascades at the DB level.** Deleting an `Image`/`AnalysisImage` row does not delete the underlying object — call `service_storage.delete_image(minio_service, object_key)` *before* the DB row disappears, since `object_key` is the only record of where the file lives.
-- **`Commodity.project_id` and `ChainComponent.tolerance_value_id` are plain columns, not real foreign keys** — Postgres can't enforce a FK across two separate databases, and `Commodity` (project-scoped) references `Project` (central) / `ChainComponent` references `ToleranceValue` (central) across exactly that boundary. Two consequences: (1) nothing stops a stray `project_id` value from pointing at a different, colocated project's rows if two projects share a physical Postgres service — every fetch of Commodity-and-below data must explicitly check ownership (`project_id == expected`), not just existence; see `_get_commodity_or_404` and everything chained off it in `api/analyses.py`. (2) deleting a `Project` doesn't cascade to its `Commodity` rows the way it used to — `api/projects.py`'s `delete_project` deletes them by hand.
+- **`Commodity.project_id` and `ChainComponent.tolerance_value_id` are plain columns, not real foreign keys** — Postgres can't enforce a FK across two separate databases, and `Commodity` (project-scoped) references `Project` (central) / `ChainComponent` references `ToleranceValue` (central) across exactly that boundary. Two consequences: (1) nothing stops a stray `project_id` value from pointing at a different, colocated project's rows if two projects share a physical Postgres service — every fetch of Commodity-and-below data must explicitly check ownership (`project_id == expected`), not just existence; see `_get_commodity_or_404` and everything chained off it in `api/analyses.py`. Every Client now gets a genuinely dedicated Postgres/MinIO service pair (`api/admin_clients.py`'s `create_client` refuses to assign an already-assigned service), so two *different clients'* projects can no longer end up colocated this way — but two projects of the *same* client still can, and the check above is what protects that case. If the one-service-per-client rule is ever relaxed, this plain integer becomes the only thing standing between two tenants' rows. (2) deleting a `Project` doesn't cascade to its `Commodity` rows the way it used to — `api/projects.py`'s `delete_project` (and `api/admin_clients.py`'s `delete_client`, which purges every project of a client) deletes them by hand via `purge_project_data`.
 - **Destructive UI actions require a confirm pop-up**, not `window.confirm()` (native dialogs block browser automation and are jarring in-app). Standing pattern: inline `pendingDeleteId` / `confirmingRenameId` state per row showing "Action? [Yes] [No]" — see `ProjectListPage.jsx` or `ProcessTypesPage.jsx` for the reference implementation.
 - **Annotorious v2 has no default export** — `import { init } from '@recogito/annotorious'`, not a default import. `disableEditor: true` alone silently discards drawn shapes on deselect unless `allowEmpty: true` is also set (`saveSelected()` checks `bodies.length > 0 || config.allowEmpty` internally).
 - **`useCallback` dependency arrays must match captured variables exactly.** An incomplete array (especially `[]`) permanently captures an early-render closure — this caused markers to silently no-op on delete. Don't mask the eslint `exhaustive-deps` warning with a disable comment; fix the array instead.
@@ -65,6 +88,7 @@ database to open *before* touching any data (see `api/deps.py`'s
 - **Never let `env.py`'s `fileConfig()` run when Alembic is driven from inside the app.** `logging.config.fileConfig()` defaults to `disable_existing_loggers=True` *and* rewrites the root logger's handlers from the `.ini`. Because `core/service_db.py`'s `initialize_schema` runs the project chain programmatically (on startup, and from the admin Initialize button), an unguarded call silently switched off **every** logger the app had already created and detached its file handlers — killing all application logging, and uvicorn's own access logging, for the rest of the process's life, with no error anywhere. Both `env.py` files now wrap the call in `if config.attributes.get("configure_logger", True):`, and `_project_alembic_config()` sets that to `False`. This was invisible for a long time: the only symptom was log lines that "should have appeared" quietly not appearing.
 - **`angled_components` is deliberately a separate table from `chain_components`, not shared nullable columns.** An angled-interface row (`direction = Other` on an entry, see `models/angled_component.py`) has an X/Y tolerance pair, not `ChainComponent`'s single ± magnitude, and no Component/Process distinction. Adding nullable `x_tolerance`/`y_tolerance` columns to `chain_components` instead would (1) force a meaningless `contributor_type` value onto every angled row, and (2) make `tolerance_value` nullable, which `api/chain_components.py`'s `get_simulation` reads unguarded (`float(component.tolerance_value)` with no `None` check) — every existing linear read path would need a defensive filter it doesn't have today. Keep the two tables and their math (`core/simulation.py` vs `core/angled_simulation.py`) separate; don't "unify" them later without re-reading this.
 - **`require_project_manager` is Manager-only; `require_project_editor` (`api/deps.py`) is Manager-or-Contributor.** Per the brief's Managers/Contributors/Viewers table, Contributors can read/write but not delete — so every *delete* route (and Commodity creation, which the brief reserves for Managers specifically) uses `require_project_manager`; every *create/update* route on Analysis/entries/chain-components/images/markers uses `require_project_editor`. Defaulting a new write route to `require_project_manager` "to be safe" silently locks Contributors out of the ordinary workflow — this happened once already (every write route used it, undetected until a Contributor tried to drop a marker and got a 403).
+- **The "Default" `PostgresService` shares its physical database with this app's own central tables.** `fe5a0c40a1ce_multi_service_postgres_minio.py` seeded it from the container's own env vars (`database=settings.postgres_db`) — the single-tenant deployment's original database, adopted as the "Default Client" by `2c3d4e5f6071_client_tenancy.py`. A plain whole-database `pg_dump` of that service therefore captures every other client's central rows too, not just the Default client's project data — `scripts/_snapshot.py`'s `shares_central_database()` detects this and scopes the dump to just the Commodity-and-below tables in that one case. See `docs/BACKUP_RESTORE.md`. Every client created going forward gets a genuinely dedicated service, so this is a one-off legacy case, not a pattern to design around — the fix is migrating the Default Client onto its own database (see the production checklist), not more special-casing.
 
 ## Migrations
 
@@ -103,6 +127,40 @@ docker compose run --rm -e POSTGRES_DB=<db>_test backend alembic upgrade head
 ```
 `docker compose run --rm -e VAR=value backend <cmd>` overrides an env var for one throwaway container without touching the running `backend` service or its container — safe to use for one-off checks (`alembic upgrade head`, a `python -c "..."` snippet calling app code) against the test copy. Drop the `_test` database when done. This is exactly how the nested-`EnvironmentContext` bug above was caught before it ever ran against the LXC's real data.
 
+## Backup and restore
+
+Per-client backup/restore is host scripts (`backend/scripts/backup_client.py`,
+`backup_all.py`, `restore_client.py`) plus a runbook, not an app feature —
+root_admin can't see a client's data through the product, and a route that
+read a client's whole dataset out to a file would partly reopen that
+boundary. Restore is deliberately **not** "run `pg_restore`" — central rows
+must be re-inserted with their original ids (`Commodity.project_id` and
+`ChainComponent.tolerance_value_id` are plain integers, not real FKs, per the
+gotcha above) or every commodity/analysis/chain-component/image under that
+client silently orphans. See `docs/BACKUP_RESTORE.md` for the full format,
+the Default-Client special case, and the restore procedure.
+
+Two gotchas found only by actually running a backup/restore cycle against a
+real deployment, not by reading the scripts (see `docs/BACKUP_RESTORE.md`
+for both in full):
+- **`pg_dump`/`pg_restore` must be pinned to the server's major version.**
+  `backend/Dockerfile` installs `postgresql-client-16` from the official PGDG
+  apt repo, not Debian's own default package — Debian tracks whatever major
+  version it currently ships (17, as of this writing), and a *newer*
+  `pg_dump`'s output can contain settings (`SET transaction_timeout = 0`, a
+  PG17 addition) that our `postgres:16-alpine` server rejects, breaking every
+  restore with "unrecognized configuration parameter". Update the pin if
+  `docker-compose.yml`'s `postgres` image version ever changes.
+- **`restore_client.py` writes to the central database last, not first.**
+  `pg_restore` and the MinIO upload are external processes a database
+  transaction can't wrap — if either fails *after* the `clients` row has
+  already been inserted and committed, that row is left behind: deactivated,
+  with no project data behind it, and blocking its Postgres/MinIO services
+  from ever being reassigned to a new client. Central rows (including
+  `clients` itself) are only written once `pg_restore` and the MinIO upload
+  have already succeeded, so a failure at either step leaves nothing in the
+  central database to clean up before retrying.
+
 ## Deploying to the test LXC
 
 The LXC's `/opt/gapflushrss` (`192.168.4.78`, root, key at `~/.ssh/proxmox_test_server_private.pem`) is a **plain file copy, not a git checkout** — commits here don't appear there automatically.
@@ -122,6 +180,9 @@ Everything below is **deliberately insecure or dev-only in the current test setu
 - **Require TLS on the Postgres connection.** The bundled `postgres` container runs with `ssl=off`, and the app's own central connection (`core/config.py`'s `database_url`) has no `sslmode`, so backend↔database traffic — password hashes, session tokens, encrypted service credentials — is plaintext. `core/service_db.py` already forces `sslmode=require` for *registered* services whose host isn't the bundled one; the central connection and the bundled container both still need doing. Either enable TLS on that container (cert + key, `-c ssl=on`) and add `sslmode=require` to `database_url`, or move the database off-host and require TLS there. Note `sslmode=require` encrypts but does **not** verify the server — use `verify-full` with a CA once certificates are properly managed.
 - **Require TLS on the MinIO connection.** `MinioService.secure` defaults to `False` and the bundled MinIO speaks plain HTTP, so uploaded images and the MinIO credentials themselves cross the network unencrypted. Set `secure=True` on every registered MinIO service and terminate TLS properly on the MinIO side. `core/service_storage.py` passes this straight through to the client, so it's a data change plus a MinIO config change, not a code change.
 - **Also outstanding:** `cookie_secure=True` once served over HTTPS (`core/config.py`), replacing `uvicorn --reload` with a real production command (`backend/Dockerfile`), and removing the `gapflush`/`gapflush` default credentials in `core/config.py`.
+- **Every Client's assigned Postgres/MinIO service must be genuinely dedicated and TLS-enabled.** `api/admin_clients.py`'s `create_client` already refuses to assign a service that's in use by another client, but that's an application-level check, not encryption — see the two TLS items above, which apply per-client-service now, not just to the one bundled `postgres`/`minio` container.
+- **Migrate the "Default Client" off the shared database.** It's the one client whose Postgres service is the same physical database as this app's own central tables (see the gotcha above) — a legacy artifact of the pre-multi-tenant deployment, not something new customers get. Create a genuine dedicated database on the same Postgres server, register it as a new service, and move the Default Client onto it (`scripts/backup_client.py` + `scripts/restore_client.py` against the new service, or a manual `pg_dump`/`pg_restore` of just the Commodity-and-below tables) before this deployment holds any other real customer's data on that same server.
+- **The `backups` volume needs the same access control as the database itself.** A snapshot (`scripts/backup_client.py`) is a full tenant's data, unencrypted, on disk — anyone who can read `/var/backups/gapflushrss` (the `backups` Docker volume) can read every client's users, projects, and tolerance matrix without going through the app's tenancy checks at all.
 
 ## Reference material that can't be committed
 
