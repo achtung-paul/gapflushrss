@@ -15,11 +15,18 @@ import pytest
 from app.core.simulation import (
     AMBER_THRESHOLD_FRACTION,
     NOT_EVALUATED,
-    SIGMA_LEVELS,
     combine_rss,
     evaluate_band,
     run_simulation,
 )
+
+# run_simulation's own default when a caller passes no sigma_levels --
+# there's no module-level SIGMA_LEVELS constant to import (sigma levels
+# are now a client-configurable choice, see
+# models/statistical_model_setting.py; simulation.py has no idea what a
+# "client" is, see its module docstring), so the tests below that only
+# care about the default behaviour mirror it here explicitly.
+DEFAULT_SIGMA_LEVELS = (3, 4, 5)
 
 
 # --- combine_rss -----------------------------------------------------
@@ -169,7 +176,7 @@ def test_zero_limits_with_zero_spread_do_not_divide_by_zero():
 
 def test_run_simulation_reports_every_sigma_level():
     simulation = run_simulation([0.9], nominal=10.0, upper_limit=1.0, lower_limit=1.0)
-    assert [row["sigma_level"] for row in simulation["results"]] == list(SIGMA_LEVELS)
+    assert [row["sigma_level"] for row in simulation["results"]] == list(DEFAULT_SIGMA_LEVELS)
 
 
 def test_run_simulation_scales_spread_by_sigma_level():
@@ -197,7 +204,7 @@ def test_empty_chain_is_not_evaluated_rather_than_green():
     # sigma level -- making "no analysis done yet" indistinguishable from
     # "analysis passed". This is the regression guard for that.
     simulation = run_simulation([], nominal=10.0, upper_limit=1.0, lower_limit=1.0)
-    assert [row["rag"] for row in simulation["results"]] == [NOT_EVALUATED] * len(SIGMA_LEVELS)
+    assert [row["rag"] for row in simulation["results"]] == [NOT_EVALUATED] * len(DEFAULT_SIGMA_LEVELS)
     assert simulation["sigma_1"] == 0
 
 
