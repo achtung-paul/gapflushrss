@@ -712,6 +712,11 @@ td {
 .rag-amber { background: #f4d9a0; color: #5c4008; }
 .rag-red { background: #f3c9c9; color: #6b1414; }
 .rag-not-evaluated { background: var(--color-divider); color: var(--color-muted); }
+/* A sigma level a client has marked info-only (StatisticalModelSetting)
+   -- distinct from rag-not-evaluated (an empty chain, nothing to judge
+   yet) so the two different reasons for "no pass/fail here" don't look
+   identical. Same fixed-literal-colour treatment as amber/red above. */
+.rag-info { background: #d6e4f0; color: #1c4870; }
 
 /* Green is the one status tied to the app's own accent, so -- unlike
    amber/red, which the handoff keeps as fixed literal colours in both

@@ -30,6 +30,7 @@ from app.models.chain_component import ChainComponent  # noqa: F401
 from app.models.standard_tolerance import StandardTolerance  # noqa: F401
 from app.models.banner import Banner  # noqa: F401
 from app.models.angled_component import AngledComponent  # noqa: F401
+from app.models.statistical_model_setting import StatisticalModelSetting  # noqa: F401
 from app.models.security_setting import SecuritySetting  # noqa: F401
 from app.models.user_totp import UserTotp  # noqa: F401
 from app.models.login_challenge import LoginChallenge  # noqa: F401

@@ -26,6 +26,7 @@ from app.core.tolerance_csv_template import build_import_template
 from app.db.session import get_db
 from app.models.dimension_range import DimensionRange
 from app.models.process_type import ProcessType
+from app.models.statistical_model_setting import StatisticalModelSetting
 from app.models.tolerance_group import ToleranceGroup
 from app.models.tolerance_value import ToleranceValue
 from app.models.user import User
@@ -41,6 +42,10 @@ from app.schemas.reference_data import (
     ToleranceGroupUpdate,
     ToleranceValueCellIn,
     ToleranceValueOut,
+)
+from app.schemas.statistical_model_setting import (
+    StatisticalModelSettingOut,
+    StatisticalModelSettingsUpdate,
 )
 
 router = APIRouter(tags=["reference-data"])
@@ -470,3 +475,63 @@ def set_tolerance_value_cell(
     db.commit()
     db.refresh(cell)
     return cell
+
+
+def get_visible_sigma_levels(db: Session, client_id: int) -> dict[int, bool]:
+    """sigma_level -> info_only, for every level this client has marked visible.
+
+    Ordered ascending (StatisticalModelSetting.sigma_level), so callers
+    that just need the level list can use .keys() directly without
+    re-sorting. Shared by api/chain_components.py's get_simulation and
+    api/exports.py -- both need the exact same "which levels, which are
+    info-only" answer for one client, and reconstructing that query by
+    hand in each place is exactly the kind of drift CLAUDE.md's Groups
+    gotcha warns about.
+    """
+    rows = (
+        db.query(StatisticalModelSetting)
+        .filter(StatisticalModelSetting.client_id == client_id, StatisticalModelSetting.visible.is_(True))
+        .order_by(StatisticalModelSetting.sigma_level)
+        .all()
+    )
+    return {row.sigma_level: row.info_only for row in rows}
+
+
+# Which RSS confidence levels (1-5 sigma) this client's analysis pages
+# show, and whether each shown level gets a pass/fail verdict or is
+# purely informational -- see core/simulation.py and
+# models/statistical_model_setting.py. Reading is open to any logged-in
+# user of the client (every analysis page needs this to render its sigma
+# results correctly, not just admins); writing is client_admin only,
+# same split as the rest of this file.
+@router.get("/statistical-model-settings", response_model=list[StatisticalModelSettingOut])
+def list_statistical_model_settings(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return (
+        db.query(StatisticalModelSetting)
+        .filter(StatisticalModelSetting.client_id == current_user.client_id)
+        .order_by(StatisticalModelSetting.sigma_level)
+        .all()
+    )
+
+
+@router.put("/statistical-model-settings", response_model=list[StatisticalModelSettingOut])
+def update_statistical_model_settings(
+    body: StatisticalModelSettingsUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_client_admin),
+):
+    # Keyed by sigma_level, not recreated -- every client always has
+    # exactly one row per level (seeded at client creation, backfilled by
+    # this feature's migration for pre-existing clients), so this is
+    # always an update of 5 existing rows, never an insert.
+    existing = {
+        row.sigma_level: row
+        for row in db.query(StatisticalModelSetting)
+        .filter(StatisticalModelSetting.client_id == current_user.client_id)
+        .all()
+    }
+    for item in body.settings:
+        existing[item.sigma_level].visible = item.visible
+        existing[item.sigma_level].info_only = item.info_only
+    db.commit()
+    return sorted(existing.values(), key=lambda row: row.sigma_level)

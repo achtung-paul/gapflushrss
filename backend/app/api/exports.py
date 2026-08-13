@@ -14,11 +14,13 @@ from sqlalchemy.orm import Session
 
 from app.api.analyses import _get_analysis_or_404, _get_commodity_or_404, _get_entry_or_404
 from app.api.deps import get_current_user, get_project, get_project_db, get_project_minio_service
+from app.api.reference_data import get_visible_sigma_levels
 from app.core import service_storage
 from app.core.angled_simulation import run_angled_simulation
 from app.core.config import settings
 from app.core.excel_export import _draw_markers, build_commodity_workbook, build_entry_workbook
 from app.core.simulation import run_simulation
+from app.db.session import get_db
 from app.models.analysis import Analysis
 from app.models.analysis_entry import AnalysisEntry, Direction, EntryType
 from app.models.analysis_image import AnalysisImage
@@ -61,8 +63,9 @@ def export_entry(
     entry_id: int,
     project: Project = Depends(get_project),
     project_db: Session = Depends(get_project_db),
+    db: Session = Depends(get_db),
     minio_service: MinioService = Depends(get_project_minio_service),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """Download one Gap or Flush entry's report as .xlsx."""
     entry = _get_entry_or_404(project_db, project_id, entry_id)
@@ -166,12 +169,17 @@ def export_entry(
             .order_by(ChainComponent.sequence_number)
             .all()
         )
+        info_only_by_level = get_visible_sigma_levels(db, current_user.client_id)
         simulation = run_simulation(
             [float(component.tolerance_value) for component in components],
             nominal=float(entry.nominal_value),
             upper_limit=float(entry.upper_limit),
             lower_limit=float(entry.lower_limit),
+            sigma_levels=list(info_only_by_level.keys()),
         )
+        simulation["results"] = [
+            {**row, "info_only": info_only_by_level[row["sigma_level"]]} for row in simulation["results"]
+        ]
         chain_components = [
             {
                 "sequence_number": component.sequence_number,
@@ -209,11 +217,14 @@ def export_commodity(
     commodity_id: int,
     project: Project = Depends(get_project),
     project_db: Session = Depends(get_project_db),
+    db: Session = Depends(get_db),
     minio_service: MinioService = Depends(get_project_minio_service),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """Download a Commodity's summary report as .xlsx."""
     commodity = _get_commodity_or_404(project_db, project_id, commodity_id)
+    info_only_by_level = get_visible_sigma_levels(db, current_user.client_id)
+    sigma_levels = list(info_only_by_level.keys())
 
     # Every image belonging to this commodity, each with *every* marker
     # on it drawn -- unlike export_entry above, which only draws the one
@@ -285,6 +296,7 @@ def export_commodity(
                 nominal=float(entry.nominal_value),
                 upper_limit=float(entry.upper_limit),
                 lower_limit=float(entry.lower_limit),
+                sigma_levels=sigma_levels,
             )
             rag_by_sigma = {result["sigma_level"]: result["rag"] for result in simulation["results"]}
 
@@ -307,6 +319,8 @@ def export_commodity(
         commodity_name=commodity.name,
         commodity_code=commodity.code,
         rows=rows,
+        sigma_levels=sigma_levels,
+        info_only_by_level=info_only_by_level,
         assembly_images=assembly_images,
     )
 

@@ -77,6 +77,13 @@ class SimulationResultRow(BaseModel):
     lower_bound: float
     upper_bound: float
     rag: str
+    # From the caller's client's StatisticalModelSetting for this sigma
+    # level -- true means this row is never shown as a pass/fail verdict,
+    # only as an informational spread/range. rag is still computed and
+    # sent regardless, so a consumer that ignores this flag doesn't
+    # silently show a stale/missing value -- it's on the renderer to
+    # respect info_only, same as it already has to respect NOT_EVALUATED.
+    info_only: bool
 
 
 class SimulationResultOut(BaseModel):

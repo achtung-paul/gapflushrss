@@ -452,6 +452,14 @@ export const deleteDimensionRange = (dimensionRangeId) =>
 export const listToleranceValues = (processTypeId) =>
   apiFetch(`/process-types/${processTypeId}/tolerance-values`)
 
+export const listStatisticalModelSettings = () => apiFetch('/statistical-model-settings')
+
+export const updateStatisticalModelSettings = (settings) =>
+  apiFetch('/statistical-model-settings', {
+    method: 'PUT',
+    body: JSON.stringify({ settings }),
+  })
+
 export const setToleranceValueCell = (toleranceGroupId, dimensionRangeId, toolValue, nonToolValue) =>
   apiFetch(`/tolerance-groups/${toleranceGroupId}/dimension-ranges/${dimensionRangeId}/value`, {
     method: 'PUT',

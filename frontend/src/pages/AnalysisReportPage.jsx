@@ -248,14 +248,17 @@ function AnalysisReportPage() {
                             {result.lower_bound.toFixed(3)} to {result.upper_bound.toFixed(3)} mm
                           </td>
                           <td>
-                            <span className={`rag-badge ${RAG_CLASS[result.rag] ?? ''}`}>
-                              {RAG_LABELS[result.rag] ?? result.rag}
+                            <span className={`rag-badge ${result.info_only ? 'rag-info' : RAG_CLASS[result.rag] ?? ''}`}>
+                              {result.info_only ? 'Info' : RAG_LABELS[result.rag] ?? result.rag}
                             </span>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                  <p className="form-hint no-print">
+                    <Link to="/help/statistical-model">About the statistical model</Link>
+                  </p>
                   <RssDistributionChart
                     nominal={entry.nominal_value}
                     upperLimit={entry.upper_limit}

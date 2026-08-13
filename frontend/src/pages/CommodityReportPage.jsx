@@ -8,6 +8,7 @@ import {
   listImages,
   listMarkers,
   listProjects,
+  listStatisticalModelSettings,
 } from '../api/client.js'
 
 const DIRECTION_LABELS = { X: 'X', Y: 'Y', Z: 'Z', OTHER: 'Other' }
@@ -23,12 +24,10 @@ const RAG_CLASS = {
   red: 'rag-red',
   not_evaluated: 'rag-not-evaluated',
 }
-const SIGMA_LEVELS = [3, 4, 5]
-
 // Read-only counterpart to AnalysisListPage.jsx's EntryTableRow -- same
 // per-row simulation fetch (there's no bulk "simulation for every entry"
 // endpoint), just without the Edit/Delete/Add columns.
-function ReportEntryRow({ projectId, analysisCode, analysisDescription, entryType, entry }) {
+function ReportEntryRow({ projectId, analysisCode, analysisDescription, entryType, entry, sigmaColumns }) {
   const [simulation, setSimulation] = useState(null)
 
   useEffect(() => {
@@ -46,13 +45,16 @@ function ReportEntryRow({ projectId, analysisCode, analysisDescription, entryTyp
       <td>{entryType === 'GAP' ? 'Gap' : 'Flush'}</td>
       <td>{(entry?.direction && DIRECTION_LABELS[entry.direction]) || '--'}</td>
       <td>{entry ? `${entry.nominal_value} mm` : '--'}</td>
-      {SIGMA_LEVELS.map((sigmaLevel) => {
-        const result = simulation?.results.find((r) => r.sigma_level === sigmaLevel)
+      {sigmaColumns.map((column) => {
+        const result = simulation?.results.find((r) => r.sigma_level === column.sigma_level)
         return (
-          <td key={sigmaLevel}>
+          <td key={column.sigma_level}>
             {result && (
-              <span className={`rag-badge ${RAG_CLASS[result.rag] ?? ''}`} title={`±${result.spread.toFixed(2)} mm`}>
-                {RAG_LABELS[result.rag] ?? result.rag}
+              <span
+                className={`rag-badge ${result.info_only ? 'rag-info' : RAG_CLASS[result.rag] ?? ''}`}
+                title={`±${result.spread.toFixed(2)} mm`}
+              >
+                {result.info_only ? 'Info' : RAG_LABELS[result.rag] ?? result.rag}
               </span>
             )}
           </td>
@@ -96,7 +98,14 @@ function CommodityReportPage() {
   const [analyses, setAnalyses] = useState([])
   const [images, setImages] = useState([])
   const [markersByImage, setMarkersByImage] = useState({})
+  const [sigmaColumns, setSigmaColumns] = useState([])
   const [error, setError] = useState(null)
+
+  useEffect(() => {
+    listStatisticalModelSettings()
+      .then((settings) => setSigmaColumns(settings.filter((s) => s.visible)))
+      .catch((err) => setError(err.message))
+  }, [])
 
   useEffect(() => {
     listProjects()
@@ -166,9 +175,9 @@ function CommodityReportPage() {
             <th>Gap/Flush</th>
             <th>Direction</th>
             <th>Nominal (mm)</th>
-            <th>3σ</th>
-            <th>4σ</th>
-            <th>5σ</th>
+            {sigmaColumns.map((column) => (
+              <th key={column.sigma_level}>{column.sigma_level}σ</th>
+            ))}
             <th>Last modified by</th>
           </tr>
         </thead>
@@ -181,11 +190,12 @@ function CommodityReportPage() {
               analysisDescription={analysis.description}
               entryType={entryType}
               entry={entry}
+              sigmaColumns={sigmaColumns}
             />
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={9}>No analyses yet.</td>
+              <td colSpan={6 + sigmaColumns.length}>No analyses yet.</td>
             </tr>
           )}
         </tbody>

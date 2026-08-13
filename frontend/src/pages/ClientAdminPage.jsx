@@ -220,6 +220,9 @@ function ClientAdminPage() {
       <p>
         <Link to="/client-admin/process-types">Manage process types &amp; tolerance matrix</Link>
       </p>
+      <p>
+        <Link to="/client-admin/statistical-model">Statistical model</Link>
+      </p>
 
       <h2>Users</h2>
       {error && <p className="form-error">{error}</p>}

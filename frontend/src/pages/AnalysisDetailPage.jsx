@@ -25,6 +25,15 @@ function EntrySection({ projectId, analysisId, title, entry, onCreate, onUpdate,
   const [editing, setEditing] = useState(false)
   const [direction, setDirection] = useState('')
   const [nominalValue, setNominalValue] = useState('')
+  // Two numbers whose meaning depends on limitMode: tolerance magnitudes
+  // (offsets from nominal, always >= 0 -- the original convention) or
+  // the absolute signed band edges directly (for compressible-material
+  // targets where the whole band can be negative). Storage only ever
+  // has one representation (magnitudes); see
+  // schemas/analysis_entry.py's resolve_limits, which converts absolute
+  // bounds server-side. Same toggle as AnalysisListPage.jsx's inline row
+  // editor -- kept in sync by hand since the two forms don't share state.
+  const [limitMode, setLimitMode] = useState('magnitude')
   const [upperLimit, setUpperLimit] = useState('')
   const [lowerLimit, setLowerLimit] = useState('')
   const [notes, setNotes] = useState('')
@@ -44,11 +53,33 @@ function EntrySection({ projectId, analysisId, title, entry, onCreate, onUpdate,
   function startEditing() {
     setDirection(entry?.direction ?? '')
     setNominalValue(entry ? String(entry.nominal_value) : '')
+    setLimitMode('magnitude')
     setUpperLimit(entry ? String(entry.upper_limit) : '')
     setLowerLimit(entry ? String(entry.lower_limit) : '')
     setNotes(entry?.notes ?? '')
     setError(null)
     setEditing(true)
+  }
+
+  // Re-expresses whatever's currently typed in the *other* mode's terms,
+  // using the nominal value on screen right now -- so toggling never
+  // silently discards a number already entered. Same logic as
+  // AnalysisListPage.jsx's inline row editor.
+  function handleLimitModeChange(nextMode) {
+    if (nextMode === limitMode) return
+    const n = Number(nominalValue)
+    const a = Number(upperLimit)
+    const b = Number(lowerLimit)
+    if (!Number.isNaN(n) && !Number.isNaN(a) && !Number.isNaN(b)) {
+      if (nextMode === 'absolute') {
+        setUpperLimit(String(n + a))
+        setLowerLimit(String(n - b))
+      } else {
+        setUpperLimit(String(a - n))
+        setLowerLimit(String(n - b))
+      }
+    }
+    setLimitMode(nextMode)
   }
 
   function startEditingNotes() {
@@ -82,10 +113,11 @@ function EntrySection({ projectId, analysisId, title, entry, onCreate, onUpdate,
     setError(null)
     const body = {
       nominal_value: Number(nominalValue),
-      upper_limit: Number(upperLimit),
-      lower_limit: Number(lowerLimit),
       direction: direction || null,
       notes,
+      ...(limitMode === 'absolute'
+        ? { upper_bound: Number(upperLimit), lower_bound: Number(lowerLimit) }
+        : { upper_limit: Number(upperLimit), lower_limit: Number(lowerLimit) }),
     }
     try {
       await (entry ? onUpdate(body) : onCreate(body))
@@ -224,20 +256,32 @@ function EntrySection({ projectId, analysisId, title, entry, onCreate, onUpdate,
           />
         </label>
         <label>
-          Upper limit + (mm){' '}
+          <input
+            type="checkbox"
+            checked={limitMode === 'absolute'}
+            onChange={(e) => handleLimitModeChange(e.target.checked ? 'absolute' : 'magnitude')}
+          />{' '}
+          Absolute limits
+        </label>
+        <label>
+          {limitMode === 'magnitude' ? 'Upper limit + (mm)' : 'Upper limit (mm)'}{' '}
+          {/* Compressible-material targets can have a negative whole
+              band (nominal included) -- min="0" only makes sense for
+              the tolerance-magnitude convention, not for entering the
+              signed band edges directly. */}
           <NumberInput
-            min="0"
-            placeholder="Upper limit (+)"
+            min={limitMode === 'magnitude' ? '0' : undefined}
+            placeholder={limitMode === 'magnitude' ? 'Upper limit (+)' : 'Upper limit'}
             value={upperLimit}
             onChange={setUpperLimit}
             required
           />
         </label>
         <label>
-          Lower limit - (mm){' '}
+          {limitMode === 'magnitude' ? 'Lower limit - (mm)' : 'Lower limit (mm)'}{' '}
           <NumberInput
-            min="0"
-            placeholder="Lower limit (-)"
+            min={limitMode === 'magnitude' ? '0' : undefined}
+            placeholder={limitMode === 'magnitude' ? 'Lower limit (-)' : 'Lower limit'}
             value={lowerLimit}
             onChange={setLowerLimit}
             required

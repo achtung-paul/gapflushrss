@@ -19,6 +19,7 @@ from app.api.projects import purge_project_data
 from app.core import service_db, service_provisioning, service_storage
 from app.core.invites import build_invited_user, send_account_invite
 from app.core.security import force_password_reset
+from app.core.statistical_model_defaults import default_statistical_model_rows
 from app.db.session import get_db
 from app.models.client import Client
 from app.models.login_challenge import LoginChallenge
@@ -29,6 +30,7 @@ from app.models.postgres_server import PostgresServer
 from app.models.postgres_service import PostgresService
 from app.models.process_type import ProcessType
 from app.models.project import Project
+from app.models.statistical_model_setting import StatisticalModelSetting
 from app.models.user import GlobalRole, User
 from app.models.user_session import UserSession
 from app.models.user_totp import UserTotp
@@ -85,6 +87,16 @@ def _seed_default_process_type(db: Session, client_id: int) -> None:
     # rather than an empty tolerance-matrix screen. v1 scope is plastics
     # only, per the brief.
     db.add(ProcessType(client_id=client_id, name="Plastics"))
+
+
+def _seed_default_statistical_model_settings(db: Session, client_id: int) -> None:
+    # StatisticalModelSetting assumes exactly 5 rows (sigma 1-5) always
+    # exist per client -- see models/statistical_model_setting.py. This
+    # is the only place a new client gets them; a pre-existing client got
+    # theirs from this feature's own migration's backfill (same defaults,
+    # see core/statistical_model_defaults.py).
+    for row in default_statistical_model_rows(client_id):
+        db.add(StatisticalModelSetting(**row))
 
 
 @router.get("", response_model=list[ClientOut])
@@ -204,6 +216,7 @@ def create_client(
     )
     db.add(admin)
     _seed_default_process_type(db, client.client_id)
+    _seed_default_statistical_model_settings(db, client.client_id)
 
     db.commit()
     db.refresh(client)

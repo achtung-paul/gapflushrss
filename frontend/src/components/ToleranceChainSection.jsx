@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   createChainComponent,
   deleteChainComponent,
@@ -47,6 +48,29 @@ const CONTRIBUTOR_TYPE_LABELS = {
 // contributor.
 function standardOptionValue(standardToleranceId) {
   return `standard:${standardToleranceId}`
+}
+
+// Which of a process type's dimension ranges a measured dimension falls
+// into, or null if it's outside all of them. Ranges are stored as plain
+// [min_value, max_value] pairs with no inclusive/exclusive flag, so a
+// value sitting exactly on the boundary between two adjacent ranges
+// (e.g. 3 for both "1 to 3" and "3 to 6") matches both -- resolved by
+// preferring the one with the larger numbers, i.e. the range this value
+// is the *lower* edge of. That matches the tolerance standard's own
+// convention for how these ranges are meant to be read (see the CSV
+// import format's "> 3 to 6" labelling, core/tolerance_csv_import.py),
+// where every range but the first is explicitly open on its lower
+// bound.
+function findMatchingRange(ranges, dimension) {
+  const d = Number(dimension)
+  if (dimension === '' || Number.isNaN(d)) {
+    return null
+  }
+  const candidates = ranges.filter((r) => d >= Number(r.min_value) && d <= Number(r.max_value))
+  if (candidates.length === 0) {
+    return null
+  }
+  return candidates.reduce((largest, r) => (Number(r.min_value) > Number(largest.min_value) ? r : largest))
 }
 
 // Lets the user build the RSS tolerance chain for one Gap/Flush entry
@@ -124,6 +148,25 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
     listDimensionRanges(selectedProcessTypeId).then(setRanges).catch((err) => setError(err.message))
     listToleranceValues(selectedProcessTypeId).then(setCells).catch((err) => setError(err.message))
   }, [selectedProcessTypeId])
+
+  // Re-runs whenever the typed Measured value changes (or the range list
+  // loads) -- reused as the dimension for auto-picking the matching
+  // Dimension range below, since that's the same number: the actual size
+  // of the feature being toleranced is exactly what a size-based
+  // tolerance standard looks up. Deliberately independent of which
+  // tolerance group is selected, since dimension ranges are the matrix's
+  // columns, shared across every group/row (see models/dimension_range.py),
+  // not scoped per group. Only ever *sets* selectedRangeId, never clears
+  // it -- a measured value outside every range, or an empty box, just
+  // leaves whatever range was picked before alone, so a manual override
+  // is never stomped by this effect re-running with the same match.
+  useEffect(() => {
+    const match = findMatchingRange(ranges, measured)
+    if (match) {
+      setSelectedRangeId(String(match.dimension_range_id))
+      setSelectedVariance('')
+    }
+  }, [measured, ranges])
 
   const selectedStandard = standardTolerances.find(
     (s) => typeSelection === standardOptionValue(s.standard_tolerance_id),
@@ -557,14 +600,17 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
                     {result.lower_bound.toFixed(3)} to {result.upper_bound.toFixed(3)} mm
                   </td>
                   <td>
-                    <span className={`rag-badge ${RAG_CLASS[result.rag] ?? ''}`}>
-                      {RAG_LABELS[result.rag] ?? result.rag}
+                    <span className={`rag-badge ${result.info_only ? 'rag-info' : RAG_CLASS[result.rag] ?? ''}`}>
+                      {result.info_only ? 'Info' : RAG_LABELS[result.rag] ?? result.rag}
                     </span>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <p className="form-hint">
+            <Link to="/help/statistical-model">About the statistical model</Link>
+          </p>
           <RssDistributionChart
             nominal={nominal}
             upperLimit={upperLimit}

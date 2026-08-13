@@ -22,6 +22,11 @@ const RAG_COLORS = {
   // falling through to SVG's default black.
   not_evaluated: '#999999',
 }
+// A result the client has marked info_only (StatisticalModelSetting)
+// never gets a RAG colour here either, regardless of what its rag value
+// actually computed to -- same blue as index.css's .rag-info, so the
+// chart and the results table agree on which levels are "no verdict".
+const INFO_ONLY_COLOR = '#1c4870'
 
 // Standard normal PDF, shifted/scaled to mean 0 -- we only need the
 // *shape* of the curve (its peak is rescaled to fit the chart), not the
@@ -87,7 +92,7 @@ function RssDistributionChart({ nominal, upperLimit, lowerLimit, sigma1, results
       )}
 
       {results.map((result, index) => (
-        <g key={result.sigma_level} stroke={RAG_COLORS[result.rag]}>
+        <g key={result.sigma_level} stroke={result.info_only ? INFO_ONLY_COLOR : RAG_COLORS[result.rag]}>
           <line
             x1={xToPixel(nominal - result.spread)}
             x2={xToPixel(nominal - result.spread)}
@@ -107,7 +112,7 @@ function RssDistributionChart({ nominal, upperLimit, lowerLimit, sigma1, results
           <text
             x={xToPixel(nominal + result.spread) + 3}
             y={CURVE_TOP + 10 + index * 13}
-            fill={RAG_COLORS[result.rag]}
+            fill={result.info_only ? INFO_ONLY_COLOR : RAG_COLORS[result.rag]}
           >
             {result.sigma_level}σ
           </text>

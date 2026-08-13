@@ -9,11 +9,13 @@ from sqlalchemy.orm import Session
 
 from app.api.analyses import _get_entry_or_404
 from app.api.deps import get_current_user, get_project_db, require_project_editor, require_project_manager
+from app.api.reference_data import get_visible_sigma_levels
 from app.core.simulation import run_simulation
 from app.db.session import get_db
 from app.models.analysis_entry import AnalysisEntry
 from app.models.chain_component import ChainComponent
 from app.models.process_type import ProcessType
+from app.models.statistical_model_setting import StatisticalModelSetting
 from app.models.tolerance_group import ToleranceGroup
 from app.models.tolerance_value import ToleranceValue
 from app.models.user import User
@@ -185,8 +187,9 @@ def delete_chain_component(
 def get_simulation(
     project_id: int,
     entry_id: int,
+    db: Session = Depends(get_db),
     project_db: Session = Depends(get_project_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     entry = _get_entry_or_404(project_db, project_id, entry_id)
     components = (
@@ -196,10 +199,19 @@ def get_simulation(
         .all()
     )
     tolerance_values = [float(component.tolerance_value) for component in components]
+    # current_user.client_id, not project.client_id -- get_project_db's
+    # own tenancy check already guarantees they're the same for any user
+    # who can reach this route at all (see CLAUDE.md), and this route has
+    # no other reason to load Project from the central db.
+    info_only_by_level = get_visible_sigma_levels(db, current_user.client_id)
     simulation = run_simulation(
         tolerance_values,
         nominal=float(entry.nominal_value),
         upper_limit=float(entry.upper_limit),
         lower_limit=float(entry.lower_limit),
+        sigma_levels=list(info_only_by_level.keys()),
     )
-    return SimulationResultOut(**simulation)
+    results = [
+        {**row, "info_only": info_only_by_level[row["sigma_level"]]} for row in simulation["results"]
+    ]
+    return SimulationResultOut(sigma_1=simulation["sigma_1"], results=results)

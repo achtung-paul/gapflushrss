@@ -27,6 +27,8 @@ import StandardTolerancesPage from './pages/StandardTolerancesPage.jsx'
 import LogsPage from './pages/LogsPage.jsx'
 import BannerPage from './pages/BannerPage.jsx'
 import AngledInterfaceHelpPage from './pages/AngledInterfaceHelpPage.jsx'
+import StatisticalModelPage from './pages/StatisticalModelPage.jsx'
+import StatisticalModelHelpPage from './pages/StatisticalModelHelpPage.jsx'
 
 // Nav: Project List -> Commodity List -> Analysis List -> Gap/Flush.
 // A dropdown-based header nav (per the brief's UX section) is Phase 8;
@@ -130,6 +132,22 @@ function App() {
             element={
               <ProtectedRoute>
                 <AngledInterfaceHelpPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/help/statistical-model"
+            element={
+              <ProtectedRoute>
+                <StatisticalModelHelpPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/client-admin/statistical-model"
+            element={
+              <ProtectedRoute requireClientAdmin>
+                <StatisticalModelPage />
               </ProtectedRoute>
             }
           />

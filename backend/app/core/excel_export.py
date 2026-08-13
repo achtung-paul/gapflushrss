@@ -19,6 +19,7 @@ from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image as XLImage
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 from PIL import Image as PILImage
 from PIL import ImageDraw, ImageFont
@@ -41,12 +42,25 @@ RAG_FILLS = {
     "red": PatternFill("solid", fgColor="F3C9C9"),
     "not_evaluated": PatternFill("solid", fgColor="E0E0E0"),
 }
+# A sigma level the client has marked info_only (StatisticalModelSetting)
+# never gets a pass/fail label or one of the RAG_FILLS colours above --
+# "Info" and this pale blue apply instead, regardless of what the
+# underlying rag value actually computed to (still sent by the API for
+# completeness, just not shown here -- see schemas/chain_component.py).
+INFO_ONLY_LABEL = "Info"
+INFO_ONLY_FILL = PatternFill("solid", fgColor="D6E4F0")
 METHOD_LABELS = {"WORST_CASE": "Worst case", "RSS": "Statistical (RSS)"}
 # Confidence a given sigma level represents, carried over from the
 # legacy reference report this format is inspired by -- worth keeping as
 # it's the kind of thing an engineer reading the report wants next to the
 # number, not something this app calculates itself.
-SIGMA_CONFIDENCE = {3: "99.73% (Gap plan)", 4: "99.994% (Clearance)", 5: "99.99994% (Functional)"}
+SIGMA_CONFIDENCE = {
+    1: "68.27%",
+    2: "95.45%",
+    3: "99.73% (Gap plan)",
+    4: "99.994% (Clearance)",
+    5: "99.99994% (Functional)",
+}
 
 HEADING_FONT = Font(bold=True, size=14, color="2E5339")
 LABEL_FONT = Font(bold=True, size=10)
@@ -391,6 +405,7 @@ def build_entry_workbook(
         row += 1
         for result in simulation["results"]:
             rag = result["rag"]
+            info_only = result.get("info_only", False)
             _table_row(
                 ws,
                 row,
@@ -399,10 +414,10 @@ def build_entry_workbook(
                     SIGMA_CONFIDENCE.get(result["sigma_level"], ""),
                     round(result["spread"], 3),
                     f"{result['lower_bound']:.3f} to {result['upper_bound']:.3f}",
-                    RAG_LABELS.get(rag, rag),
+                    INFO_ONLY_LABEL if info_only else RAG_LABELS.get(rag, rag),
                 ],
             )
-            ws.cell(row=row, column=5).fill = RAG_FILLS.get(rag, RAG_FILLS["not_evaluated"])
+            ws.cell(row=row, column=5).fill = INFO_ONLY_FILL if info_only else RAG_FILLS.get(rag, RAG_FILLS["not_evaluated"])
             row += 1
         row += 1
 
@@ -443,6 +458,8 @@ def build_commodity_workbook(
     commodity_name: str,
     commodity_code: str,
     rows: list[dict],
+    sigma_levels: list[int],
+    info_only_by_level: dict[int, bool],
     assembly_images: list[tuple[str, bytes]] | None = None,
 ) -> bytes:
     """Build a Commodity's summary report as an .xlsx file (bytes).
@@ -451,8 +468,14 @@ def build_commodity_workbook(
     matching CommodityReportPage.jsx's flatMap -- rows exist even where
     the entry itself is null, each with keys: analysis_code,
     description, entry_label ('Gap'/'Flush'), direction, nominal_value,
-    lower_limit, upper_limit, rag_by_sigma (dict of 3/4/5 -> rag string
-    or None), updated_by_name.
+    lower_limit, upper_limit, rag_by_sigma (dict of sigma_level -> rag
+    string or None, one key per entry in sigma_levels), updated_by_name.
+
+    sigma_levels/info_only_by_level come from the exporting client's own
+    StatisticalModelSetting rows (api/reference_data.py's
+    get_visible_sigma_levels) -- one RAG column per visible level, in
+    that order, so this table always matches whatever a client has
+    configured rather than a fixed 3/4/5.
 
     assembly_images, if given, is a list of (filename, bytes) -- every
     image belonging to this Commodity, with *every* marker on it already
@@ -463,16 +486,21 @@ def build_commodity_workbook(
     workbook = Workbook()
     ws = workbook.active
     ws.title = "Commodity summary"
-    # Landscape, not portrait -- this table has too many columns
-    # (11) to stay legible on a portrait page even scaled to fit, unlike
-    # the single-entry report above.
+    # Landscape, not portrait -- this table has too many columns to stay
+    # legible on a portrait page even scaled to fit, unlike the
+    # single-entry report above.
     _setup_a4(ws, orientation="landscape")
 
-    widths = [14, 24, 10, 10, 14, 14, 14, 10, 10, 10, 18]
-    for letter, width in zip("ABCDEFGHIJK", widths):
-        ws.column_dimensions[letter].width = width
+    # 7 fixed columns + one RAG column per visible sigma level + "Last
+    # modified by" -- widths for the fixed ones, then a shared width for
+    # however many sigma columns this client has configured.
+    fixed_widths = [14, 24, 10, 10, 14, 14, 14]
+    widths = fixed_widths + [10] * len(sigma_levels) + [18]
+    for index, width in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(index)].width = width
 
-    ws.merge_cells("A1:K1")
+    last_column_letter = get_column_letter(len(widths))
+    ws.merge_cells(f"A1:{last_column_letter}1")
     ws["A1"] = "StackFit Pro -- Commodity Report"
     ws["A1"].font = HEADING_FONT
 
@@ -499,9 +527,7 @@ def build_commodity_workbook(
         "Nominal (mm)",
         "Band min (mm)",
         "Band max (mm)",
-        "3σ RAG",
-        "4σ RAG",
-        "5σ RAG",
+        *[f"{level}σ RAG" for level in sigma_levels],
         "Last modified by",
     ]
     _table_header(ws, row, headers)
@@ -524,16 +550,24 @@ def build_commodity_workbook(
                 band_min if band_min is not None else "--",
                 band_max if band_max is not None else "--",
             ]
-            for sigma in (3, 4, 5):
-                rag = entry_row["rag_by_sigma"].get(sigma)
-                values.append(RAG_LABELS.get(rag, "--") if rag else "--")
+            for level in sigma_levels:
+                rag = entry_row["rag_by_sigma"].get(level)
+                if not rag:
+                    values.append("--")
+                elif info_only_by_level.get(level, False):
+                    values.append(INFO_ONLY_LABEL)
+                else:
+                    values.append(RAG_LABELS.get(rag, "--"))
             values.append(entry_row["updated_by_name"] or "--")
 
             _table_row(ws, row, values, wrap_columns={2})
-            for sigma_index, sigma in enumerate((3, 4, 5)):
-                rag = entry_row["rag_by_sigma"].get(sigma)
-                if rag:
-                    ws.cell(row=row, column=8 + sigma_index).fill = RAG_FILLS.get(rag, RAG_FILLS["not_evaluated"])
+            first_sigma_column = len(fixed_widths) + 1
+            for sigma_index, level in enumerate(sigma_levels):
+                rag = entry_row["rag_by_sigma"].get(level)
+                if not rag:
+                    continue
+                fill = INFO_ONLY_FILL if info_only_by_level.get(level, False) else RAG_FILLS.get(rag, RAG_FILLS["not_evaluated"])
+                ws.cell(row=row, column=first_sigma_column + sigma_index).fill = fill
             row += 1
 
     buffer = BytesIO()

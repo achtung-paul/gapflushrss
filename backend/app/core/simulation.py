@@ -14,8 +14,6 @@
 
 import math
 
-SIGMA_LEVELS = (3, 4, 5)
-
 # Reported instead of a RAG colour when there's nothing to evaluate --
 # i.e. the tolerance chain is still empty. Without this, an empty chain
 # combines to a spread of exactly 0, which sits comfortably inside any
@@ -74,9 +72,20 @@ def evaluate_band(
 
 
 def run_simulation(
-    tolerance_values: list[float], nominal: float, upper_limit: float, lower_limit: float
+    tolerance_values: list[float],
+    nominal: float,
+    upper_limit: float,
+    lower_limit: float,
+    sigma_levels: list[int] = (3, 4, 5),
 ) -> dict:
-    """Run the RSS stack-up at 3/4/5 sigma and evaluate each against the target band."""
+    """Run the RSS stack-up at each requested sigma level and evaluate against the target band.
+
+    sigma_levels defaults to the app's original fixed 3/4/5 -- callers
+    that care about a particular client's configured model (which levels
+    they've chosen to see, see models/statistical_model_setting.py) pass
+    their own list explicitly; this function has no idea what a "client"
+    is and never will (see the module docstring).
+    """
     combined_one_sigma = combine_rss(tolerance_values)
     # An empty chain has nothing to say about whether the target is met --
     # see NOT_EVALUATED. The rows are still returned (with a zero spread)
@@ -84,7 +93,7 @@ def run_simulation(
     has_chain = len(tolerance_values) > 0
 
     results = []
-    for sigma_level in SIGMA_LEVELS:
+    for sigma_level in sigma_levels:
         spread = combined_one_sigma * sigma_level
         rag, lower_bound, upper_bound = evaluate_band(nominal, upper_limit, lower_limit, spread)
         results.append(

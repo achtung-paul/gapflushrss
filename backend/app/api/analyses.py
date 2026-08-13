@@ -71,6 +71,8 @@ def _entry_out(analysis: Analysis, entry: AnalysisEntry) -> AnalysisEntryOut:
         nominal_value=entry.nominal_value,
         upper_limit=entry.upper_limit,
         lower_limit=entry.lower_limit,
+        upper_bound=entry.nominal_value + entry.upper_limit,
+        lower_bound=entry.nominal_value - entry.lower_limit,
         direction=entry.direction,
         created_by_name=entry.created_by_name,
         updated_by_name=entry.updated_by_name,
