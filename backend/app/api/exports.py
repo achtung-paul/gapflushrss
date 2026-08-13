@@ -8,7 +8,7 @@
 import re
 from io import BytesIO
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,7 @@ from app.core import service_storage
 from app.core.angled_simulation import run_angled_simulation
 from app.core.config import settings
 from app.core.excel_export import _draw_markers, build_commodity_workbook, build_entry_workbook
+from app.core.security_events import EVENT_EXPORT_COMMODITY, EVENT_EXPORT_ENTRY, record_event
 from app.core.simulation import run_simulation
 from app.db.session import get_db
 from app.models.analysis import Analysis
@@ -59,6 +60,7 @@ def _read_image_bytes(minio_service: MinioService, object_key: str) -> bytes:
 
 @router.get("/entries/{entry_id}/export")
 def export_entry(
+    request: Request,
     project_id: int,
     entry_id: int,
     project: Project = Depends(get_project),
@@ -204,6 +206,22 @@ def export_entry(
     filename_parts = [_safe_filename_part(project.project_name), _safe_filename_part(commodity.name), display_code]
     filename = " - ".join(part for part in filename_parts if part) + ".xlsx"
 
+    # Excel export is the deliberate exfiltration-path signal this
+    # feature logs (unlike the plain <img src> image-serving routes,
+    # which are excluded -- see api/images.py's get_image_file) -- a
+    # download that leaves with real data in it, not a page render.
+    record_event(
+        db,
+        event_type=EVENT_EXPORT_ENTRY,
+        actor=current_user,
+        request=request,
+        client_id=current_user.client_id,
+        target_type="entry",
+        target_id=entry_id,
+        target_name=display_code,
+    )
+    db.commit()
+
     return StreamingResponse(
         BytesIO(workbook_bytes),
         media_type=XLSX_MEDIA_TYPE,
@@ -213,6 +231,7 @@ def export_entry(
 
 @router.get("/commodities/{commodity_id}/export")
 def export_commodity(
+    request: Request,
     project_id: int,
     commodity_id: int,
     project: Project = Depends(get_project),
@@ -331,6 +350,18 @@ def export_commodity(
         "Summary",
     ]
     filename = " - ".join(part for part in filename_parts if part) + ".xlsx"
+
+    record_event(
+        db,
+        event_type=EVENT_EXPORT_COMMODITY,
+        actor=current_user,
+        request=request,
+        client_id=current_user.client_id,
+        target_type="commodity",
+        target_id=commodity_id,
+        target_name=commodity.name,
+    )
+    db.commit()
 
     return StreamingResponse(
         BytesIO(workbook_bytes),

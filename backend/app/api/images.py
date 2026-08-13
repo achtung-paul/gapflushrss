@@ -11,7 +11,7 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -29,6 +29,7 @@ from app.api.deps import (
     require_project_manager,
 )
 from app.core import service_storage
+from app.core.security_events import EVENT_DATA_DELETED, record_event
 from app.core.uploads import (
     EXTENSION_BY_TYPE,
     read_and_validate_upload,
@@ -141,6 +142,13 @@ def get_image_file(
     minio_service: MinioService = Depends(get_project_minio_service),
     _: User = Depends(get_current_user),
 ):
+    # Deliberately not recorded to security_events -- this is consumed as
+    # a plain <img src>, firing on every gallery/report render (often 10+
+    # times per page view), so it's indistinguishable from ordinary
+    # browsing and would swamp the audit log. Excel export (api/exports.py)
+    # is the deliberate exfiltration-path signal instead; the accepted
+    # gap is that bulk image scraping through this endpoint leaves no
+    # trace. See the plan behind this feature for the full reasoning.
     image = _get_image_or_404(project_db, project_id, image_id)
     minio_response = service_storage.get_image_stream(minio_service, image.object_key)
     # nosniff stops a browser second-guessing the Content-Type and
@@ -156,6 +164,7 @@ def get_image_file(
 
 @router.delete("/images/{image_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_commodity_image(
+    request: Request,
     project_id: int,
     image_id: int,
     db: Session = Depends(get_db),
@@ -165,6 +174,7 @@ def delete_commodity_image(
 ):
     image = _get_image_or_404(project_db, project_id, image_id)
     _require_manager_for_commodity(db, project_db, current_user, project_id, image.commodity_id)
+    image_name = image.original_filename
 
     service_storage.delete_image(minio_service, image.object_key)
     # Cascades to its markers (ondelete="CASCADE"), but NOT to the
@@ -173,6 +183,20 @@ def delete_commodity_image(
     # become placeholders again, still reachable from the plain list.
     project_db.delete(image)
     project_db.commit()
+
+    # See api/chain_components.py's delete_chain_component for why this
+    # is a separate commit on the central `db`.
+    record_event(
+        db,
+        event_type=EVENT_DATA_DELETED,
+        actor=current_user,
+        request=request,
+        client_id=current_user.client_id,
+        target_type="image",
+        target_id=image_id,
+        target_name=image_name,
+    )
+    db.commit()
 
 
 @router.get("/images/{image_id}/markers", response_model=list[MarkerOut])
@@ -233,6 +257,7 @@ def create_marker(
 
 @router.delete("/markers/{marker_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_marker(
+    request: Request,
     project_id: int,
     marker_id: int,
     db: Session = Depends(get_db),
@@ -246,6 +271,11 @@ def delete_marker(
 
     analysis = _get_analysis_or_404(project_db, project_id, marker.analysis_id)
     _require_manager_for_commodity(db, project_db, current_user, project_id, analysis.commodity_id)
+    # Captured now, not read off `marker`/`analysis` after project_db.commit()
+    # below expires them -- same trap as api/admin_clients.py's
+    # delete_client capturing client.name before its own delete.
+    analysis_id = analysis.analysis_id
+    analysis_code = analysis.analysis_code
 
     # The analysis's own reference-photo gallery (AnalysisImage) cascades
     # away with it in the database, so its MinIO objects have to go first
@@ -260,3 +290,18 @@ def delete_marker(
     # pair and what hangs off it is removed.
     project_db.delete(analysis)
     project_db.commit()
+
+    # This is a whole-Analysis deletion (marker + everything under it),
+    # so it's recorded as one -- not as a separate "marker" event -- since
+    # that's the meaningful unit an investigation would look for.
+    record_event(
+        db,
+        event_type=EVENT_DATA_DELETED,
+        actor=current_user,
+        request=request,
+        client_id=current_user.client_id,
+        target_type="analysis",
+        target_id=analysis_id,
+        target_name=analysis_code,
+    )
+    db.commit()

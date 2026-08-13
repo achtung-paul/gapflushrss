@@ -3,13 +3,14 @@
 # that feed into the RSS stack-up, and the computed 3/4/5 sigma results
 # evaluated against the entry's own nominal/tolerance band.
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.analyses import _get_entry_or_404
 from app.api.deps import get_current_user, get_project_db, require_project_editor, require_project_manager
 from app.api.reference_data import get_visible_sigma_levels
+from app.core.security_events import EVENT_DATA_DELETED, record_event
 from app.core.simulation import run_simulation
 from app.db.session import get_db
 from app.models.analysis_entry import AnalysisEntry
@@ -164,6 +165,7 @@ def update_chain_component(
 
 @router.delete("/chain-components/{chain_component_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_chain_component(
+    request: Request,
     project_id: int,
     chain_component_id: int,
     db: Session = Depends(get_db),
@@ -178,9 +180,26 @@ def delete_chain_component(
     # up to Commodity.project_id) -- a colocated project on the same
     # Postgres service could otherwise have a matching chain_component_id.
     _require_manager_for_entry(db, project_db, current_user, project_id, component.entry_id)
+    component_name = component.description
 
     project_db.delete(component)
     project_db.commit()
+
+    # Recorded on the central `db`, separately from project_db's own
+    # commit above -- audit events always live centrally (see
+    # models/security_event.py), so this can't be the same transaction
+    # as the deletion itself; the event simply follows it.
+    record_event(
+        db,
+        event_type=EVENT_DATA_DELETED,
+        actor=current_user,
+        request=request,
+        client_id=current_user.client_id,
+        target_type="chain_component",
+        target_id=chain_component_id,
+        target_name=component_name,
+    )
+    db.commit()
 
 
 @router.get("/entries/{entry_id}/simulation", response_model=SimulationResultOut)

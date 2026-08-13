@@ -3,13 +3,14 @@
 # separate file/router/table from chain_components.py -- see
 # models/angled_component.py's header for why the two aren't merged.
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.analyses import _get_entry_or_404
 from app.api.deps import get_current_user, get_project_db, require_project_editor, require_project_manager
 from app.core.angled_simulation import run_angled_simulation
+from app.core.security_events import EVENT_DATA_DELETED, record_event
 from app.db.session import get_db
 from app.models.analysis_entry import AnalysisEntry
 from app.models.angled_component import AngledComponent
@@ -119,6 +120,7 @@ def update_angled_component(
 
 @router.delete("/angled-components/{angled_component_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_angled_component(
+    request: Request,
     project_id: int,
     angled_component_id: int,
     db: Session = Depends(get_db),
@@ -133,9 +135,24 @@ def delete_angled_component(
     # up to Commodity.project_id) -- a colocated project on the same
     # Postgres service could otherwise have a matching angled_component_id.
     _require_manager_for_entry(db, project_db, current_user, project_id, component.entry_id)
+    component_name = component.component_name
 
     project_db.delete(component)
     project_db.commit()
+
+    # See api/chain_components.py's delete_chain_component for why this
+    # is a separate commit on the central `db`.
+    record_event(
+        db,
+        event_type=EVENT_DATA_DELETED,
+        actor=current_user,
+        request=request,
+        client_id=current_user.client_id,
+        target_type="angled_component",
+        target_id=angled_component_id,
+        target_name=component_name,
+    )
+    db.commit()
 
 
 @router.get("/entries/{entry_id}/angled-simulation", response_model=AngledSimulationOut)

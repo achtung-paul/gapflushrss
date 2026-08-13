@@ -4,12 +4,23 @@
 # can't reach this file at all (require_client_admin rejects them, since
 # their client_id is NULL -- see api/deps.py).
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_project, require_client_admin
 from app.core.invites import build_invited_user, send_account_invite
 from app.core.security import force_password_reset
+from app.core.security_events import (
+    EVENT_PROJECT_MEMBER_ADDED,
+    EVENT_PROJECT_MEMBER_REMOVED,
+    EVENT_USER_2FA_RESET,
+    EVENT_USER_CREATED,
+    EVENT_USER_DELETED,
+    EVENT_USER_INVITE_RESENT,
+    EVENT_USER_PASSWORD_RESET_FORCED,
+    EVENT_USER_ROLE_CHANGED,
+    record_event,
+)
 from app.db.session import get_db
 from app.models.group import Group, UserGroupProject
 from app.models.login_challenge import LoginChallenge
@@ -97,6 +108,7 @@ def list_client_users(
 
 @router.post("/users", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def create_client_user(
+    request: Request,
     body: ClientUserCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_client_admin),
@@ -119,6 +131,18 @@ def create_client_user(
         client_id=current_user.client_id,
     )
     db.add(user)
+    db.flush()  # assigns user.user_id for the event below, without ending the transaction
+    record_event(
+        db,
+        event_type=EVENT_USER_CREATED,
+        actor=current_user,
+        request=request,
+        client_id=current_user.client_id,
+        target_type="user",
+        target_id=user.user_id,
+        target_name=user.email,
+        detail=body.global_role,
+    )
     db.commit()
     db.refresh(user)
 
@@ -140,6 +164,7 @@ def create_client_user(
 
 @router.put("/users/{user_id}", response_model=UserOut)
 def update_client_user(
+    request: Request,
     user_id: int,
     body: ClientUserUpdate,
     db: Session = Depends(get_db),
@@ -162,10 +187,26 @@ def update_client_user(
             )
         _refuse_if_last_client_admin(db, user)
 
+    # Compared before assigning: a name/email edit through this same form
+    # is not a permission change and shouldn't be logged as one -- only
+    # an actual change of global_role is a "user.role_changed" event.
+    old_role = user.global_role.value
     user.first_name = body.first_name
     user.last_name = body.last_name
     user.email = body.email
     user.global_role = GlobalRole(body.global_role)
+    if body.global_role != old_role:
+        record_event(
+            db,
+            event_type=EVENT_USER_ROLE_CHANGED,
+            actor=current_user,
+            request=request,
+            client_id=current_user.client_id,
+            target_type="user",
+            target_id=user.user_id,
+            target_name=user.email,
+            detail=f"{old_role} -> {body.global_role}",
+        )
     db.commit()
     db.refresh(user)
     return user
@@ -173,6 +214,7 @@ def update_client_user(
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_client_user(
+    request: Request,
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_client_admin),
@@ -194,23 +236,46 @@ def delete_client_user(
     db.query(UserGroupProject).filter(UserGroupProject.user_id == user_id).delete()
     db.query(UserTotp).filter(UserTotp.user_id == user_id).delete()
     db.query(LoginChallenge).filter(LoginChallenge.user_id == user_id).delete()
+    deleted_email = user.email  # captured before delete expires the object
     db.delete(user)
+    record_event(
+        db,
+        event_type=EVENT_USER_DELETED,
+        actor=current_user,
+        request=request,
+        client_id=current_user.client_id,
+        target_type="user",
+        target_id=user_id,
+        target_name=deleted_email,
+    )
     db.commit()
 
 
 @router.post("/users/{user_id}/force-password-reset", status_code=status.HTTP_204_NO_CONTENT)
 def force_client_user_password_reset(
+    request: Request,
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_client_admin),
 ):
     user = _get_client_user_or_404(db, current_user, user_id)
     force_password_reset(db, user)
+    record_event(
+        db,
+        event_type=EVENT_USER_PASSWORD_RESET_FORCED,
+        actor=current_user,
+        request=request,
+        client_id=current_user.client_id,
+        target_type="user",
+        target_id=user.user_id,
+        target_name=user.email,
+    )
     db.commit()
 
 
 @router.post("/users/{user_id}/resend-invite", status_code=status.HTTP_204_NO_CONTENT)
 def resend_client_user_invite(
+    request: Request,
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_client_admin),
@@ -229,10 +294,22 @@ def resend_client_user_invite(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to send invite email: {error}"
         )
+    record_event(
+        db,
+        event_type=EVENT_USER_INVITE_RESENT,
+        actor=current_user,
+        request=request,
+        client_id=current_user.client_id,
+        target_type="user",
+        target_id=user.user_id,
+        target_name=user.email,
+    )
+    db.commit()
 
 
 @router.post("/users/{user_id}/reset-2fa", status_code=status.HTTP_204_NO_CONTENT)
 def reset_client_user_2fa(
+    request: Request,
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_client_admin),
@@ -247,6 +324,16 @@ def reset_client_user_2fa(
     db.query(UserTotp).filter(UserTotp.user_id == user_id).delete()
     db.query(LoginChallenge).filter(LoginChallenge.user_id == user_id).delete()
     db.query(UserSession).filter(UserSession.user_id == user_id).delete()
+    record_event(
+        db,
+        event_type=EVENT_USER_2FA_RESET,
+        actor=current_user,
+        request=request,
+        client_id=current_user.client_id,
+        target_type="user",
+        target_id=user.user_id,
+        target_name=user.email,
+    )
     db.commit()
 
 
@@ -279,6 +366,7 @@ def list_project_members(
 
 @router.post("/projects/{project_id}/members", status_code=status.HTTP_204_NO_CONTENT)
 def add_project_group_member(
+    request: Request,
     project_id: int,
     body: GroupMembershipCreate,
     db: Session = Depends(get_db),
@@ -304,17 +392,29 @@ def add_project_group_member(
     )
     if already_member is None:
         db.add(UserGroupProject(user_id=user.user_id, group_id=group.group_id, project_id=project.project_id))
+        record_event(
+            db,
+            event_type=EVENT_PROJECT_MEMBER_ADDED,
+            actor=current_user,
+            request=request,
+            client_id=current_user.client_id,
+            target_type="user",
+            target_id=user.user_id,
+            target_name=user.email,
+            detail=f"{project.project_name} ({body.group_role})",
+        )
         db.commit()
 
 
 @router.delete("/projects/{project_id}/members/{group_role}/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_project_group_member(
+    request: Request,
     project_id: int,
     group_role: GroupRole,
     user_id: int,
     db: Session = Depends(get_db),
     project: Project = Depends(get_project),
-    _: User = Depends(require_client_admin),
+    current_user: User = Depends(require_client_admin),
 ):
     # Offboarding is the mirror of add_project_group_member above: drop
     # the one UserGroupProject row linking this user to this project's
@@ -323,7 +423,27 @@ def remove_project_group_member(
     if group is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
 
-    db.query(UserGroupProject).filter_by(
-        user_id=user_id, group_id=group.group_id, project_id=project.project_id
-    ).delete()
+    removed = (
+        db.query(UserGroupProject)
+        .filter_by(user_id=user_id, group_id=group.group_id, project_id=project.project_id)
+        .delete()
+    )
+    if removed:
+        # Best-effort display name -- the user row itself is central data
+        # this client admin can already see, so no extra tenancy check is
+        # needed here (unlike the add path, which uses
+        # _get_client_user_or_404 to check ownership before granting
+        # anything).
+        member = db.get(User, user_id)
+        record_event(
+            db,
+            event_type=EVENT_PROJECT_MEMBER_REMOVED,
+            actor=current_user,
+            request=request,
+            client_id=current_user.client_id,
+            target_type="user",
+            target_id=user_id,
+            target_name=member.email if member is not None else None,
+            detail=f"{project.project_name} ({group_role})",
+        )
     db.commit()

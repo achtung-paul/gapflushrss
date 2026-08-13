@@ -34,3 +34,4 @@ from app.models.statistical_model_setting import StatisticalModelSetting  # noqa
 from app.models.security_setting import SecuritySetting  # noqa: F401
 from app.models.user_totp import UserTotp  # noqa: F401
 from app.models.login_challenge import LoginChallenge  # noqa: F401
+from app.models.security_event import SecurityEvent  # noqa: F401

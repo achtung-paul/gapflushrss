@@ -19,6 +19,18 @@ from app.core.crypto import decrypt_secret, encrypt_secret
 from app.core.email import send_email
 from app.core.rate_limit import limiter
 from app.core.security import generate_token, hash_password, verify_password
+from app.core.security_events import (
+    EVENT_2FA_ENROLLED,
+    EVENT_2FA_FAILED,
+    EVENT_2FA_LOCKED,
+    EVENT_LOGIN_BLOCKED,
+    EVENT_LOGIN_FAILED,
+    EVENT_LOGIN_SUCCESS,
+    EVENT_LOGOUT,
+    EVENT_PASSWORD_RESET_COMPLETED,
+    EVENT_PASSWORD_RESET_REQUESTED,
+    record_event,
+)
 from app.db.session import get_db
 from app.models.client import Client
 from app.models.login_challenge import CHALLENGE_LIFETIME, MAX_ATTEMPTS, LoginChallenge, LoginChallengeKind
@@ -71,13 +83,17 @@ def _current_user_out(db: Session, user: User) -> CurrentUserOut:
     )
 
 
-def _issue_session(db: Session, user: User, response: Response) -> CurrentUserOut:
+def _issue_session(db: Session, user: User, response: Response, request: Request) -> CurrentUserOut:
     """The one place a UserSession row (and its cookie) actually gets
     created -- used by both the no-2FA login path and /2fa/verify's
     successful-code path, so a session is never issued any other way.
+    Also the one place a successful login is recorded, for the same
+    reason: whichever path got here (with or without 2FA), the meaningful
+    security event is "this account is now logged in".
     """
     session = UserSession(session_token=generate_token(), user_id=user.user_id)
     db.add(session)
+    record_event(db, event_type=EVENT_LOGIN_SUCCESS, actor=user, request=request)
     db.commit()
 
     response.set_cookie(
@@ -141,6 +157,15 @@ def login(
         body.password, user.password_hash if user is not None else _TIMING_EQUALIZER_HASH
     )
     if user is None or not password_ok:
+        # actor_email, not actor -- there is no confirmed account here,
+        # only an attempted address, and that's exactly what an incident
+        # investigation needs to see (which addresses were being tried).
+        # Its own commit: this branch raises immediately, with nothing
+        # else in this request to piggyback the write onto.
+        record_event(
+            db, event_type=EVENT_LOGIN_FAILED, outcome="failure", actor_email=body.email, request=request
+        )
+        db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=GENERIC_LOGIN_ERROR)
 
     # Checked after the password itself, not before: telling someone who
@@ -150,6 +175,15 @@ def login(
     # its unusable hash (core/security.py's hash_unusable_password)
     # already fails the check above with the same generic error.
     if user.must_reset_password:
+        record_event(
+            db,
+            event_type=EVENT_LOGIN_BLOCKED,
+            outcome="failure",
+            actor=user,
+            request=request,
+            detail="must_reset_password",
+        )
+        db.commit()
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=MUST_RESET_PASSWORD_ERROR)
 
     # Same reasoning, same ordering: only someone who already proved they
@@ -160,6 +194,15 @@ def login(
     if user.client_id is not None:
         client = db.get(Client, user.client_id)
         if client is None or not client.is_active:
+            record_event(
+                db,
+                event_type=EVENT_LOGIN_BLOCKED,
+                outcome="failure",
+                actor=user,
+                request=request,
+                detail="client_inactive",
+            )
+            db.commit()
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=CLIENT_INACTIVE_ERROR)
 
     # The 2FA gate -- last check before a session is issued. Reads the
@@ -173,7 +216,7 @@ def login(
             return _start_enroll_challenge(db, user)
         return _start_verify_challenge(db, user)
 
-    return LoginResult(status="ok", user=_issue_session(db, user, response))
+    return LoginResult(status="ok", user=_issue_session(db, user, response, request))
 
 
 @router.post("/2fa/verify", response_model=CurrentUserOut)
@@ -220,9 +263,11 @@ def verify_2fa(
     if matched_step is None:
         challenge.attempts += 1
         if challenge.attempts >= MAX_ATTEMPTS:
+            record_event(db, event_type=EVENT_2FA_LOCKED, outcome="failure", actor=user, request=request)
             db.delete(challenge)
             db.commit()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TOO_MANY_ATTEMPTS_ERROR)
+        record_event(db, event_type=EVENT_2FA_FAILED, outcome="failure", actor=user, request=request)
         db.commit()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=INVALID_CODE_ERROR)
 
@@ -237,17 +282,24 @@ def verify_2fa(
                 last_used_step=matched_step,
             )
         )
+        record_event(db, event_type=EVENT_2FA_ENROLLED, actor=user, request=request)
     else:
         totp_row.last_used_step = matched_step
 
     db.delete(challenge)
-    return _issue_session(db, user, response)
+    return _issue_session(db, user, response, request)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(request: Request, response: Response, db: Session = Depends(get_db)):
     token = request.cookies.get(settings.session_cookie_name)
     if token:
+        # Looked up before deleting, purely so the event below can name
+        # who logged out -- the delete itself doesn't need this.
+        session = db.get(UserSession, token)
+        if session is not None:
+            user = db.get(User, session.user_id)
+            record_event(db, event_type=EVENT_LOGOUT, actor=user, request=request)
         db.execute(delete(UserSession).where(UserSession.session_token == token))
         db.commit()
     response.delete_cookie(settings.session_cookie_name)
@@ -269,6 +321,7 @@ def request_password_reset(
     if user is not None:
         reset_token = PasswordResetToken(token=generate_token(), user_id=user.user_id)
         db.add(reset_token)
+        record_event(db, event_type=EVENT_PASSWORD_RESET_REQUESTED, actor=user, request=request)
         db.commit()
 
         reset_link = f"{settings.frontend_origin}/reset-password?token={reset_token.token}"
@@ -287,7 +340,7 @@ def request_password_reset(
 
 
 @router.post("/password-reset/confirm")
-def confirm_password_reset(body: PasswordResetConfirm, db: Session = Depends(get_db)):
+def confirm_password_reset(body: PasswordResetConfirm, request: Request, db: Session = Depends(get_db)):
     # Handles both an ordinary "forgot password" reset and a first-time
     # invite "set your password" link identically -- the token's
     # `purpose` only changed the email wording and expiry length at
@@ -314,5 +367,6 @@ def confirm_password_reset(body: PasswordResetConfirm, db: Session = Depends(get
     # any session that might have been started by whoever had the old password.
     db.execute(delete(UserSession).where(UserSession.user_id == user.user_id))
 
+    record_event(db, event_type=EVENT_PASSWORD_RESET_COMPLETED, actor=user, request=request)
     db.commit()
     return {"message": "Password has been reset. Please log in again."}

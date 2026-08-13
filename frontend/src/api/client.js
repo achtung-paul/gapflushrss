@@ -170,6 +170,21 @@ export const listLogs = (service, level, limit) => {
   return apiFetch(`/admin/logs?${params.toString()}`)
 }
 
+// filters: { category, outcome, clientId, actorEmail, fromDate, toDate, page, pageSize }
+// -- see schemas/security_event.py for the shape of what comes back.
+export const listSecurityEvents = (filters = {}) => {
+  const params = new URLSearchParams()
+  if (filters.category) params.set('category', filters.category)
+  if (filters.outcome) params.set('outcome', filters.outcome)
+  if (filters.clientId) params.set('client_id', String(filters.clientId))
+  if (filters.actorEmail) params.set('actor_email', filters.actorEmail)
+  if (filters.fromDate) params.set('from_date', filters.fromDate)
+  if (filters.toDate) params.set('to_date', filters.toDate)
+  params.set('page', String(filters.page || 1))
+  params.set('page_size', String(filters.pageSize || 50))
+  return apiFetch(`/admin/security-log?${params.toString()}`)
+}
+
 // Moved from /admin/projects/... to /client-admin/projects/... -- only a
 // client admin can manage their own client's project memberships now
 // (see api/client_admin.py).

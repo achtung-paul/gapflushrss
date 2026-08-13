@@ -7,7 +7,7 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -20,6 +20,7 @@ from app.api.deps import (
     require_project_manager,
 )
 from app.core import service_storage
+from app.core.security_events import EVENT_DATA_DELETED, record_event
 from app.core.uploads import (
     EXTENSION_BY_TYPE,
     read_and_validate_upload,
@@ -115,6 +116,9 @@ def get_analysis_image_file(
     minio_service: MinioService = Depends(get_project_minio_service),
     _: User = Depends(get_current_user),
 ):
+    # Deliberately not recorded to security_events -- same reasoning as
+    # api/images.py's get_image_file: this is an <img src>, not a
+    # deliberate download, and fires on every gallery render.
     image = _get_analysis_image_or_404(project_db, project_id, analysis_image_id)
     minio_response = service_storage.get_image_stream(minio_service, image.object_key)
     # Same nosniff / safe_media_type reasoning as api/images.py's
@@ -128,6 +132,7 @@ def get_analysis_image_file(
 
 @router.delete("/analysis-images/{analysis_image_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_analysis_image(
+    request: Request,
     project_id: int,
     analysis_image_id: int,
     db: Session = Depends(get_db),
@@ -137,6 +142,7 @@ def delete_analysis_image(
 ):
     image = _get_analysis_image_or_404(project_db, project_id, analysis_image_id)
     _require_manager_for_entry(db, project_db, current_user, project_id, image.entry_id)
+    image_name = image.original_filename
 
     # MinIO never cascades at the DB level -- delete the object before
     # the row disappears, since object_key is the only record of where
@@ -144,3 +150,17 @@ def delete_analysis_image(
     service_storage.delete_image(minio_service, image.object_key)
     project_db.delete(image)
     project_db.commit()
+
+    # See api/chain_components.py's delete_chain_component for why this
+    # is a separate commit on the central `db`.
+    record_event(
+        db,
+        event_type=EVENT_DATA_DELETED,
+        actor=current_user,
+        request=request,
+        client_id=current_user.client_id,
+        target_type="analysis_image",
+        target_id=analysis_image_id,
+        target_name=image_name,
+    )
+    db.commit()

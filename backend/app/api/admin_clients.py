@@ -10,7 +10,7 @@
 # written to return only those fields; nothing here can reach a project
 # or a non-admin user. See CLAUDE.md's tenancy-boundary gotcha.
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,17 @@ from app.api.projects import purge_project_data
 from app.core import service_db, service_provisioning, service_storage
 from app.core.invites import build_invited_user, send_account_invite
 from app.core.security import force_password_reset
+from app.core.security_events import (
+    EVENT_CLIENT_ACTIVATED,
+    EVENT_CLIENT_CREATED,
+    EVENT_CLIENT_DEACTIVATED,
+    EVENT_CLIENT_DELETED,
+    EVENT_USER_2FA_RESET,
+    EVENT_USER_CREATED,
+    EVENT_USER_INVITE_RESENT,
+    EVENT_USER_PASSWORD_RESET_FORCED,
+    record_event,
+)
 from app.core.statistical_model_defaults import default_statistical_model_rows
 from app.db.session import get_db
 from app.models.client import Client
@@ -107,9 +118,10 @@ def list_clients(db: Session = Depends(get_db), _: User = Depends(require_root_a
 
 @router.post("", response_model=ClientOut, status_code=status.HTTP_201_CREATED)
 def create_client(
+    request: Request,
     body: ClientCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_root_admin),
 ):
     existing = db.query(Client).filter(Client.name == body.name).first()
     if existing is not None:
@@ -217,7 +229,31 @@ def create_client(
     db.add(admin)
     _seed_default_process_type(db, client.client_id)
     _seed_default_statistical_model_settings(db, client.client_id)
+    db.flush()  # assigns admin.user_id for the event below, without ending the transaction
 
+    record_event(
+        db,
+        event_type=EVENT_CLIENT_CREATED,
+        actor=current_user,
+        request=request,
+        client_id=client.client_id,
+        client_name=client.name,
+        target_type="client",
+        target_id=client.client_id,
+        target_name=client.name,
+    )
+    record_event(
+        db,
+        event_type=EVENT_USER_CREATED,
+        actor=current_user,
+        request=request,
+        client_id=client.client_id,
+        client_name=client.name,
+        target_type="user",
+        target_id=admin.user_id,
+        target_name=admin.email,
+        detail="client_admin",
+    )
     db.commit()
     db.refresh(client)
     db.refresh(admin)
@@ -254,15 +290,16 @@ def list_client_admins(
 
 @router.post("/{client_id}/admins", response_model=ClientAdminOut, status_code=status.HTTP_201_CREATED)
 def add_client_admin(
+    request: Request,
     client_id: int,
     body: ClientAdminCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_root_admin),
 ):
     # The recovery path when a client's only admin leaves -- root admin
     # can register a replacement without being able to see anything else
     # about the client.
-    _get_client_or_404(db, client_id)
+    client = _get_client_or_404(db, client_id)
 
     existing = db.query(User).filter(User.email == body.email).first()
     if existing is not None:
@@ -276,6 +313,19 @@ def add_client_admin(
         client_id=client_id,
     )
     db.add(admin)
+    db.flush()  # assigns admin.user_id for the event below, without ending the transaction
+    record_event(
+        db,
+        event_type=EVENT_USER_CREATED,
+        actor=current_user,
+        request=request,
+        client_id=client_id,
+        client_name=client.name,
+        target_type="user",
+        target_id=admin.user_id,
+        target_name=admin.email,
+        detail="client_admin",
+    )
     db.commit()
     db.refresh(admin)
 
@@ -291,22 +341,34 @@ def add_client_admin(
 
 @router.post("/{client_id}/admins/{user_id}/force-password-reset", status_code=status.HTTP_204_NO_CONTENT)
 def force_client_admin_password_reset(
+    request: Request,
     client_id: int,
     user_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_root_admin),
 ):
     admin = _get_client_admin_or_404(db, client_id, user_id)
     force_password_reset(db, admin)
+    record_event(
+        db,
+        event_type=EVENT_USER_PASSWORD_RESET_FORCED,
+        actor=current_user,
+        request=request,
+        client_id=client_id,
+        target_type="user",
+        target_id=admin.user_id,
+        target_name=admin.email,
+    )
     db.commit()
 
 
 @router.post("/{client_id}/admins/{user_id}/resend-invite", status_code=status.HTTP_204_NO_CONTENT)
 def resend_client_admin_invite(
+    request: Request,
     client_id: int,
     user_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_root_admin),
 ):
     admin = _get_client_admin_or_404(db, client_id, user_id)
     try:
@@ -315,14 +377,26 @@ def resend_client_admin_invite(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to send invite email: {error}"
         )
+    record_event(
+        db,
+        event_type=EVENT_USER_INVITE_RESENT,
+        actor=current_user,
+        request=request,
+        client_id=client_id,
+        target_type="user",
+        target_id=admin.user_id,
+        target_name=admin.email,
+    )
+    db.commit()
 
 
 @router.post("/{client_id}/admins/{user_id}/reset-2fa", status_code=status.HTTP_204_NO_CONTENT)
 def reset_client_admin_2fa(
+    request: Request,
     client_id: int,
     user_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_root_admin),
 ):
     """Recovery path for a client admin who's lost their authenticator
     device -- mirrors api/client_admin.py's reset_client_user_2fa. Root
@@ -334,15 +408,26 @@ def reset_client_admin_2fa(
     db.query(UserTotp).filter(UserTotp.user_id == admin.user_id).delete()
     db.query(LoginChallenge).filter(LoginChallenge.user_id == admin.user_id).delete()
     db.query(UserSession).filter(UserSession.user_id == admin.user_id).delete()
+    record_event(
+        db,
+        event_type=EVENT_USER_2FA_RESET,
+        actor=current_user,
+        request=request,
+        client_id=client_id,
+        target_type="user",
+        target_id=admin.user_id,
+        target_name=admin.email,
+    )
     db.commit()
 
 
 @router.put("/{client_id}", response_model=ClientOut)
 def update_client(
+    request: Request,
     client_id: int,
     body: ClientUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_root_admin),
 ):
     client = _get_client_or_404(db, client_id)
 
@@ -361,6 +446,22 @@ def update_client(
     if was_active and not body.is_active:
         _kill_client_sessions(db, client_id)
 
+    # Logged only on an actual activate/deactivate transition, not on a
+    # plain rename -- renaming isn't a security-relevant action the way
+    # flipping a client's access on or off is.
+    if was_active != body.is_active:
+        record_event(
+            db,
+            event_type=EVENT_CLIENT_ACTIVATED if body.is_active else EVENT_CLIENT_DEACTIVATED,
+            actor=current_user,
+            request=request,
+            client_id=client_id,
+            client_name=client.name,
+            target_type="client",
+            target_id=client_id,
+            target_name=client.name,
+        )
+
     db.commit()
     db.refresh(client)
     return _client_out(db, client)
@@ -368,9 +469,10 @@ def update_client(
 
 @router.delete("/{client_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_client(
+    request: Request,
     client_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_root_admin),
 ):
     """Permanently purge a client: every project's data, every user, the
     client itself -- after taking a full snapshot first.
@@ -388,6 +490,7 @@ def delete_client(
     # would try to re-SELECT a row that no longer exists.
     postgres_service_id = client.postgres_service_id
     minio_service_id = client.minio_service_id
+    client_name = client.name
 
     # 1. Freeze the client first, so nothing writes to its data while
     # the snapshot below is being taken.
@@ -407,6 +510,26 @@ def delete_client(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Snapshot failed -- nothing was deleted. {error}",
         )
+
+    # Recorded once here, not once per project/user purged below -- this
+    # single event is what "this client was destroyed" means for an
+    # investigation; a row per Commodity would bury it in noise. Placed
+    # after the snapshot succeeds (the point of no return: everything
+    # from here on actually deletes something) and committed on its own,
+    # since this is the one step of the sequence below with a session
+    # that's guaranteed still fresh from the step-1 commit.
+    record_event(
+        db,
+        event_type=EVENT_CLIENT_DELETED,
+        actor=current_user,
+        request=request,
+        client_id=client_id,
+        client_name=client_name,
+        target_type="client",
+        target_id=client_id,
+        target_name=client_name,
+    )
+    db.commit()
 
     # 3. Purge every project's data (MinIO objects, then Commodity rows,
     # then the Project row itself -- see purge_project_data and

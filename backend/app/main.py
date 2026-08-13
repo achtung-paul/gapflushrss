@@ -34,6 +34,7 @@ from app.api import (
     postgres_services,
     projects,
     reference_data,
+    security_events,
     security_settings,
     standard_tolerances,
 )
@@ -46,17 +47,20 @@ from app.core.config import settings
 from app.core.email import validate_email_settings
 from app.core.logging_config import LOG_RETENTION_DAYS, cleanup_old_logs, configure_logging
 from app.core.rate_limit import limiter
+from app.core.security_events import EVENT_LOGIN_RATE_LIMITED, cleanup_old_security_events, record_event
 from app.db.session import SessionLocal
+from app.models.security_event import SECURITY_EVENT_RETENTION_DAYS
 
 logger = logging.getLogger(__name__)
 
-# How often the retention sweep runs after the one at startup. Daily is
-# plenty for a 7-day cutoff, and this container is restarted often enough
-# that the startup sweep does most of the work anyway.
+# How often the retention sweeps run after the ones at startup. Daily is
+# plenty for either cutoff (7 days for the operational log, 360 for
+# security events), and this container is restarted often enough that
+# the startup sweep does most of the work anyway.
 LOG_CLEANUP_INTERVAL_SECONDS = 24 * 60 * 60
 
 
-async def _periodic_log_cleanup() -> None:
+async def _periodic_cleanup() -> None:
     while True:
         await asyncio.sleep(LOG_CLEANUP_INTERVAL_SECONDS)
         try:
@@ -67,6 +71,24 @@ async def _periodic_log_cleanup() -> None:
             # A failed sweep must not kill the task -- it would silently
             # stop all future cleanups for the life of the process.
             logger.exception("Scheduled log cleanup failed")
+
+        # A separate try/except from the sweep above: a failure in one
+        # must not stop the other from running on its next tick, and
+        # each needs its own log line since they cover unrelated data
+        # with very different retention periods (7 days vs 360).
+        db = SessionLocal()
+        try:
+            removed = cleanup_old_security_events(db)
+            if removed:
+                logger.info(
+                    "Security event cleanup removed %d row(s) older than %d days",
+                    removed,
+                    SECURITY_EVENT_RETENTION_DAYS,
+                )
+        except Exception:
+            logger.exception("Scheduled security event cleanup failed")
+        finally:
+            db.close()
 
 
 @asynccontextmanager
@@ -99,10 +121,19 @@ async def lifespan(app: FastAPI):
         # After adoption, so a service adopted just above is included in
         # the same pass rather than waiting for the next restart.
         upgrade_initialized_services(db)
+        # Alongside the operational-log sweep above -- a fresh restart
+        # shouldn't have to wait up to a day for the first prune of
+        # either table.
+        removed_events = cleanup_old_security_events(db)
+        logger.info(
+            "Security event cleanup removed %d row(s) older than %d days",
+            removed_events,
+            SECURITY_EVENT_RETENTION_DAYS,
+        )
     finally:
         db.close()
 
-    cleanup_task = asyncio.create_task(_periodic_log_cleanup())
+    cleanup_task = asyncio.create_task(_periodic_cleanup())
     try:
         yield
     finally:
@@ -117,7 +148,32 @@ app = FastAPI(title="StackFit Pro API", lifespan=lifespan)
 # reads the limiter off app.state, and needs its own handler registered to
 # turn an exceeded limit into a 429 instead of an unhandled exception.
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+def _rate_limit_exceeded_with_audit(request: Request, exc: RateLimitExceeded):
+    # A tripped rate limit is the clearest brute-force signal this app
+    # has, but it can't be recorded from inside login()/verify_2fa()/
+    # request_password_reset() -- slowapi's dependency raises
+    # RateLimitExceeded (caught here, by this exception handler) *before*
+    # the route body ever runs. This is the only hook available for it.
+    # Uses its own short-lived session rather than FastAPI's Depends(get_db)
+    # -- exception handlers aren't routes and can't take Depends.
+    db = SessionLocal()
+    try:
+        record_event(
+            db,
+            event_type=EVENT_LOGIN_RATE_LIMITED,
+            outcome="failure",
+            request=request,
+            detail=f"{request.method} {request.url.path}",
+        )
+        db.commit()
+    finally:
+        db.close()
+    return _rate_limit_exceeded_handler(request, exc)
+
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_with_audit)
 
 
 @app.exception_handler(Exception)
@@ -165,6 +221,7 @@ app.include_router(standard_tolerances.router)
 app.include_router(exports.router)
 app.include_router(banner.router)
 app.include_router(security_settings.router)
+app.include_router(security_events.router)
 app.include_router(logs.router)
 app.include_router(internal_logs.router)
 

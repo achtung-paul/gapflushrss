@@ -11,7 +11,7 @@
 # can't see, which is what actually hides its existence from direct
 # navigation too, including from root_admin.
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.analyses import delete_analysis_images_from_storage
@@ -24,6 +24,7 @@ from app.api.deps import (
     require_client_admin,
 )
 from app.core import service_storage
+from app.core.security_events import EVENT_PROJECT_CREATED, EVENT_PROJECT_DELETED, record_event
 from app.db.session import get_db
 from app.models.analysis import Analysis
 from app.models.client import Client
@@ -141,6 +142,7 @@ def list_projects(db: Session = Depends(get_db), current_user: User = Depends(ge
 
 @router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
 def create_project(
+    request: Request,
     body: ProjectCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_client_admin),
@@ -173,6 +175,16 @@ def create_project(
     for role_name in (MANAGERS, CONTRIBUTORS, VIEWERS):
         db.add(Group(project_id=project.project_id, role_name=role_name))
 
+    record_event(
+        db,
+        event_type=EVENT_PROJECT_CREATED,
+        actor=current_user,
+        request=request,
+        client_id=client.client_id,
+        target_type="project",
+        target_id=project.project_id,
+        target_name=project.project_name,
+    )
     db.commit()
     db.refresh(project)
     return _project_out(db, project, current_user)
@@ -206,17 +218,29 @@ def update_project(
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_project(
+    request: Request,
     project_id: int,
     db: Session = Depends(get_db),
     project: Project = Depends(get_project),
     project_db: Session = Depends(get_project_db),
     minio_service: MinioService = Depends(get_project_minio_service),
-    _: User = Depends(require_client_admin),
+    current_user: User = Depends(require_client_admin),
 ):
     purge_project_data(project_db, minio_service, project_id)
 
     # Groups now carry a real FK to Project (ondelete="CASCADE"), so
     # deleting the project below takes its three groups -- and every
     # UserGroupProject row pointing at them -- with it automatically.
+    project_name = project.project_name  # captured before delete expires the object
     db.delete(project)
+    record_event(
+        db,
+        event_type=EVENT_PROJECT_DELETED,
+        actor=current_user,
+        request=request,
+        client_id=current_user.client_id,
+        target_type="project",
+        target_id=project_id,
+        target_name=project_name,
+    )
     db.commit()

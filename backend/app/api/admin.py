@@ -6,11 +6,18 @@
 # now: root admin has no route that can reach them (see CLAUDE.md's
 # tenancy-boundary gotcha).
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_root_admin
 from app.core.invites import build_invited_user, send_account_invite
+from app.core.security_events import (
+    EVENT_USER_2FA_RESET,
+    EVENT_USER_CREATED,
+    EVENT_USER_DELETED,
+    EVENT_USER_INVITE_RESENT,
+    record_event,
+)
 from app.db.session import get_db
 from app.models.login_challenge import LoginChallenge
 from app.models.password_reset_token import PasswordResetToken
@@ -79,9 +86,10 @@ def list_root_admins(
 
 @router.post("/root-admins", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def create_root_admin(
+    request: Request,
     body: RootAdminCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_root_admin),
 ):
     already_exists = db.query(User).filter(User.email == body.email).first()
     if already_exists is not None:
@@ -98,6 +106,17 @@ def create_root_admin(
         client_id=None,
     )
     db.add(user)
+    db.flush()  # assigns user.user_id for the event below, without ending the transaction
+    record_event(
+        db,
+        event_type=EVENT_USER_CREATED,
+        actor=current_user,
+        request=request,
+        target_type="user",
+        target_id=user.user_id,
+        target_name=user.email,
+        detail="root_admin",
+    )
     db.commit()
     db.refresh(user)
 
@@ -143,6 +162,7 @@ def update_root_admin(
 
 @router.delete("/root-admins/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_root_admin(
+    request: Request,
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_root_admin),
@@ -171,15 +191,29 @@ def delete_root_admin(
     db.query(PasswordResetToken).filter(PasswordResetToken.user_id == user_id).delete()
     db.query(UserTotp).filter(UserTotp.user_id == user_id).delete()
     db.query(LoginChallenge).filter(LoginChallenge.user_id == user_id).delete()
+    # Captured before the delete below, not read off `user` afterward --
+    # SQLAlchemy expires a deleted object on commit.
+    deleted_email = user.email
     db.delete(user)
+    record_event(
+        db,
+        event_type=EVENT_USER_DELETED,
+        actor=current_user,
+        request=request,
+        target_type="user",
+        target_id=user_id,
+        target_name=deleted_email,
+        detail="root_admin",
+    )
     db.commit()
 
 
 @router.post("/root-admins/{user_id}/resend-invite", status_code=status.HTTP_204_NO_CONTENT)
 def resend_root_admin_invite(
+    request: Request,
     user_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_root_admin),
 ):
     user = db.query(User).filter(User.user_id == user_id, User.client_id.is_(None)).first()
     if user is None:
@@ -190,13 +224,24 @@ def resend_root_admin_invite(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to send invite email: {error}"
         )
+    record_event(
+        db,
+        event_type=EVENT_USER_INVITE_RESENT,
+        actor=current_user,
+        request=request,
+        target_type="user",
+        target_id=user.user_id,
+        target_name=user.email,
+    )
+    db.commit()
 
 
 @router.post("/root-admins/{user_id}/reset-2fa", status_code=status.HTTP_204_NO_CONTENT)
 def reset_root_admin_2fa(
+    request: Request,
     user_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_root_admin),
+    current_user: User = Depends(require_root_admin),
 ):
     """Recovery path for a root admin who's lost their authenticator
     device -- mirrors api/client_admin.py's reset_client_user_2fa. A
@@ -210,4 +255,13 @@ def reset_root_admin_2fa(
     db.query(UserTotp).filter(UserTotp.user_id == user_id).delete()
     db.query(LoginChallenge).filter(LoginChallenge.user_id == user_id).delete()
     db.query(UserSession).filter(UserSession.user_id == user_id).delete()
+    record_event(
+        db,
+        event_type=EVENT_USER_2FA_RESET,
+        actor=current_user,
+        request=request,
+        target_type="user",
+        target_id=user.user_id,
+        target_name=user.email,
+    )
     db.commit()

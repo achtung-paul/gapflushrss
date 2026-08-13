@@ -147,6 +147,8 @@ function AdminPage() {
         {' | '}
         <Link to="/admin/logs">Service logs</Link>
         {' | '}
+        <Link to="/admin/security-log">Security log</Link>
+        {' | '}
         <Link to="/admin/banner">Site banner</Link>
         {' | '}
         <Link to="/admin/security">Two-factor authentication</Link>

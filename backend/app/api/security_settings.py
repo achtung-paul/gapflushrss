@@ -11,10 +11,11 @@
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_root_admin
+from app.core.security_events import EVENT_SECURITY_SETTINGS_CHANGED, record_event
 from app.db.session import get_db
 from app.models.security_setting import SECURITY_SETTINGS_ID, SecuritySetting
 from app.models.user import User
@@ -51,14 +52,27 @@ def read_security_settings(db: Session = Depends(get_db), _: User = Depends(requ
 
 @router.put("/security-settings", response_model=SecuritySettingOut)
 def update_security_settings(
+    request: Request,
     body: SecuritySettingUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_root_admin),
 ):
     row = get_or_create_security_settings(db)
+    old_value = row.require_2fa
     row.require_2fa = body.require_2fa
     row.updated_at = datetime.now(timezone.utc)
     row.updated_by_name = f"{current_user.first_name} {current_user.last_name}"
+    if old_value != body.require_2fa:
+        # System-wide, not per-client -- this is the one event type in
+        # the whole table with no client_id, the same way the setting
+        # itself has no per-client override (see models/security_setting.py).
+        record_event(
+            db,
+            event_type=EVENT_SECURITY_SETTINGS_CHANGED,
+            actor=current_user,
+            request=request,
+            detail=f"require_2fa -> {body.require_2fa}",
+        )
     db.commit()
     db.refresh(row)
     return row

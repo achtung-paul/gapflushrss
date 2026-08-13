@@ -25,6 +25,7 @@ import PostgresServersPage from './pages/PostgresServersPage.jsx'
 import MinioServersPage from './pages/MinioServersPage.jsx'
 import StandardTolerancesPage from './pages/StandardTolerancesPage.jsx'
 import LogsPage from './pages/LogsPage.jsx'
+import SecurityLogPage from './pages/SecurityLogPage.jsx'
 import BannerPage from './pages/BannerPage.jsx'
 import AngledInterfaceHelpPage from './pages/AngledInterfaceHelpPage.jsx'
 import StatisticalModelPage from './pages/StatisticalModelPage.jsx'
@@ -220,6 +221,14 @@ function App() {
             element={
               <ProtectedRoute requireRootAdmin>
                 <SecuritySettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/security-log"
+            element={
+              <ProtectedRoute requireRootAdmin>
+                <SecurityLogPage />
               </ProtectedRoute>
             }
           />

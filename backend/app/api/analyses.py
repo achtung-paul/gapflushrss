@@ -16,13 +16,14 @@
 # get_project_db). The _get_X_or_404 helpers below are imported by
 # chain_components.py, images.py, and analysis_images.py too.
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_project_db, require_project_editor, require_project_manager
 from app.core import service_storage
 from app.core.html_sanitize import sanitize_notes
+from app.core.security_events import EVENT_DATA_DELETED, record_event
 from app.db.session import get_db
 from app.models.analysis import Analysis
 from app.models.analysis_entry import AnalysisEntry, EntryType
@@ -300,6 +301,7 @@ def _update_entry(
 
 @router.delete("/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_entry(
+    request: Request,
     project_id: int,
     entry_id: int,
     db: Session = Depends(get_db),
@@ -308,6 +310,8 @@ def delete_entry(
 ):
     entry = _get_entry_or_404(project_db, project_id, entry_id)
     require_project_manager(db, current_user, project_id)
+    analysis = _get_analysis_or_404(project_db, project_id, entry.analysis_id)
+    entry_name = f"{analysis.analysis_code}-{entry.entry_type.value}"
 
     # Cascades to its chain components (ondelete="CASCADE"), but leaves
     # the Analysis, its marker, and its other entry (if any) untouched --
@@ -315,6 +319,23 @@ def delete_entry(
     # (api/images.py's delete_marker).
     project_db.delete(entry)
     project_db.commit()
+
+    # Recorded on the central `db` (audit events always live there, see
+    # models/security_event.py), separately from project_db's own commit
+    # above -- the data is already gone by the time this write happens,
+    # which is fine: the event doesn't need to succeed atomically with
+    # the deletion, only to follow it.
+    record_event(
+        db,
+        event_type=EVENT_DATA_DELETED,
+        actor=current_user,
+        request=request,
+        client_id=current_user.client_id,
+        target_type="entry",
+        target_id=entry_id,
+        target_name=entry_name,
+    )
+    db.commit()
 
 
 @router.put("/analyses/{analysis_id}/gap", response_model=AnalysisEntryOut)
