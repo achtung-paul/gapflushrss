@@ -34,6 +34,7 @@ from app.api import (
     postgres_services,
     projects,
     reference_data,
+    security_settings,
     standard_tolerances,
 )
 from app.core.bootstrap import (
@@ -163,6 +164,7 @@ app.include_router(angled_components.router)
 app.include_router(standard_tolerances.router)
 app.include_router(exports.router)
 app.include_router(banner.router)
+app.include_router(security_settings.router)
 app.include_router(logs.router)
 app.include_router(internal_logs.router)
 

@@ -2,7 +2,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
-from app.core.security import validate_password_strength
 from app.models.user import GlobalRole
 
 
@@ -38,20 +37,20 @@ class RootAdminCreate(BaseModel):
     # No global_role field at all -- every account created through
     # /admin/root-admins is a root_admin by definition, so there's
     # nothing to pick and nothing that could be picked wrong.
+    #
+    # No password field either -- the account starts with an unusable
+    # password hash and an emailed invite link to set one (see
+    # api/admin.py's create_root_admin, core/security.py's
+    # hash_unusable_password). Nobody but the new user ever knows their
+    # own password.
     first_name: str
     last_name: str
     email: EmailStr
-    password: str
 
     @field_validator("first_name", "last_name")
     @classmethod
     def must_not_be_blank(cls, value: str) -> str:
         return _name_must_not_be_blank(value)
-
-    @field_validator("password")
-    @classmethod
-    def password_must_be_strong(cls, value: str) -> str:
-        return validate_password_strength(value)
 
 
 class RootAdminUpdate(BaseModel):
@@ -83,21 +82,18 @@ ClientUserRole = Literal["standard", "client_admin"]
 
 
 class ClientUserCreate(BaseModel):
+    # No password field -- see RootAdminCreate's comment above; the same
+    # invite-by-email flow applies here (api/client_admin.py's
+    # create_client_user).
     first_name: str
     last_name: str
     email: EmailStr
-    password: str
     global_role: ClientUserRole = "standard"
 
     @field_validator("first_name", "last_name")
     @classmethod
     def must_not_be_blank(cls, value: str) -> str:
         return _name_must_not_be_blank(value)
-
-    @field_validator("password")
-    @classmethod
-    def password_must_be_strong(cls, value: str) -> str:
-        return validate_password_strength(value)
 
 
 class ClientUserUpdate(BaseModel):

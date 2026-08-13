@@ -10,6 +10,8 @@ import {
   listMinioServices,
   listPostgresServers,
   listPostgresServices,
+  resendClientAdminInvite,
+  resetClientAdmin2fa,
   updateClient,
 } from '../api/client.js'
 
@@ -42,14 +44,14 @@ function ClientsPage() {
   const [adminFirstName, setAdminFirstName] = useState('')
   const [adminLastName, setAdminLastName] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
-  const [adminPassword, setAdminPassword] = useState('')
 
   const [expandedClientId, setExpandedClientId] = useState(null)
   const [clientAdmins, setClientAdmins] = useState([])
   const [newAdminFirstName, setNewAdminFirstName] = useState('')
   const [newAdminLastName, setNewAdminLastName] = useState('')
   const [newAdminEmail, setNewAdminEmail] = useState('')
-  const [newAdminPassword, setNewAdminPassword] = useState('')
+  const [inviteSentUserId, setInviteSentUserId] = useState(null)
+  const [reset2faUserId, setReset2faUserId] = useState(null)
 
   const [editingId, setEditingId] = useState(null)
   const [editingName, setEditingName] = useState('')
@@ -99,7 +101,6 @@ function ClientsPage() {
         adminFirstName,
         adminLastName,
         adminEmail,
-        adminPassword,
       })
       setName('')
       setPostgresServiceId('')
@@ -109,7 +110,6 @@ function ClientsPage() {
       setAdminFirstName('')
       setAdminLastName('')
       setAdminEmail('')
-      setAdminPassword('')
       refresh()
     } catch (err) {
       setError(err.message)
@@ -130,11 +130,10 @@ function ClientsPage() {
     event.preventDefault()
     setError(null)
     try {
-      await addClientAdmin(clientId, newAdminFirstName, newAdminLastName, newAdminEmail, newAdminPassword)
+      await addClientAdmin(clientId, newAdminFirstName, newAdminLastName, newAdminEmail)
       setNewAdminFirstName('')
       setNewAdminLastName('')
       setNewAdminEmail('')
-      setNewAdminPassword('')
       listClientAdmins(clientId).then(setClientAdmins).catch((err) => setError(err.message))
     } catch (err) {
       setError(err.message)
@@ -145,6 +144,28 @@ function ClientsPage() {
     setError(null)
     try {
       await forceClientAdminPasswordReset(clientId, userId)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function handleResendInvite(clientId, userId) {
+    setError(null)
+    try {
+      await resendClientAdminInvite(clientId, userId)
+      setInviteSentUserId(userId)
+      setTimeout(() => setInviteSentUserId(null), 4000)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function handleReset2fa(clientId, userId) {
+    setError(null)
+    try {
+      await resetClientAdmin2fa(clientId, userId)
+      setReset2faUserId(userId)
+      setTimeout(() => setReset2faUserId(null), 4000)
     } catch (err) {
       setError(err.message)
     }
@@ -329,6 +350,20 @@ function ClientsPage() {
                                 onClick={() => handleForceReset(client.client_id, admin.user_id)}
                               >
                                 Force password reset
+                              </button>{' '}
+                              <button
+                                type="button"
+                                className="link-button"
+                                onClick={() => handleResendInvite(client.client_id, admin.user_id)}
+                              >
+                                {inviteSentUserId === admin.user_id ? 'Invite sent' : 'Resend invite'}
+                              </button>{' '}
+                              <button
+                                type="button"
+                                className="link-button"
+                                onClick={() => handleReset2fa(client.client_id, admin.user_id)}
+                              >
+                                {reset2faUserId === admin.user_id ? '2FA reset' : 'Reset 2FA'}
                               </button>
                             </td>
                           </tr>
@@ -365,15 +400,6 @@ function ClientsPage() {
                           type="email"
                           value={newAdminEmail}
                           onChange={(e) => setNewAdminEmail(e.target.value)}
-                          required
-                        />
-                      </label>
-                      <label>
-                        Password{' '}
-                        <input
-                          type="password"
-                          value={newAdminPassword}
-                          onChange={(e) => setNewAdminPassword(e.target.value)}
                           required
                         />
                       </label>
@@ -475,17 +501,12 @@ function ClientsPage() {
           Admin email{' '}
           <input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} required />
         </label>
-        <label>
-          Admin password{' '}
-          <input
-            type="password"
-            value={adminPassword}
-            onChange={(e) => setAdminPassword(e.target.value)}
-            required
-          />
-        </label>
         <button type="submit">Create client</button>
       </form>
+      <p className="form-hint">
+        The new client's first admin is emailed a link to set their own password -- no password is
+        entered here.
+      </p>
       {postgresMode === 'existing' && postgresServices.length === 0 && (
         <p className="form-hint">
           No initialized Postgres services available -- set one up from Postgres services, or

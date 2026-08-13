@@ -22,7 +22,7 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -52,12 +52,23 @@ class User(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     # When this password was last set -- account creation counts as
-    # setting it. api/auth.py's login() compares this against
-    # PASSWORD_EXPIRY to force a reset after 30 days; password-reset
-    # confirm is the only other place that updates it. No meaning yet
-    # for an OAuth-authenticated account (OAuth isn't built -- see
+    # setting it. Kept as audit information (shown nowhere yet, but
+    # useful if this is ever investigated); login() no longer gates on
+    # it -- there is no automatic password expiry (NIST SP 800-63B
+    # advises against periodic forced rotation; see must_reset_password
+    # below for the deliberate, admin-triggered equivalent). No meaning
+    # yet for an OAuth-authenticated account (OAuth isn't built -- see
     # PROJECT_BRIEF.md's phasing decision), since there's no password to
-    # expire in the first place.
+    # have changed in the first place.
     password_changed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+    # Set by core/security.py's force_password_reset() (an admin's "force
+    # password reset" action) and by invite issuance (an invited account
+    # starts with an unusable password hash -- see hash_unusable_password
+    # -- so it must never be allowed to log in with a password until one
+    # is set). api/auth.py's login() checks this before issuing a
+    # session and rejects with the same "use the emailed link" guidance
+    # either way; confirm_password_reset clears it once a real password
+    # is set.
+    must_reset_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

@@ -30,3 +30,10 @@ Pillow==11.0.0
 # (uvicorn runs with --reload). Split into a separate requirements-dev.txt
 # when the production command is split out.
 pytest==8.3.4
+
+# TOTP 2FA (core/totp.py): pyotp does the RFC 6238 code generation/
+# verification math; qrcode renders the enrollment otpauth:// URI as a
+# PNG (via Pillow, already installed above for excel_export.py) so it
+# adds no new image-handling dependency.
+pyotp==2.9.0
+qrcode==8.0

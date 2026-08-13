@@ -44,8 +44,18 @@ async function apiFetch(path, options = {}) {
   return response.json()
 }
 
+// Returns a LoginResult, not a user -- status is one of "ok" /
+// "2fa_required" / "enrollment_required" (see schemas/two_factor.py).
+// Only "ok" carries `user`; the other two carry a challenge_token (and,
+// for enrollment, otpauth_uri/qr_data_uri) for verifyTwoFactor below.
 export const login = (email, password) =>
   apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
+
+export const verifyTwoFactor = (challengeToken, code) =>
+  apiFetch('/auth/2fa/verify', {
+    method: 'POST',
+    body: JSON.stringify({ challenge_token: challengeToken, code }),
+  })
 
 export const logout = () => apiFetch('/auth/logout', { method: 'POST' })
 
@@ -70,10 +80,13 @@ export const listRootAdmins = (search, page) => {
   return apiFetch(`/admin/root-admins?${params.toString()}`)
 }
 
-export const createRootAdmin = (firstName, lastName, email, password) =>
+// No password -- the account is created with an unusable one and an
+// invite email is sent (see core/invites.py). The new admin sets their
+// own password by following that link.
+export const createRootAdmin = (firstName, lastName, email) =>
   apiFetch('/admin/root-admins', {
     method: 'POST',
-    body: JSON.stringify({ first_name: firstName, last_name: lastName, email, password }),
+    body: JSON.stringify({ first_name: firstName, last_name: lastName, email }),
   })
 
 export const updateRootAdmin = (userId, firstName, lastName, email) =>
@@ -84,6 +97,12 @@ export const updateRootAdmin = (userId, firstName, lastName, email) =>
 
 export const deleteRootAdmin = (userId) => apiFetch(`/admin/root-admins/${userId}`, { method: 'DELETE' })
 
+export const resendRootAdminInvite = (userId) =>
+  apiFetch(`/admin/root-admins/${userId}/resend-invite`, { method: 'POST' })
+
+export const resetRootAdmin2fa = (userId) =>
+  apiFetch(`/admin/root-admins/${userId}/reset-2fa`, { method: 'POST' })
+
 // A client admin's own client's users -- /client-admin/users is scoped
 // server-side to current_user.client_id (see api/client_admin.py).
 export const listClientUsers = (search, page) => {
@@ -93,14 +112,14 @@ export const listClientUsers = (search, page) => {
   return apiFetch(`/client-admin/users?${params.toString()}`)
 }
 
-export const createClientUser = (firstName, lastName, email, password, globalRole) =>
+// No password -- see createRootAdmin above.
+export const createClientUser = (firstName, lastName, email, globalRole) =>
   apiFetch('/client-admin/users', {
     method: 'POST',
     body: JSON.stringify({
       first_name: firstName,
       last_name: lastName,
       email,
-      password,
       global_role: globalRole,
     }),
   })
@@ -121,12 +140,26 @@ export const deleteClientUser = (userId) => apiFetch(`/client-admin/users/${user
 export const forceClientUserPasswordReset = (userId) =>
   apiFetch(`/client-admin/users/${userId}/force-password-reset`, { method: 'POST' })
 
+export const resendClientUserInvite = (userId) =>
+  apiFetch(`/client-admin/users/${userId}/resend-invite`, { method: 'POST' })
+
+export const resetClientUser2fa = (userId) =>
+  apiFetch(`/client-admin/users/${userId}/reset-2fa`, { method: 'POST' })
+
 export const getBanner = () => apiFetch('/banner')
 
 export const updateBanner = (message, colour, isActive) =>
   apiFetch('/admin/banner', {
     method: 'PUT',
     body: JSON.stringify({ message, colour, is_active: isActive }),
+  })
+
+export const getSecuritySettings = () => apiFetch('/admin/security-settings')
+
+export const updateSecuritySettings = (require2fa) =>
+  apiFetch('/admin/security-settings', {
+    method: 'PUT',
+    body: JSON.stringify({ require_2fa: require2fa }),
   })
 
 export const listLogs = (service, level, limit) => {
@@ -178,6 +211,8 @@ export const listClients = () => apiFetch('/admin/clients')
 // than more positional params -- this was already a 7-argument
 // function before the auto-provisioning choice doubled the service
 // arguments to four.
+// No admin_password -- the first client admin gets an invite email too
+// (see core/invites.py).
 export const createClient = ({
   name,
   postgresServiceId,
@@ -187,7 +222,6 @@ export const createClient = ({
   adminFirstName,
   adminLastName,
   adminEmail,
-  adminPassword,
 }) =>
   apiFetch('/admin/clients', {
     method: 'POST',
@@ -200,7 +234,6 @@ export const createClient = ({
       admin_first_name: adminFirstName,
       admin_last_name: adminLastName,
       admin_email: adminEmail,
-      admin_password: adminPassword,
     }),
   })
 
@@ -228,14 +261,20 @@ export const updateClient = (clientId, name, isActive) =>
 
 export const listClientAdmins = (clientId) => apiFetch(`/admin/clients/${clientId}/admins`)
 
-export const addClientAdmin = (clientId, firstName, lastName, email, password) =>
+export const addClientAdmin = (clientId, firstName, lastName, email) =>
   apiFetch(`/admin/clients/${clientId}/admins`, {
     method: 'POST',
-    body: JSON.stringify({ first_name: firstName, last_name: lastName, email, password }),
+    body: JSON.stringify({ first_name: firstName, last_name: lastName, email }),
   })
 
 export const forceClientAdminPasswordReset = (clientId, userId) =>
   apiFetch(`/admin/clients/${clientId}/admins/${userId}/force-password-reset`, { method: 'POST' })
+
+export const resendClientAdminInvite = (clientId, userId) =>
+  apiFetch(`/admin/clients/${clientId}/admins/${userId}/resend-invite`, { method: 'POST' })
+
+export const resetClientAdmin2fa = (clientId, userId) =>
+  apiFetch(`/admin/clients/${clientId}/admins/${userId}/reset-2fa`, { method: 'POST' })
 
 // Permanent: snapshots the client first, then purges every project,
 // user, and the client itself (see api/admin_clients.py's delete_client).

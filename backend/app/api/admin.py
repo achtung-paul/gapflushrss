@@ -10,11 +10,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_root_admin
-from app.core.security import hash_password
+from app.core.invites import build_invited_user, send_account_invite
 from app.db.session import get_db
+from app.models.login_challenge import LoginChallenge
 from app.models.password_reset_token import PasswordResetToken
 from app.models.user import GlobalRole, User
 from app.models.user_session import UserSession
+from app.models.user_totp import UserTotp
 from app.schemas.user import RootAdminCreate, RootAdminUpdate, UserListOut, UserOut
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -86,18 +88,26 @@ def create_root_admin(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use")
 
     # No role to pick -- every account created through this route is a
-    # root_admin with no client, by definition.
-    user = User(
+    # root_admin with no client, by definition. No password either --
+    # see core/invites.py.
+    user = build_invited_user(
         first_name=body.first_name,
         last_name=body.last_name,
         email=body.email,
-        password_hash=hash_password(body.password),
         global_role=GlobalRole.root_admin,
         client_id=None,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    try:
+        send_account_invite(db, user)
+    except OSError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"User created, but the invite email failed to send: {error}",
+        )
     return user
 
 
@@ -150,13 +160,54 @@ def delete_root_admin(
     # root admin would leave the system with none at all.
     _refuse_if_last_root_admin(db, user)
 
-    # Neither of these two FKs cascade on delete (see the model files),
-    # so a plain db.delete(user) would fail with a foreign key violation
-    # the moment the user has a session or a pending reset token. Root
-    # admins have no UserGroupProject rows to clean up (they're never
-    # group members -- see api/deps.py). Same "delete it by hand first"
-    # pattern as the MinIO/Group gotchas noted in CLAUDE.md.
+    # None of these four FKs cascade on delete (see the model files), so
+    # a plain db.delete(user) would fail with a foreign key violation the
+    # moment the user has a session, a pending reset/invite token, a 2FA
+    # enrollment, or an in-progress login challenge. Root admins have no
+    # UserGroupProject rows to clean up (they're never group members --
+    # see api/deps.py). Same "delete it by hand first" pattern as the
+    # MinIO/Group gotchas noted in CLAUDE.md.
     db.query(UserSession).filter(UserSession.user_id == user_id).delete()
     db.query(PasswordResetToken).filter(PasswordResetToken.user_id == user_id).delete()
+    db.query(UserTotp).filter(UserTotp.user_id == user_id).delete()
+    db.query(LoginChallenge).filter(LoginChallenge.user_id == user_id).delete()
     db.delete(user)
+    db.commit()
+
+
+@router.post("/root-admins/{user_id}/resend-invite", status_code=status.HTTP_204_NO_CONTENT)
+def resend_root_admin_invite(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_root_admin),
+):
+    user = db.query(User).filter(User.user_id == user_id, User.client_id.is_(None)).first()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    try:
+        send_account_invite(db, user)
+    except OSError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to send invite email: {error}"
+        )
+
+
+@router.post("/root-admins/{user_id}/reset-2fa", status_code=status.HTTP_204_NO_CONTENT)
+def reset_root_admin_2fa(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_root_admin),
+):
+    """Recovery path for a root admin who's lost their authenticator
+    device -- mirrors api/client_admin.py's reset_client_user_2fa. A
+    root admin can reset another root admin's 2FA (including their own,
+    for testing) but this route has no self-reset restriction, same as
+    every other root-admin route in this file.
+    """
+    user = db.query(User).filter(User.user_id == user_id, User.client_id.is_(None)).first()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    db.query(UserTotp).filter(UserTotp.user_id == user_id).delete()
+    db.query(LoginChallenge).filter(LoginChallenge.user_id == user_id).delete()
+    db.query(UserSession).filter(UserSession.user_id == user_id).delete()
     db.commit()

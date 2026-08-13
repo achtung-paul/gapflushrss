@@ -6,6 +6,8 @@ import Home from './pages/Home.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx'
 import ResetPasswordPage from './pages/ResetPasswordPage.jsx'
+import SetPasswordPage from './pages/SetPasswordPage.jsx'
+import SecuritySettingsPage from './pages/SecuritySettingsPage.jsx'
 import AdminPage from './pages/AdminPage.jsx'
 import ClientsPage from './pages/ClientsPage.jsx'
 import ClientAdminPage from './pages/ClientAdminPage.jsx'
@@ -42,6 +44,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/set-password" element={<SetPasswordPage />} />
           <Route
             path="/admin"
             element={
@@ -191,6 +194,14 @@ function App() {
             element={
               <ProtectedRoute requireRootAdmin>
                 <LogsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/security"
+            element={
+              <ProtectedRoute requireRootAdmin>
+                <SecuritySettingsPage />
               </ProtectedRoute>
             }
           />

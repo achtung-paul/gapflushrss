@@ -41,9 +41,11 @@ function ResetPasswordPage() {
             type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
+            minLength={12}
             required
           />
         </label>
+        <p className="form-hint">At least 12 characters. Avoid common or previously-breached passwords.</p>
         {error && <p className="form-error">{error}</p>}
         <button type="submit">Set new password</button>
       </form>

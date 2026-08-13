@@ -3,8 +3,6 @@
 
 from pydantic import BaseModel, EmailStr, ConfigDict, field_validator, model_validator
 
-from app.core.security import validate_password_strength
-
 
 class ClientCreate(BaseModel):
     name: str
@@ -21,16 +19,13 @@ class ClientCreate(BaseModel):
     minio_server_id: int | None = None
     # A client can never exist without at least one admin (requirement 2
     # of the brief) -- so the first one is created in the same request,
-    # the same transaction, as the client itself.
+    # the same transaction, as the client itself. No admin_password --
+    # the admin account is created with an unusable password hash and an
+    # emailed invite link (see api/admin_clients.py's create_client,
+    # core/security.py's hash_unusable_password).
     admin_first_name: str
     admin_last_name: str
     admin_email: EmailStr
-    admin_password: str
-
-    @field_validator("admin_password")
-    @classmethod
-    def password_must_be_strong(cls, value: str) -> str:
-        return validate_password_strength(value)
 
     @model_validator(mode="after")
     def exactly_one_postgres_and_one_minio_source(self) -> "ClientCreate":
@@ -62,10 +57,11 @@ class ClientOut(BaseModel):
 
 
 class ClientAdminCreate(BaseModel):
+    # No password field -- same invite-by-email flow as ClientCreate
+    # above (api/admin_clients.py's add_client_admin).
     first_name: str
     last_name: str
     email: EmailStr
-    password: str
 
     @field_validator("first_name", "last_name")
     @classmethod
@@ -73,11 +69,6 @@ class ClientAdminCreate(BaseModel):
         if not value.strip():
             raise ValueError("must not be blank")
         return value
-
-    @field_validator("password")
-    @classmethod
-    def password_must_be_strong(cls, value: str) -> str:
-        return validate_password_strength(value)
 
 
 class ClientAdminOut(BaseModel):

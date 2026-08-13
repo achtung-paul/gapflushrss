@@ -4,6 +4,8 @@ import {
   createRootAdmin,
   deleteRootAdmin,
   listRootAdmins,
+  resendRootAdminInvite,
+  resetRootAdmin2fa,
   updateRootAdmin,
 } from '../api/client.js'
 import { useAuth } from '../auth/AuthContext.jsx'
@@ -27,8 +29,9 @@ function AdminPage() {
   const [newFirstName, setNewFirstName] = useState('')
   const [newLastName, setNewLastName] = useState('')
   const [newEmail, setNewEmail] = useState('')
-  const [newPassword, setNewPassword] = useState('')
   const [pendingDeleteUserId, setPendingDeleteUserId] = useState(null)
+  const [inviteSentUserId, setInviteSentUserId] = useState(null)
+  const [reset2faUserId, setReset2faUserId] = useState(null)
   const [error, setError] = useState(null)
 
   // Editing an existing user's details (not password -- that's the
@@ -67,12 +70,33 @@ function AdminPage() {
     event.preventDefault()
     setError(null)
     try {
-      await createRootAdmin(newFirstName, newLastName, newEmail, newPassword)
+      await createRootAdmin(newFirstName, newLastName, newEmail)
       setNewFirstName('')
       setNewLastName('')
       setNewEmail('')
-      setNewPassword('')
       refreshUsers()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function handleResendInvite(userId) {
+    setError(null)
+    try {
+      await resendRootAdminInvite(userId)
+      setInviteSentUserId(userId)
+      setTimeout(() => setInviteSentUserId(null), 4000)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function handleReset2fa(userId) {
+    setError(null)
+    try {
+      await resetRootAdmin2fa(userId)
+      setReset2faUserId(userId)
+      setTimeout(() => setReset2faUserId(null), 4000)
     } catch (err) {
       setError(err.message)
     }
@@ -124,6 +148,8 @@ function AdminPage() {
         <Link to="/admin/logs">Service logs</Link>
         {' | '}
         <Link to="/admin/banner">Site banner</Link>
+        {' | '}
+        <Link to="/admin/security">Two-factor authentication</Link>
       </p>
 
       <h2>Root admin accounts</h2>
@@ -191,6 +217,12 @@ function AdminPage() {
                     <>
                       <button type="button" className="link-button" onClick={() => startEditingUser(u)}>
                         Edit
+                      </button>{' '}
+                      <button type="button" className="link-button" onClick={() => handleResendInvite(u.user_id)}>
+                        {inviteSentUserId === u.user_id ? 'Invite sent' : 'Resend invite'}
+                      </button>{' '}
+                      <button type="button" className="link-button" onClick={() => handleReset2fa(u.user_id)}>
+                        {reset2faUserId === u.user_id ? '2FA reset' : 'Reset 2FA'}
                       </button>{' '}
                       {u.user_id !== user?.user_id && (
                         <button
@@ -270,18 +302,11 @@ function AdminPage() {
             required
           />
         </label>
-        <label>
-          Password{' '}
-          <input
-            type="password"
-            placeholder="Password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            required
-          />
-        </label>
         <button type="submit">Add root admin</button>
       </form>
+      <p className="form-hint">
+        A new root admin is emailed a link to set their own password -- no password is entered here.
+      </p>
     </div>
   )
 }

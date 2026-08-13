@@ -9,6 +9,8 @@ import {
   listProjectMembers,
   listProjects,
   removeProjectMember,
+  resendClientUserInvite,
+  resetClientUser2fa,
   updateClientUser,
 } from '../api/client.js'
 import { useAuth } from '../auth/AuthContext.jsx'
@@ -32,10 +34,11 @@ function ClientAdminPage() {
   const [newFirstName, setNewFirstName] = useState('')
   const [newLastName, setNewLastName] = useState('')
   const [newEmail, setNewEmail] = useState('')
-  const [newPassword, setNewPassword] = useState('')
   const [newGlobalRole, setNewGlobalRole] = useState('standard')
   const [pendingDeleteUserId, setPendingDeleteUserId] = useState(null)
   const [resetMessageUserId, setResetMessageUserId] = useState(null)
+  const [inviteSentUserId, setInviteSentUserId] = useState(null)
+  const [reset2faUserId, setReset2faUserId] = useState(null)
   const [error, setError] = useState(null)
 
   const [editingUserId, setEditingUserId] = useState(null)
@@ -111,11 +114,10 @@ function ClientAdminPage() {
     event.preventDefault()
     setError(null)
     try {
-      await createClientUser(newFirstName, newLastName, newEmail, newPassword, newGlobalRole)
+      await createClientUser(newFirstName, newLastName, newEmail, newGlobalRole)
       setNewFirstName('')
       setNewLastName('')
       setNewEmail('')
-      setNewPassword('')
       setNewGlobalRole('standard')
       refreshUsers()
     } catch (err) {
@@ -161,6 +163,28 @@ function ClientAdminPage() {
       await forceClientUserPasswordReset(userId)
       setResetMessageUserId(userId)
       setTimeout(() => setResetMessageUserId(null), 4000)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function handleResendInvite(userId) {
+    setError(null)
+    try {
+      await resendClientUserInvite(userId)
+      setInviteSentUserId(userId)
+      setTimeout(() => setInviteSentUserId(null), 4000)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function handleReset2fa(userId) {
+    setError(null)
+    try {
+      await resetClientUser2fa(userId)
+      setReset2faUserId(userId)
+      setTimeout(() => setReset2faUserId(null), 4000)
     } catch (err) {
       setError(err.message)
     }
@@ -277,6 +301,12 @@ function ClientAdminPage() {
                       <button type="button" className="link-button" onClick={() => handleForceReset(u.user_id)}>
                         {resetMessageUserId === u.user_id ? 'Reset sent' : 'Force password reset'}
                       </button>{' '}
+                      <button type="button" className="link-button" onClick={() => handleResendInvite(u.user_id)}>
+                        {inviteSentUserId === u.user_id ? 'Invite sent' : 'Resend invite'}
+                      </button>{' '}
+                      <button type="button" className="link-button" onClick={() => handleReset2fa(u.user_id)}>
+                        {reset2faUserId === u.user_id ? '2FA reset' : 'Reset 2FA'}
+                      </button>{' '}
                       {u.user_id !== user?.user_id && (
                         <button
                           type="button"
@@ -356,16 +386,6 @@ function ClientAdminPage() {
           />
         </label>
         <label>
-          Password{' '}
-          <input
-            type="password"
-            placeholder="Password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            required
-          />
-        </label>
-        <label>
           Role{' '}
           <select value={newGlobalRole} onChange={(e) => setNewGlobalRole(e.target.value)}>
             {GLOBAL_ROLES.map((role) => (
@@ -377,6 +397,9 @@ function ClientAdminPage() {
         </label>
         <button type="submit">Add user</button>
       </form>
+      <p className="form-hint">
+        A new user is emailed a link to set their own password -- no password is entered here.
+      </p>
 
       <div className="section-divider" />
 

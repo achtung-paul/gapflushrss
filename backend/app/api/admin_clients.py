@@ -17,9 +17,11 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_root_admin
 from app.api.projects import purge_project_data
 from app.core import service_db, service_provisioning, service_storage
-from app.core.security import force_password_reset, hash_password
+from app.core.invites import build_invited_user, send_account_invite
+from app.core.security import force_password_reset
 from app.db.session import get_db
 from app.models.client import Client
+from app.models.login_challenge import LoginChallenge
 from app.models.minio_server import MinioServer
 from app.models.minio_service import MinioService
 from app.models.password_reset_token import PasswordResetToken
@@ -29,6 +31,7 @@ from app.models.process_type import ProcessType
 from app.models.project import Project
 from app.models.user import GlobalRole, User
 from app.models.user_session import UserSession
+from app.models.user_totp import UserTotp
 from app.schemas.client import ClientAdminCreate, ClientAdminOut, ClientCreate, ClientOut, ClientUpdate
 
 router = APIRouter(prefix="/admin/clients", tags=["admin"])
@@ -189,21 +192,34 @@ def create_client(
 
     # A client can never exist without at least one admin (requirement 2
     # of the brief) -- created in the same transaction as the client
-    # itself, so that's true by construction, not by convention.
-    db.add(
-        User(
-            first_name=body.admin_first_name,
-            last_name=body.admin_last_name,
-            email=body.admin_email,
-            password_hash=hash_password(body.admin_password),
-            global_role=GlobalRole.client_admin,
-            client_id=client.client_id,
-        )
+    # itself, so that's true by construction, not by convention. No
+    # password -- the admin account starts unusable until the invite
+    # link below is used (see core/invites.py).
+    admin = build_invited_user(
+        first_name=body.admin_first_name,
+        last_name=body.admin_last_name,
+        email=body.admin_email,
+        global_role=GlobalRole.client_admin,
+        client_id=client.client_id,
     )
+    db.add(admin)
     _seed_default_process_type(db, client.client_id)
 
     db.commit()
     db.refresh(client)
+    db.refresh(admin)
+
+    try:
+        send_account_invite(db, admin)
+    except OSError as error:
+        # The client and its admin account both already exist and are
+        # committed -- same recovery path as every other invite-issuing
+        # route: root admin uses resend-invite (below) once mail is
+        # working again, rather than the whole client creation failing.
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Client created, but the admin's invite email failed to send: {error}",
+        )
     return _client_out(db, client)
 
 
@@ -239,17 +255,24 @@ def add_client_admin(
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use")
 
-    admin = User(
+    admin = build_invited_user(
         first_name=body.first_name,
         last_name=body.last_name,
         email=body.email,
-        password_hash=hash_password(body.password),
         global_role=GlobalRole.client_admin,
         client_id=client_id,
     )
     db.add(admin)
     db.commit()
     db.refresh(admin)
+
+    try:
+        send_account_invite(db, admin)
+    except OSError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"User created, but the invite email failed to send: {error}",
+        )
     return admin
 
 
@@ -262,6 +285,42 @@ def force_client_admin_password_reset(
 ):
     admin = _get_client_admin_or_404(db, client_id, user_id)
     force_password_reset(db, admin)
+    db.commit()
+
+
+@router.post("/{client_id}/admins/{user_id}/resend-invite", status_code=status.HTTP_204_NO_CONTENT)
+def resend_client_admin_invite(
+    client_id: int,
+    user_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_root_admin),
+):
+    admin = _get_client_admin_or_404(db, client_id, user_id)
+    try:
+        send_account_invite(db, admin)
+    except OSError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to send invite email: {error}"
+        )
+
+
+@router.post("/{client_id}/admins/{user_id}/reset-2fa", status_code=status.HTTP_204_NO_CONTENT)
+def reset_client_admin_2fa(
+    client_id: int,
+    user_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_root_admin),
+):
+    """Recovery path for a client admin who's lost their authenticator
+    device -- mirrors api/client_admin.py's reset_client_user_2fa. Root
+    admin can reach this one client_admin account (via
+    _get_client_admin_or_404) without gaining any other visibility into
+    the client -- same boundary as force-password-reset above.
+    """
+    admin = _get_client_admin_or_404(db, client_id, user_id)
+    db.query(UserTotp).filter(UserTotp.user_id == admin.user_id).delete()
+    db.query(LoginChallenge).filter(LoginChallenge.user_id == admin.user_id).delete()
+    db.query(UserSession).filter(UserSession.user_id == admin.user_id).delete()
     db.commit()
 
 
@@ -364,6 +423,8 @@ def delete_client(
     for user in users:
         db.query(UserSession).filter(UserSession.user_id == user.user_id).delete()
         db.query(PasswordResetToken).filter(PasswordResetToken.user_id == user.user_id).delete()
+        db.query(UserTotp).filter(UserTotp.user_id == user.user_id).delete()
+        db.query(LoginChallenge).filter(LoginChallenge.user_id == user.user_id).delete()
         db.delete(user)
     db.commit()
 

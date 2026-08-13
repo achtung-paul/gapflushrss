@@ -8,13 +8,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_project, require_client_admin
-from app.core.security import force_password_reset, hash_password
+from app.core.invites import build_invited_user, send_account_invite
+from app.core.security import force_password_reset
 from app.db.session import get_db
 from app.models.group import Group, UserGroupProject
+from app.models.login_challenge import LoginChallenge
 from app.models.password_reset_token import PasswordResetToken
 from app.models.project import Project
 from app.models.user import GlobalRole, User
 from app.models.user_session import UserSession
+from app.models.user_totp import UserTotp
 from app.schemas.group import GroupMemberOut, GroupMembershipCreate, GroupRole
 from app.schemas.user import ClientUserCreate, ClientUserUpdate, UserListOut, UserOut
 
@@ -106,17 +109,32 @@ def create_client_user(
     # request body -- and global_role is restricted by
     # ClientUserRole (schemas/user.py) to "standard"/"client_admin", so
     # a client admin can't mint a root admin even by sending the field.
-    user = User(
+    # No password is set here -- the account starts unusable until the
+    # invite link below is used (see core/invites.py).
+    user = build_invited_user(
         first_name=body.first_name,
         last_name=body.last_name,
         email=body.email,
-        password_hash=hash_password(body.password),
         global_role=GlobalRole(body.global_role),
         client_id=current_user.client_id,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    try:
+        send_account_invite(db, user)
+    except OSError as error:
+        # The account was already created and committed above -- a mail
+        # failure here doesn't roll that back, since the admin can retry
+        # via resend-invite. Surfacing this as an error (rather than
+        # swallowing it like request_password_reset does) matters
+        # because the caller is an authenticated admin who needs to know
+        # the new user has no way in yet.
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"User created, but the invite email failed to send: {error}",
+        )
     return user
 
 
@@ -165,14 +183,17 @@ def delete_client_user(
     user = _get_client_user_or_404(db, current_user, user_id)
     _refuse_if_last_client_admin(db, user)
 
-    # None of these three FKs cascade on delete (see the model files), so
+    # None of these five FKs cascade on delete (see the model files), so
     # a plain db.delete(user) would fail with a foreign key violation the
-    # moment the user has a session, a pending reset token, or any group
+    # moment the user has a session, a pending reset/invite token, a 2FA
+    # enrollment, an in-progress login challenge, or any group
     # membership. Same "delete it by hand first" pattern as the
     # MinIO/Group gotchas noted in CLAUDE.md.
     db.query(UserSession).filter(UserSession.user_id == user_id).delete()
     db.query(PasswordResetToken).filter(PasswordResetToken.user_id == user_id).delete()
     db.query(UserGroupProject).filter(UserGroupProject.user_id == user_id).delete()
+    db.query(UserTotp).filter(UserTotp.user_id == user_id).delete()
+    db.query(LoginChallenge).filter(LoginChallenge.user_id == user_id).delete()
     db.delete(user)
     db.commit()
 
@@ -185,6 +206,47 @@ def force_client_user_password_reset(
 ):
     user = _get_client_user_or_404(db, current_user, user_id)
     force_password_reset(db, user)
+    db.commit()
+
+
+@router.post("/users/{user_id}/resend-invite", status_code=status.HTTP_204_NO_CONTENT)
+def resend_client_user_invite(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_client_admin),
+):
+    """Re-send the set-password link -- e.g. the original invite expired
+    (7 days, see models/password_reset_token.py) or the email never
+    arrived. Always issues a brand-new token rather than checking
+    whether the account has already set a password; using an old, still
+    valid link an admin resent is harmless even for an active account
+    (see core/invites.py's send_account_invite docstring).
+    """
+    user = _get_client_user_or_404(db, current_user, user_id)
+    try:
+        send_account_invite(db, user)
+    except OSError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to send invite email: {error}"
+        )
+
+
+@router.post("/users/{user_id}/reset-2fa", status_code=status.HTTP_204_NO_CONTENT)
+def reset_client_user_2fa(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_client_admin),
+):
+    """Recovery path for a user who's lost their authenticator device --
+    deletes their enrollment (and any in-progress login challenge) and
+    kills their sessions, so the next login re-enrolls from scratch. This
+    app has no self-service recovery codes; an admin resetting 2FA is the
+    only way back in, the same shape as force-password-reset above.
+    """
+    user = _get_client_user_or_404(db, current_user, user_id)
+    db.query(UserTotp).filter(UserTotp.user_id == user_id).delete()
+    db.query(LoginChallenge).filter(LoginChallenge.user_id == user_id).delete()
+    db.query(UserSession).filter(UserSession.user_id == user_id).delete()
     db.commit()
 
 

@@ -889,6 +889,18 @@ td {
 
 .form-hint { color: var(--color-muted); font-size: 0.85rem; }
 
+/* The 2FA enrollment QR code on LoginPage -- square, capped so it can't
+   blow out .page-form's 320px width, with a light border so a white PNG
+   stays visible even on a dark background. */
+.totp-qr {
+  display: block;
+  width: 200px;
+  height: 200px;
+  border: 1px solid var(--color-divider);
+  border-radius: 4px;
+  background: #fff;
+}
+
 .tolerance-matrix-scroll-controls {
   display: flex;
   align-items: center;
