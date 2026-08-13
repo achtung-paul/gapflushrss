@@ -5,6 +5,7 @@ import {
   deleteProcessType,
   importProcessType,
   importTemplateUrl,
+  importTemplateV2Url,
   listProcessTypes,
   updateProcessType,
 } from '../api/client.js'
@@ -166,7 +167,16 @@ function ProcessTypesPage() {
 
       {/* Always creates a brand-new process type from the file -- there's
           no existing matrix to merge into, so this is create-only, same
-          as the form above. */}
+          as the form above. One Import button handles either template
+          below -- the backend auto-detects which layout the file uses
+          (see core/tolerance_csv_import.py). */}
+      <p className="form-hint">
+        Two starting points, depending on how your standard is laid out:{' '}
+        <a href={importTemplateUrl}>Download template (group / tool-non-tool)</a>
+        {' or '}
+        <a href={importTemplateV2Url}>Download template (size range / accuracy grade)</a>. Fill in
+        either one, save as CSV, then upload it below.
+      </p>
       <form onSubmit={handleImport} className="inline-form">
         <label>
           Import new process type from CSV{' '}
@@ -191,7 +201,6 @@ function ProcessTypesPage() {
         <button type="submit" disabled={importing}>
           {importing ? 'Importing...' : 'Import'}
         </button>
-        <a href={importTemplateUrl}>Download template</a>
       </form>
       {error && <p className="form-error">{error}</p>}
     </div>

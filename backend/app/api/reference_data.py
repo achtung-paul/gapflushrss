@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_client_admin
 from app.core.tolerance_csv_import import MAX_IMPORT_BYTES, parse_tolerance_csv
-from app.core.tolerance_csv_template import build_import_template
+from app.core.tolerance_csv_template import build_import_template, build_import_template_v2
 from app.db.session import get_db
 from app.models.dimension_range import DimensionRange
 from app.models.process_type import ProcessType
@@ -122,6 +122,21 @@ def download_import_template(_: User = Depends(get_current_user)):
         BytesIO(content),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": 'attachment; filename="tolerance-import-template.xlsx"'},
+    )
+
+
+@router.get("/process-types/import-template-2")
+def download_import_template_v2(_: User = Depends(get_current_user)):
+    # The second supported layout (accuracy-grade rows rather than T/NT
+    # pairs) -- see core/tolerance_csv_import.py's module docstring.
+    # import_process_type below auto-detects which of the two a given
+    # upload is, so there is still only one Import button/route; this is
+    # only a second blank starting point to download.
+    content = build_import_template_v2()
+    return StreamingResponse(
+        BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="tolerance-import-template-accuracy-grades.xlsx"'},
     )
 
 

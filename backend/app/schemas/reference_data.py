@@ -35,13 +35,15 @@ class ToleranceGroupOut(BaseModel):
 
 class DimensionRangeCreate(BaseModel):
     min_value: float
-    max_value: float
+    # None means an open-ended top range ("10 and above", no upper
+    # bound) -- see models/dimension_range.py.
+    max_value: float | None = None
 
     @field_validator("max_value")
     @classmethod
-    def max_must_exceed_min(cls, max_value: float, info) -> float:
+    def max_must_exceed_min(cls, max_value: float | None, info) -> float | None:
         min_value = info.data.get("min_value")
-        if min_value is not None and max_value <= min_value:
+        if min_value is not None and max_value is not None and max_value <= min_value:
             raise ValueError("max_value must be greater than min_value")
         return max_value
 
@@ -57,7 +59,7 @@ class DimensionRangeOut(BaseModel):
     process_type_id: int
     sequence_number: int
     min_value: float
-    max_value: float
+    max_value: float | None
 
 
 class ToleranceValueCellIn(BaseModel):

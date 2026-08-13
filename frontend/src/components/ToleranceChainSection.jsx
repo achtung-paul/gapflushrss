@@ -60,17 +60,28 @@ function standardOptionValue(standardToleranceId) {
 // convention for how these ranges are meant to be read (see the CSV
 // import format's "> 3 to 6" labelling, core/tolerance_csv_import.py),
 // where every range but the first is explicitly open on its lower
-// bound.
+// bound. A null max_value is an open-ended top range ("10 and above")
+// -- treated as having no upper bound at all, rather than failing every
+// containment check the way Number(null) === 0 would.
 function findMatchingRange(ranges, dimension) {
   const d = Number(dimension)
   if (dimension === '' || Number.isNaN(d)) {
     return null
   }
-  const candidates = ranges.filter((r) => d >= Number(r.min_value) && d <= Number(r.max_value))
+  const candidates = ranges.filter((r) => {
+    const max = r.max_value == null ? Infinity : Number(r.max_value)
+    return d >= Number(r.min_value) && d <= max
+  })
   if (candidates.length === 0) {
     return null
   }
   return candidates.reduce((largest, r) => (Number(r.min_value) > Number(largest.min_value) ? r : largest))
+}
+
+// Same open-ended rendering rule as ToleranceMatrixPage.jsx's
+// formatRangeLabel.
+function formatRangeLabel(range) {
+  return range.max_value == null ? `> ${range.min_value} mm` : `${range.min_value} to ${range.max_value} mm`
 }
 
 // Lets the user build the RSS tolerance chain for one Gap/Flush entry
@@ -531,7 +542,7 @@ function ToleranceChainSection({ projectId, entryId, nominal, upperLimit, lowerL
                     <option value="">Dimension range...</option>
                     {ranges.map((range) => (
                       <option key={range.dimension_range_id} value={range.dimension_range_id}>
-                        {range.min_value} to {range.max_value} mm
+                        {formatRangeLabel(range)}
                       </option>
                     ))}
                   </select>

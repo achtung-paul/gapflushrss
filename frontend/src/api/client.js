@@ -421,6 +421,11 @@ export async function importProcessType(name, file) {
 }
 
 export const importTemplateUrl = `${API_BASE}/process-types/import-template`
+// A second blank starting point (accuracy-grade layout, see
+// core/tolerance_csv_import.py) -- importProcessType above auto-detects
+// which of the two a filled-in upload is, so there's still only one
+// Import button.
+export const importTemplateV2Url = `${API_BASE}/process-types/import-template-2`
 
 export const updateProcessType = (processTypeId, name) =>
   apiFetch(`/process-types/${processTypeId}`, { method: 'PUT', body: JSON.stringify({ name }) })

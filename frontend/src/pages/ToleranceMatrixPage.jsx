@@ -16,6 +16,13 @@ function cellKey(groupId, rangeId) {
   return `${groupId}-${rangeId}`
 }
 
+// A null max_value means an open-ended top range ("10 and above", see
+// models/dimension_range.py) -- same rendering rule used in
+// ToleranceChainSection.jsx's dropdown.
+function formatRangeLabel(range) {
+  return range.max_value == null ? `> ${range.min_value} mm` : `${range.min_value} to ${range.max_value} mm`
+}
+
 // One tool-value/non-tool-value pair, editable in place. Committed on
 // blur (rather than on every keystroke) so we're not firing a network
 // request per character typed.
@@ -172,7 +179,11 @@ function ToleranceMatrixPage() {
     event.preventDefault()
     setError(null)
     try {
-      await createDimensionRange(processTypeId, Number(newRangeMin), Number(newRangeMax))
+      // A blank Max means an open-ended top range ("10 and above") --
+      // Number('') is 0, which would silently create a zero-width range
+      // instead, so blank has to become null explicitly.
+      const maxValue = newRangeMax.trim() === '' ? null : Number(newRangeMax)
+      await createDimensionRange(processTypeId, Number(newRangeMin), maxValue)
       setNewRangeMin('')
       setNewRangeMax('')
       refreshRanges()
@@ -233,7 +244,7 @@ function ToleranceMatrixPage() {
               <th>Tolerance group</th>
               {ranges.map((range) => (
                 <th key={range.dimension_range_id}>
-                  {range.min_value} to {range.max_value} mm
+                  {formatRangeLabel(range)}
                   <br />
                   {pendingDeleteRangeId === range.dimension_range_id ? (
                     <>
@@ -328,10 +339,11 @@ function ToleranceMatrixPage() {
         </label>
         <label>
           Max (mm){' '}
-          <NumberInput placeholder="Max" value={newRangeMax} onChange={setNewRangeMax} required />
+          <NumberInput placeholder="Max" value={newRangeMax} onChange={setNewRangeMax} />
         </label>
         <button type="submit">Add range</button>
       </form>
+      <p className="form-hint">Leave Max blank for an open-ended top range (e.g. "10 and above").</p>
     </div>
   )
 }

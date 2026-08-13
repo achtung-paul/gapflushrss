@@ -21,7 +21,12 @@ class DimensionRange(Base):
     )
     sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
     min_value: Mapped[float] = mapped_column(Numeric(10, 3), nullable=False)
-    max_value: Mapped[float] = mapped_column(Numeric(10, 3), nullable=False)
+    # Nullable -- a NULL max_value means "and above", an open-ended top
+    # range (some tolerance standards' last row/column has no upper
+    # bound, e.g. "over 10"). Every reader of this column (the CSV
+    # importer, the tolerance-chain range matcher, the matrix UI) has to
+    # treat None as "no upper limit", not as missing data.
+    max_value: Mapped[float | None] = mapped_column(Numeric(10, 3), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
