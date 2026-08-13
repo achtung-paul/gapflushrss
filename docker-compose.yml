@@ -38,7 +38,7 @@ services:
       # service name (postgres:5432) regardless of this, so publishing it
       # to the LAN only ever exposed password hashes and encrypted service
       # credentials to the network. For a local DB client, tunnel instead:
-      #   ssh -L 5432:localhost:5432 root@192.168.4.78
+      #   ssh -L 5432:localhost:5432 root@192.168.4.226
       - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
@@ -54,7 +54,7 @@ services:
       # every password-reset email in full -- published to the LAN, anyone
       # could request a reset for a known address, read the token here, and
       # take over that account. Tunnel to view sent mail:
-      #   ssh -L 8025:localhost:8025 root@192.168.4.78
+      #   ssh -L 8025:localhost:8025 root@192.168.4.226
       - "127.0.0.1:8025:8025"
     expose:
       - "1025" # SMTP, used by the backend
@@ -86,7 +86,7 @@ services:
       # Loopback-only, same reasoning as postgres above -- the backend
       # reaches MinIO at minio:9000 on the compose network, so nothing in
       # the app needs these published. Tunnel for the web console:
-      #   ssh -L 9001:localhost:9001 root@192.168.4.78
+      #   ssh -L 9001:localhost:9001 root@192.168.4.226
       - "127.0.0.1:9000:9000" # S3-compatible API
       - "127.0.0.1:9001:9001" # web console
 

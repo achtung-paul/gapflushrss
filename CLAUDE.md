@@ -163,12 +163,12 @@ for both in full):
 
 ## Deploying to the test LXC
 
-The LXC's `/opt/gapflushrss` (`192.168.4.78`, root, key at `~/.ssh/proxmox_test_server_private.pem`) is a **plain file copy, not a git checkout** — commits here don't appear there automatically.
+The LXC's `/opt/gapflushrss` (`192.168.4.226`, hostname `StackFitPro`, root, key at `~/.ssh/gapfitpro_test_server.pem`) is a **plain file copy, not a git checkout** — commits here don't appear there automatically.
 ```
-scp -i ~/.ssh/proxmox_test_server_private.pem <local_path> root@192.168.4.78:/opt/gapflushrss/<same_relative_path>
-ssh -i ~/.ssh/proxmox_test_server_private.pem root@192.168.4.78 "cd /opt/gapflushrss && docker compose build <service> && docker compose up -d <service>"
+scp -i ~/.ssh/gapfitpro_test_server.pem <local_path> root@192.168.4.226:/opt/gapflushrss/<same_relative_path>
+ssh -i ~/.ssh/gapfitpro_test_server.pem root@192.168.4.226 "cd /opt/gapflushrss && docker compose build <service> && docker compose up -d <service>"
 ```
-For a change touching many files (e.g. a whole feature), `rsync -avz --exclude='__pycache__' --exclude='*.pyc' -e "ssh -i ~/.ssh/proxmox_test_server_private.pem" <local_dir>/ root@192.168.4.78:/opt/gapflushrss/<same_dir>/` is faster than scp-ing one file at a time and keeps the same "only copy what changed" property.
+For a change touching many files (e.g. a whole feature), `rsync -avz --exclude='__pycache__' --exclude='*.pyc' -e "ssh -i ~/.ssh/gapfitpro_test_server.pem" <local_dir>/ root@192.168.4.226:/opt/gapflushrss/<same_dir>/` is faster than scp-ing one file at a time and keeps the same "only copy what changed" property.
 
 Frontend runs the Vite dev server inside its container (not a static build) with no bind-mounted volume, so even frontend-only edits need the full build+up cycle to show up. **The backend is the same** — its `uvicorn --reload` makes an `scp` look like it's enough, but there's no bind mount either, so `--reload` only ever watches the code baked into the image. A backend change that appears to have no effect is almost always a missed `docker compose build backend`.
 
