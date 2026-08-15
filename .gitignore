@@ -14,6 +14,13 @@ dist/
 .env
 .env.*
 !.env.example
+!.env.preprod.example
+
+# Self-signed TLS certs for a preprod host's bundled Postgres/MinIO (see
+# docker-compose.preprod.yml, docs/PREPROD_DEPLOY.md) -- generated per
+# host, private keys, never committed.
+postgres/certs/
+minio/certs/
 
 # OS
 .DS_Store

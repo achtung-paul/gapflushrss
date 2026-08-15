@@ -100,8 +100,20 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
-      SMTP_HOST: mailhog
-      SMTP_PORT: 1025
+      # Defaulted, not hardcoded -- a host whose .env doesn't set these
+      # (the test LXC today) gets exactly the values below, unchanged.
+      # An internet-facing host sets real ones instead (see
+      # docs/PREPROD_DEPLOY.md): a real relay's host/port/credentials
+      # with SMTP_USE_TLS=true, COOKIE_SECURE=true once served over
+      # HTTPS, POSTGRES_SSLMODE=require once the bundled Postgres
+      # terminates TLS, MINIO_SECURE=true once the bundled MinIO does.
+      SMTP_HOST: ${SMTP_HOST:-mailhog}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-false}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-prefer}
       ROOT_ADMIN_FIRST_NAME: ${ROOT_ADMIN_FIRST_NAME}
       ROOT_ADMIN_LAST_NAME: ${ROOT_ADMIN_LAST_NAME}
       ROOT_ADMIN_EMAIL: ${ROOT_ADMIN_EMAIL}
@@ -109,6 +121,7 @@ services:
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_SECURE: ${MINIO_SECURE:-false}
       MINIO_BUCKET: gapflushrss-images
       SERVICE_CREDENTIAL_KEY: ${SERVICE_CREDENTIAL_KEY}
       LOG_DIR: /var/log/gapflushrss
@@ -136,10 +149,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      mailhog:
-        condition: service_started
       minio:
         condition: service_started
+      # No dependency on mailhog: core/email.py connects to SMTP at send
+      # time, not at boot, so waiting on it here only ever bought a
+      # slightly earlier failure. Not depending on it means a host that
+      # never names mailhog in `docker compose up` (see
+      # docker-compose.preprod.yml) doesn't get it pulled in as an
+      # implicit dependency either. The test LXC is unaffected -- it
+      # still starts every defined service, mailhog included, because
+      # its `docker compose up` names none explicitly.
     expose:
       - "8000"
 

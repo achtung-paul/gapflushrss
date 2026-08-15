@@ -5,6 +5,8 @@
 # overrides these via environment variables (see the "environment:" section
 # for the "backend" service).
 
+from urllib.parse import quote_plus
+
 from pydantic_settings import BaseSettings
 
 
@@ -15,6 +17,16 @@ class Settings(BaseSettings):
     postgres_db: str = "gapflush"
     postgres_host: str = "postgres"
     postgres_port: int = 5432
+    # "prefer" matches libpq's own default (i.e. today's behaviour, which
+    # built this URL with no sslmode param at all) -- the bundled
+    # container on the test LXC runs with ssl=off, so "require" would
+    # simply fail to connect there. A host that terminates TLS on its own
+    # bundled Postgres (see docs/PREPROD_DEPLOY.md) sets this to
+    # "require". Same reasoning as core/service_db.py's
+    # _database_url -- registered *remote* services already default to
+    # "require" there; this is the equivalent knob for the one
+    # always-local bundled connection this setting builds.
+    postgres_sslmode: str = "prefer"
 
     # CORS: which frontend origin(s) are allowed to call this API.
     # In dev, the React app runs on this origin.
@@ -88,9 +100,17 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
+        # quote_plus, not raw interpolation: a generated password
+        # containing "@", ":", or "/" would otherwise corrupt the
+        # connection string (wrong host, or a silently truncated
+        # password) rather than fail loudly. No-op for the test LXC's
+        # current alphanumeric credentials.
+        user = quote_plus(self.postgres_user)
+        password = quote_plus(self.postgres_password)
         return (
-            f"postgresql+psycopg2://{self.postgres_user}:{self.postgres_password}"
+            f"postgresql+psycopg2://{user}:{password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+            f"?sslmode={self.postgres_sslmode}"
         )
 
 
