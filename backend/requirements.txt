@@ -37,3 +37,9 @@ pytest==8.3.4
 # adds no new image-handling dependency.
 pyotp==2.9.0
 qrcode==8.0
+
+# Posts to Resend's REST API when email_provider="resend"
+# (core/email.py) -- requests' exceptions all subclass OSError, which is
+# why send_email's existing `except OSError` callers keep working
+# unchanged regardless of which email provider is configured.
+requests==2.32.3

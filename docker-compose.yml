@@ -103,10 +103,14 @@ services:
       # Defaulted, not hardcoded -- a host whose .env doesn't set these
       # (the test LXC today) gets exactly the values below, unchanged.
       # An internet-facing host sets real ones instead (see
-      # docs/PREPROD_DEPLOY.md): a real relay's host/port/credentials
-      # with SMTP_USE_TLS=true, COOKIE_SECURE=true once served over
-      # HTTPS, POSTGRES_SSLMODE=require once the bundled Postgres
-      # terminates TLS, MINIO_SECURE=true once the bundled MinIO does.
+      # docs/PREPROD_DEPLOY.md): EMAIL_PROVIDER=resend with a real
+      # RESEND_API_KEY (or a real SMTP relay with SMTP_USE_TLS=true),
+      # COOKIE_SECURE=true once served over HTTPS, POSTGRES_SSLMODE=require
+      # once the bundled Postgres terminates TLS, MINIO_SECURE=true once
+      # the bundled MinIO does.
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-smtp}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-noreply@stackfitpro.com}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
       SMTP_HOST: ${SMTP_HOST:-mailhog}
       SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_USERNAME: ${SMTP_USERNAME:-}

@@ -38,14 +38,30 @@ class Settings(BaseSettings):
     session_cookie_name: str = "gapflush_session"
     cookie_secure: bool = False
 
-    # SMTP, used for password-reset emails (app/core/email.py). Defaults
-    # match the Mailhog dev service in docker-compose.yml.
+    # Email sending (password-reset and account-invite links, see
+    # app/core/email.py). Two providers, chosen by email_provider:
+    #   "smtp" (dev/test default) -- talks to the Mailhog service in
+    #     docker-compose.yml, no real credentials needed.
+    #   "resend" -- posts to Resend's REST API instead, for
+    #     preprod/production (see docs/PREPROD_DEPLOY.md). Only
+    #     resend_api_key is read in this mode; the smtp_* settings
+    #     below are simply unused.
+    email_provider: str = "smtp"
+    email_from_address: str = "noreply@stackfitpro.com"
+
     smtp_host: str = "mailhog"
     smtp_port: int = 1025
     smtp_username: str = ""
     smtp_password: str = ""
     smtp_use_tls: bool = False
-    smtp_from_address: str = "noreply@stackfitpro.com"
+
+    # Resend API key (Resend dashboard > API Keys). Required when
+    # email_provider="resend" -- validate_email_settings() checks this at
+    # startup, not first send. email_from_address must be on a domain
+    # that's been verified in Resend's dashboard (see
+    # docs/PREPROD_DEPLOY.md's Cloudflare DNS steps) or every send is
+    # rejected.
+    resend_api_key: str = ""
 
     # First-run bootstrap: if no root_admin user exists yet, one is
     # created from these on startup (see app/main.py). Only takes effect

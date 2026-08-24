@@ -9,9 +9,9 @@
 # backend service) nothing depends on it, so it's never started here.
 #
 # Everything that can be a plain env var lives in .env.preprod.example
-# instead (COOKIE_SECURE, SMTP_*, MINIO_SECURE, POSTGRES_SSLMODE) --
-# this file only holds the handful of things that genuinely can't be:
-# command overrides and the TLS cert mounts.
+# instead (COOKIE_SECURE, EMAIL_PROVIDER/RESEND_API_KEY, MINIO_SECURE,
+# POSTGRES_SSLMODE) -- this file only holds the handful of things that
+# genuinely can't be: command overrides and the TLS cert mounts.
 
 services:
   backend:

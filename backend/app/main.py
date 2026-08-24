@@ -110,7 +110,7 @@ async def lifespan(app: FastAPI):
         LOG_RETENTION_DAYS,
     )
 
-    # Checked before anything else: a bad SMTP config should stop the
+    # Checked before anything else: a bad email config should stop the
     # deploy, not wait to be discovered by the first password reset.
     validate_email_settings()
 
