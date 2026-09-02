@@ -603,6 +603,26 @@ td {
   cursor: default;
 }
 
+.report-gallery-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.report-gallery-tag {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.analysis-gallery-tag-select {
+  display: block;
+  width: 100%;
+  margin-top: 0.3rem;
+  font-size: 0.7rem;
+}
+
 .analysis-gallery-delete-btn {
   position: absolute;
   top: -6px;

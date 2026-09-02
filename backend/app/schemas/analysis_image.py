@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.models.analysis_image import ImageTag
+
 
 class AnalysisImageOut(BaseModel):
     # object_key (the MinIO path) is deliberately not exposed -- the
@@ -12,4 +14,9 @@ class AnalysisImageOut(BaseModel):
     entry_id: int
     original_filename: str
     content_type: str
+    tag: ImageTag
     uploaded_at: datetime
+
+
+class AnalysisImageTagUpdate(BaseModel):
+    tag: ImageTag

@@ -13,12 +13,13 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.analyses import _get_analysis_or_404, _get_commodity_or_404, _get_entry_or_404
+from app.api.analysis_images import _tag_ordered
 from app.api.deps import get_current_user, get_project, get_project_db, get_project_minio_service
 from app.api.reference_data import get_visible_sigma_levels
 from app.core import service_storage
 from app.core.angled_simulation import run_angled_simulation
 from app.core.config import settings
-from app.core.excel_export import _draw_markers, build_commodity_workbook, build_entry_workbook
+from app.core.excel_export import IMAGE_TAG_LABELS, _draw_markers, build_commodity_workbook, build_entry_workbook
 from app.core.security_events import EVENT_EXPORT_COMMODITY, EVENT_EXPORT_ENTRY, record_event
 from app.core.simulation import run_simulation
 from app.db.session import get_db
@@ -78,14 +79,17 @@ def export_entry(
     if entry.direction:
         display_code += "-" + entry.direction.value
 
-    images = (
-        project_db.query(AnalysisImage)
-        .filter(AnalysisImage.entry_id == entry_id)
-        .order_by(AnalysisImage.uploaded_at)
-        .all()
-    )
+    # Same Sketch Agreed-first ordering as the on-screen gallery and
+    # report page (both go through list_analysis_images) -- the export
+    # must never show a different lead image than what the user sees.
+    images = _tag_ordered(project_db.query(AnalysisImage).filter(AnalysisImage.entry_id == entry_id)).all()
     image_data = [
-        (image.original_filename, _read_image_bytes(minio_service, image.object_key)) for image in images
+        (
+            image.original_filename,
+            _read_image_bytes(minio_service, image.object_key),
+            IMAGE_TAG_LABELS[image.tag.value],
+        )
+        for image in images
     ]
 
     # Marker.analysis_id is unique (models/marker.py) -- an Analysis only

@@ -18,6 +18,15 @@ const CONTRIBUTOR_TYPE_LABELS = {
   PROCESS: 'Assembly process variation',
 }
 
+// Matches ImageTag in models/analysis_image.py / IMAGE_TAG_LABELS in
+// core/excel_export.py -- same wording in the printed report as in the
+// Excel export, so the two never disagree.
+const IMAGE_TAG_LABELS = {
+  sketch_proposal: 'Sketch Proposal',
+  sketch_agreed: 'Sketch Agreed',
+  other: 'Other',
+}
+
 // Same pass/caution/fail wording as ToleranceChainSection.jsx/
 // AnalysisListPage.jsx's sigma tables -- kept as its own copy here
 // rather than a shared import, matching how those two already each
@@ -277,12 +286,14 @@ function AnalysisReportPage() {
               <h4>Images</h4>
               <div className="analysis-gallery-grid report-gallery-grid">
                 {images.map((image) => (
-                  <img
-                    key={image.analysis_image_id}
-                    src={analysisImageFileUrl(projectId, image.analysis_image_id)}
-                    alt={image.original_filename}
-                    className="analysis-gallery-thumb report-gallery-thumb"
-                  />
+                  <div key={image.analysis_image_id} className="report-gallery-item">
+                    <img
+                      src={analysisImageFileUrl(projectId, image.analysis_image_id)}
+                      alt={image.original_filename}
+                      className="analysis-gallery-thumb report-gallery-thumb"
+                    />
+                    <p className="report-gallery-tag">{IMAGE_TAG_LABELS[image.tag] || image.tag}</p>
+                  </div>
                 ))}
               </div>
             </>

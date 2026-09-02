@@ -7,8 +7,9 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy import case
 from sqlalchemy.orm import Session
 
 from app.api.analyses import _get_entry_or_404
@@ -28,12 +29,22 @@ from app.core.uploads import (
     stream_and_release,
 )
 from app.db.session import get_db
-from app.models.analysis_image import AnalysisImage
+from app.models.analysis_image import AnalysisImage, ImageTag
 from app.models.minio_service import MinioService
 from app.models.user import User
-from app.schemas.analysis_image import AnalysisImageOut
+from app.schemas.analysis_image import AnalysisImageOut, AnalysisImageTagUpdate
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["analysis-images"])
+
+
+# Sketch Agreed always sorts first, ahead of every other tag, regardless
+# of upload order -- the rest fall back to upload order same as before
+# tags existed. Shared by list_analysis_images below and api/exports.py's
+# export_entry, so the gallery and the Excel export never disagree about
+# which image leads.
+def _tag_ordered(query):
+    sketch_agreed_first = case((AnalysisImage.tag == ImageTag.sketch_agreed, 0), else_=1)
+    return query.order_by(sketch_agreed_first, AnalysisImage.uploaded_at)
 
 
 def _require_editor_for_entry(
@@ -66,12 +77,7 @@ def list_analysis_images(
     _: User = Depends(get_current_user),
 ):
     _get_entry_or_404(project_db, project_id, entry_id)
-    return (
-        project_db.query(AnalysisImage)
-        .filter(AnalysisImage.entry_id == entry_id)
-        .order_by(AnalysisImage.uploaded_at)
-        .all()
-    )
+    return _tag_ordered(project_db.query(AnalysisImage).filter(AnalysisImage.entry_id == entry_id)).all()
 
 
 @router.post(
@@ -87,6 +93,7 @@ async def upload_analysis_image(
     minio_service: MinioService = Depends(get_project_minio_service),
     current_user: User = Depends(get_current_user),
     file: UploadFile = File(...),
+    tag: ImageTag = Form(ImageTag.other),
 ):
     _require_editor_for_entry(db, project_db, current_user, project_id, entry_id)
 
@@ -101,8 +108,29 @@ async def upload_analysis_image(
         object_key=object_key,
         original_filename=file.filename or object_key,
         content_type=content_type,
+        tag=tag,
     )
     project_db.add(image)
+    project_db.commit()
+    project_db.refresh(image)
+    return image
+
+
+@router.patch("/analysis-images/{analysis_image_id}", response_model=AnalysisImageOut)
+def update_analysis_image_tag(
+    project_id: int,
+    analysis_image_id: int,
+    body: AnalysisImageTagUpdate,
+    db: Session = Depends(get_db),
+    project_db: Session = Depends(get_project_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Tag-only edit, not a delete -- Manager-or-Contributor per
+    # CLAUDE.md's editor/manager split, same rights as uploading.
+    image = _get_analysis_image_or_404(project_db, project_id, analysis_image_id)
+    _require_editor_for_entry(db, project_db, current_user, project_id, image.entry_id)
+
+    image.tag = body.tag
     project_db.commit()
     project_db.refresh(image)
     return image

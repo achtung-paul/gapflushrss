@@ -378,9 +378,10 @@ export const deleteEntry = (projectId, entryId) =>
 export const listAnalysisImages = (projectId, entryId) =>
   apiFetch(`/projects/${projectId}/entries/${entryId}/images`)
 
-export async function uploadAnalysisImage(projectId, entryId, file) {
+export async function uploadAnalysisImage(projectId, entryId, file, tag = 'other') {
   const formData = new FormData()
   formData.append('file', file)
+  formData.append('tag', tag)
   // No Content-Type header here -- the browser sets it (with the right
   // multipart boundary) automatically when the body is a FormData.
   const response = await fetch(`${API_BASE}/projects/${projectId}/entries/${entryId}/images`, {
@@ -396,6 +397,14 @@ export async function uploadAnalysisImage(projectId, entryId, file) {
 
 export const deleteAnalysisImage = (projectId, analysisImageId) =>
   apiFetch(`/projects/${projectId}/analysis-images/${analysisImageId}`, { method: 'DELETE' })
+
+// Tag-only edit -- same rights as uploading (Manager or Contributor), see
+// api/analysis_images.py's update_analysis_image_tag.
+export const updateAnalysisImageTag = (projectId, analysisImageId, tag) =>
+  apiFetch(`/projects/${projectId}/analysis-images/${analysisImageId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ tag }),
+  })
 
 export const analysisImageFileUrl = (projectId, analysisImageId) =>
   `${API_BASE}/projects/${projectId}/analysis-images/${analysisImageId}/file`

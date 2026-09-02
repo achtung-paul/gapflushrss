@@ -28,6 +28,11 @@ CONTRIBUTOR_TYPE_LABELS = {
     "COMPONENT": "Component tolerance",
     "PROCESS": "Assembly process variation",
 }
+IMAGE_TAG_LABELS = {
+    "sketch_proposal": "Sketch Proposal",
+    "sketch_agreed": "Sketch Agreed",
+    "other": "Other",
+}
 RAG_LABELS = {
     "green": "Pass",
     "amber": "Caution",
@@ -248,7 +253,7 @@ def build_entry_workbook(
     simulation: dict | None = None,
     angled_components: list[dict] | None = None,
     angled_simulation: dict | None = None,
-    images: list[tuple[str, bytes]] | None = None,
+    images: list[tuple[str, bytes, str]] | None = None,
     assembly_image: tuple[str, bytes] | None = None,
 ) -> bytes:
     """Build one Gap or Flush entry's report as an .xlsx file (bytes).
@@ -437,14 +442,20 @@ def build_entry_workbook(
         # portrait sheet, just in Excel instead of the browser. Each pair
         # advances by its own tallest image's actual height, not a fixed
         # guess -- a guess too short lets a tall photo overlap the pair
-        # below it, and every photo's own aspect ratio is different.
-        gallery_col_for_slot = {0: "A", 1: "E"}
+        # below it, and every photo's own aspect ratio is different. The
+        # tag label goes directly under each image (own height, not the
+        # pair's max), same "tag under the image" placement as the
+        # on-screen gallery/report page.
+        gallery_col_for_slot = {0: ("A", 1), 1: ("E", 5)}
         for pair_start in range(0, len(images), 2):
             pair = images[pair_start : pair_start + 2]
-            pair_heights = [
-                _embed_image(ws, data, f"{gallery_col_for_slot[slot]}{row}", 280)
-                for slot, (_, data) in enumerate(pair)
-            ]
+            pair_heights = []
+            for slot, (_, data, tag_label) in enumerate(pair):
+                col_letter, col_index = gallery_col_for_slot[slot]
+                height_px = _embed_image(ws, data, f"{col_letter}{row}", 280)
+                pair_heights.append(height_px)
+                tag_row = row + math.ceil(height_px / ROW_HEIGHT_PX) + 1
+                ws.cell(row=tag_row, column=col_index, value=tag_label).font = LABEL_FONT
             row += math.ceil(max(pair_heights) / ROW_HEIGHT_PX) + 2
 
     buffer = BytesIO()
