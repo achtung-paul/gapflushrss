@@ -103,6 +103,9 @@ export const resendRootAdminInvite = (userId) =>
 export const resetRootAdmin2fa = (userId) =>
   apiFetch(`/admin/root-admins/${userId}/reset-2fa`, { method: 'POST' })
 
+export const unlockRootAdmin = (userId) =>
+  apiFetch(`/admin/root-admins/${userId}/unlock`, { method: 'POST' })
+
 // A client admin's own client's users -- /client-admin/users is scoped
 // server-side to current_user.client_id (see api/client_admin.py).
 export const listClientUsers = (search, page) => {
@@ -145,6 +148,9 @@ export const resendClientUserInvite = (userId) =>
 
 export const resetClientUser2fa = (userId) =>
   apiFetch(`/client-admin/users/${userId}/reset-2fa`, { method: 'POST' })
+
+export const unlockClientUser = (userId) =>
+  apiFetch(`/client-admin/users/${userId}/unlock`, { method: 'POST' })
 
 export const getBanner = () => apiFetch('/banner')
 
@@ -290,6 +296,9 @@ export const resendClientAdminInvite = (clientId, userId) =>
 
 export const resetClientAdmin2fa = (clientId, userId) =>
   apiFetch(`/admin/clients/${clientId}/admins/${userId}/reset-2fa`, { method: 'POST' })
+
+export const unlockClientAdmin = (clientId, userId) =>
+  apiFetch(`/admin/clients/${clientId}/admins/${userId}/unlock`, { method: 'POST' })
 
 // Permanent: snapshots the client first, then purges every project,
 // user, and the client itself (see api/admin_clients.py's delete_client).

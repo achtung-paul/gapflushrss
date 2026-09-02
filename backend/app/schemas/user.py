@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
@@ -15,6 +16,10 @@ class UserOut(BaseModel):
     last_name: str
     email: EmailStr
     global_role: GlobalRole
+    # NULL when not locked, otherwise when core/login_lockout.py's
+    # register_failure() locked the account -- shown in the admin user
+    # list so an admin knows to look for an "Unlock" action there.
+    locked_at: datetime | None = None
 
 
 class CurrentUserOut(UserOut):

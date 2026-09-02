@@ -12,6 +12,7 @@ import {
   listPostgresServices,
   resendClientAdminInvite,
   resetClientAdmin2fa,
+  unlockClientAdmin,
   updateClient,
 } from '../api/client.js'
 
@@ -52,6 +53,7 @@ function ClientsPage() {
   const [newAdminEmail, setNewAdminEmail] = useState('')
   const [inviteSentUserId, setInviteSentUserId] = useState(null)
   const [reset2faUserId, setReset2faUserId] = useState(null)
+  const [unlockedUserId, setUnlockedUserId] = useState(null)
 
   const [editingId, setEditingId] = useState(null)
   const [editingName, setEditingName] = useState('')
@@ -166,6 +168,18 @@ function ClientsPage() {
       await resetClientAdmin2fa(clientId, userId)
       setReset2faUserId(userId)
       setTimeout(() => setReset2faUserId(null), 4000)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function handleUnlock(clientId, userId) {
+    setError(null)
+    try {
+      await unlockClientAdmin(clientId, userId)
+      setUnlockedUserId(userId)
+      setTimeout(() => setUnlockedUserId(null), 4000)
+      listClientAdmins(clientId).then(setClientAdmins).catch((err) => setError(err.message))
     } catch (err) {
       setError(err.message)
     }
@@ -342,7 +356,10 @@ function ClientsPage() {
                           <tr key={admin.user_id}>
                             <td>{admin.first_name}</td>
                             <td>{admin.last_name}</td>
-                            <td>{admin.email}</td>
+                            <td>
+                              {admin.email}
+                              {admin.locked_at && <span className="badge-locked"> Locked</span>}
+                            </td>
                             <td>
                               <button
                                 type="button"
@@ -365,6 +382,18 @@ function ClientsPage() {
                               >
                                 {reset2faUserId === admin.user_id ? '2FA reset' : 'Reset 2FA'}
                               </button>
+                              {admin.locked_at && (
+                                <>
+                                  {' '}
+                                  <button
+                                    type="button"
+                                    className="link-button"
+                                    onClick={() => handleUnlock(client.client_id, admin.user_id)}
+                                  >
+                                    {unlockedUserId === admin.user_id ? 'Unlocked' : 'Unlock'}
+                                  </button>
+                                </>
+                              )}
                             </td>
                           </tr>
                         ))}

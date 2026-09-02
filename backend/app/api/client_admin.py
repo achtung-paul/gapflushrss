@@ -4,11 +4,12 @@
 # can't reach this file at all (require_client_admin rejects them, since
 # their client_id is NULL -- see api/deps.py).
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_project, require_client_admin
 from app.core.invites import build_invited_user, send_account_invite
+from app.core.login_lockout import clear_failures
 from app.core.security import force_password_reset
 from app.core.security_events import (
     EVENT_PROJECT_MEMBER_ADDED,
@@ -19,6 +20,7 @@ from app.core.security_events import (
     EVENT_USER_INVITE_RESENT,
     EVENT_USER_PASSWORD_RESET_FORCED,
     EVENT_USER_ROLE_CHANGED,
+    EVENT_USER_UNLOCKED,
     record_event,
 )
 from app.db.session import get_db
@@ -110,6 +112,7 @@ def list_client_users(
 def create_client_user(
     request: Request,
     body: ClientUserCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_client_admin),
 ):
@@ -146,19 +149,7 @@ def create_client_user(
     db.commit()
     db.refresh(user)
 
-    try:
-        send_account_invite(db, user)
-    except OSError as error:
-        # The account was already created and committed above -- a mail
-        # failure here doesn't roll that back, since the admin can retry
-        # via resend-invite. Surfacing this as an error (rather than
-        # swallowing it like request_password_reset does) matters
-        # because the caller is an authenticated admin who needs to know
-        # the new user has no way in yet.
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"User created, but the invite email failed to send: {error}",
-        )
+    send_account_invite(db, user, background_tasks)
     return user
 
 
@@ -277,6 +268,7 @@ def force_client_user_password_reset(
 def resend_client_user_invite(
     request: Request,
     user_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_client_admin),
 ):
@@ -288,12 +280,7 @@ def resend_client_user_invite(
     (see core/invites.py's send_account_invite docstring).
     """
     user = _get_client_user_or_404(db, current_user, user_id)
-    try:
-        send_account_invite(db, user)
-    except OSError as error:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to send invite email: {error}"
-        )
+    send_account_invite(db, user, background_tasks)
     record_event(
         db,
         event_type=EVENT_USER_INVITE_RESENT,
@@ -327,6 +314,34 @@ def reset_client_user_2fa(
     record_event(
         db,
         event_type=EVENT_USER_2FA_RESET,
+        actor=current_user,
+        request=request,
+        client_id=current_user.client_id,
+        target_type="user",
+        target_id=user.user_id,
+        target_name=user.email,
+    )
+    db.commit()
+
+
+@router.post("/users/{user_id}/unlock", status_code=status.HTTP_204_NO_CONTENT)
+def unlock_client_user(
+    request: Request,
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_client_admin),
+):
+    """Recovery path for a user locked out by core/login_lockout.py's
+    failed-attempt counter -- clears the counter and lifts the lock so
+    they can log in again. Same shape as reset-2fa above; unlike that
+    one, this doesn't touch sessions or 2FA enrollment, since a lockout
+    doesn't imply either is compromised.
+    """
+    user = _get_client_user_or_404(db, current_user, user_id)
+    clear_failures(db, user)
+    record_event(
+        db,
+        event_type=EVENT_USER_UNLOCKED,
         actor=current_user,
         request=request,
         client_id=current_user.client_id,

@@ -283,6 +283,15 @@ main {
   color: #c62828;
 }
 
+/* Marks a locked-out account in an admin user list (see
+   core/login_lockout.py) -- text only, next to the email, not a
+   separate pill: this is a rare state and shouldn't compete visually
+   with the row's actual identity. */
+.badge-locked {
+  color: #c62828;
+  font-weight: 600;
+}
+
 .inline-form {
   display: flex;
   gap: 0.5rem;

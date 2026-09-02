@@ -72,3 +72,16 @@ class User(Base):
     # either way; confirm_password_reset clears it once a real password
     # is set.
     must_reset_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # Brute-force lockout (core/login_lockout.py). failed_auth_count is
+    # incremented by both a wrong password and a wrong 2FA code -- either
+    # one is a failed attempt to get past this account's auth, so they
+    # share one counter and one lock. last_failed_auth_at is what lets a
+    # stale count (an old typo from years ago) not compound with a new
+    # one -- see FAILURE_WINDOW. locked_at is NULL when not locked, or the
+    # time the lock was set when it is; the lock itself does not expire on
+    # its own -- only an admin's unlock action or the user completing a
+    # password reset clears it (core/login_lockout.py's clear_failures).
+    failed_auth_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_failed_auth_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

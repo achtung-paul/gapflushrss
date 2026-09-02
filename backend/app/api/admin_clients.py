@@ -10,7 +10,7 @@
 # written to return only those fields; nothing here can reach a project
 # or a non-admin user. See CLAUDE.md's tenancy-boundary gotcha.
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -18,6 +18,7 @@ from app.api.deps import require_root_admin
 from app.api.projects import purge_project_data
 from app.core import service_db, service_provisioning, service_storage
 from app.core.invites import build_invited_user, send_account_invite
+from app.core.login_lockout import clear_failures
 from app.core.security import force_password_reset
 from app.core.security_events import (
     EVENT_CLIENT_ACTIVATED,
@@ -28,6 +29,7 @@ from app.core.security_events import (
     EVENT_USER_CREATED,
     EVENT_USER_INVITE_RESENT,
     EVENT_USER_PASSWORD_RESET_FORCED,
+    EVENT_USER_UNLOCKED,
     record_event,
 )
 from app.core.statistical_model_defaults import default_statistical_model_rows
@@ -120,6 +122,7 @@ def list_clients(db: Session = Depends(get_db), _: User = Depends(require_root_a
 def create_client(
     request: Request,
     body: ClientCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_root_admin),
 ):
@@ -258,17 +261,7 @@ def create_client(
     db.refresh(client)
     db.refresh(admin)
 
-    try:
-        send_account_invite(db, admin)
-    except OSError as error:
-        # The client and its admin account both already exist and are
-        # committed -- same recovery path as every other invite-issuing
-        # route: root admin uses resend-invite (below) once mail is
-        # working again, rather than the whole client creation failing.
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Client created, but the admin's invite email failed to send: {error}",
-        )
+    send_account_invite(db, admin, background_tasks)
     return _client_out(db, client)
 
 
@@ -293,6 +286,7 @@ def add_client_admin(
     request: Request,
     client_id: int,
     body: ClientAdminCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_root_admin),
 ):
@@ -329,13 +323,7 @@ def add_client_admin(
     db.commit()
     db.refresh(admin)
 
-    try:
-        send_account_invite(db, admin)
-    except OSError as error:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"User created, but the invite email failed to send: {error}",
-        )
+    send_account_invite(db, admin, background_tasks)
     return admin
 
 
@@ -367,16 +355,12 @@ def resend_client_admin_invite(
     request: Request,
     client_id: int,
     user_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_root_admin),
 ):
     admin = _get_client_admin_or_404(db, client_id, user_id)
-    try:
-        send_account_invite(db, admin)
-    except OSError as error:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to send invite email: {error}"
-        )
+    send_account_invite(db, admin, background_tasks)
     record_event(
         db,
         event_type=EVENT_USER_INVITE_RESENT,
@@ -411,6 +395,37 @@ def reset_client_admin_2fa(
     record_event(
         db,
         event_type=EVENT_USER_2FA_RESET,
+        actor=current_user,
+        request=request,
+        client_id=client_id,
+        target_type="user",
+        target_id=admin.user_id,
+        target_name=admin.email,
+    )
+    db.commit()
+
+
+@router.post("/{client_id}/admins/{user_id}/unlock", status_code=status.HTTP_204_NO_CONTENT)
+def unlock_client_admin(
+    request: Request,
+    client_id: int,
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_root_admin),
+):
+    """Recovery path for when a client's *only* client_admin is locked
+    out by core/login_lockout.py's failed-attempt counter -- otherwise
+    that client has nobody who can log in to unlock anyone, and root
+    admin's client_admin.py route can't reach them (require_client_admin
+    rejects root admin outright). Same narrow boundary as
+    force-password-reset/reset-2fa above: reaches this one client_admin
+    account via _get_client_admin_or_404, nothing else about the client.
+    """
+    admin = _get_client_admin_or_404(db, client_id, user_id)
+    clear_failures(db, admin)
+    record_event(
+        db,
+        event_type=EVENT_USER_UNLOCKED,
         actor=current_user,
         request=request,
         client_id=client_id,

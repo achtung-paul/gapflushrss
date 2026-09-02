@@ -15,6 +15,7 @@
 import logging
 from datetime import datetime, timezone
 
+from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -49,19 +50,44 @@ def build_invited_user(
     )
 
 
-def send_account_invite(db: Session, user: User) -> None:
+def _send_invite_email(to_address: str, invite_link: str) -> None:
+    # Run via BackgroundTasks, after the response has already gone out --
+    # see send_account_invite's comment below on why. Its own try/except
+    # since a route's exception handling can no longer catch anything
+    # raised after the response is sent (same shape as api/auth.py's
+    # _send_password_reset_email).
+    try:
+        send_email(
+            to_address=to_address,
+            subject="Set up your GapFlush RSS account",
+            body=(
+                "An account has been created for you.\n\n"
+                f"Set your password using this link (valid for {INVITE_TOKEN_LIFETIME.days} days):\n\n"
+                f"{invite_link}"
+            ),
+        )
+    except OSError:
+        logger.exception("Failed to send account invite email")
+
+
+def send_account_invite(db: Session, user: User, background_tasks: BackgroundTasks) -> None:
     """Issue a fresh invite token for `user` and email the set-password
     link.
 
-    Unlike api/auth.py's request_password_reset (which swallows a mail
-    failure to avoid leaking whether an address exists), this lets
-    send_email's OSError/SMTPException propagate -- the caller here is
-    always an authenticated admin who just created this account on
-    purpose, and needs to know the email didn't go out rather than being
-    told everything's fine. Callers should catch it and surface a 502;
-    the account itself stays created either way, so a resend-invite
-    route (mirroring the existing force-password-reset routes) is the
-    recovery path, not a rollback.
+    send_email is a blocking network call (core/email.py) -- up to
+    EMAIL_TIMEOUT_SECONDS -- so, like api/auth.py's
+    request_password_reset, the actual send is deferred to run after the
+    response via BackgroundTasks rather than inline in the request. That
+    means a caller here can no longer be told synchronously that the
+    email failed to send (there used to be a try/except OSError -> 502
+    around this call; that's gone now, on purpose) -- a stalled mail
+    server no longer holds an admin's request open for up to
+    EMAIL_TIMEOUT_SECONDS, and the account row (already committed by the
+    time this is called) is never left half-done by an email failure.
+    The existing "Resend invite" routes are the recovery path either
+    way, same as before this change -- they were already the answer for
+    "the email never arrived", just now also the answer for "the send
+    failed outright".
 
     Requires `user` to already have a user_id (added/flushed or
     committed by the caller) -- the token references it.
@@ -76,12 +102,4 @@ def send_account_invite(db: Session, user: User) -> None:
     db.commit()
 
     invite_link = f"{settings.frontend_origin}/set-password?token={token.token}"
-    send_email(
-        to_address=user.email,
-        subject="Set up your GapFlush RSS account",
-        body=(
-            "An account has been created for you.\n\n"
-            f"Set your password using this link (valid for {INVITE_TOKEN_LIFETIME.days} days):\n\n"
-            f"{invite_link}"
-        ),
-    )
+    background_tasks.add_task(_send_invite_email, user.email, invite_link)

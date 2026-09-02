@@ -1,6 +1,8 @@
 # Request/response shapes for /admin/clients (root admin) and the parts
 # of /client-admin that report a client's own identity back to itself.
 
+from datetime import datetime
+
 from pydantic import BaseModel, EmailStr, ConfigDict, field_validator, model_validator
 
 
@@ -82,3 +84,4 @@ class ClientAdminOut(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
+    locked_at: datetime | None = None

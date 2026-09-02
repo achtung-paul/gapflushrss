@@ -7,7 +7,7 @@
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
@@ -17,12 +17,14 @@ from app.core import totp
 from app.core.config import settings
 from app.core.crypto import decrypt_secret, encrypt_secret
 from app.core.email import send_email
+from app.core.login_lockout import clear_failures, is_locked, register_failure
 from app.core.rate_limit import limiter
 from app.core.security import generate_token, hash_password, verify_password
 from app.core.security_events import (
     EVENT_2FA_ENROLLED,
     EVENT_2FA_FAILED,
     EVENT_2FA_LOCKED,
+    EVENT_ACCOUNT_LOCKED,
     EVENT_LOGIN_BLOCKED,
     EVENT_LOGIN_FAILED,
     EVENT_LOGIN_SUCCESS,
@@ -55,6 +57,10 @@ CLIENT_INACTIVE_ERROR = "This workspace has been deactivated. Contact your admin
 INVALID_CODE_ERROR = "Incorrect code."
 EXPIRED_CHALLENGE_ERROR = "That login attempt has expired -- please log in again."
 TOO_MANY_ATTEMPTS_ERROR = "Too many incorrect codes -- please log in again."
+ACCOUNT_LOCKED_ERROR = (
+    "This account has been locked after too many failed sign-in attempts. "
+    "Contact your administrator, or use 'Forgot your password?' to unlock it by email."
+)
 
 # Hashed once at import. Compared against when the email doesn't match any
 # account, so a failed login costs the same bcrypt work either way --
@@ -93,6 +99,9 @@ def _issue_session(db: Session, user: User, response: Response, request: Request
     """
     session = UserSession(session_token=generate_token(), user_id=user.user_id)
     db.add(session)
+    # A real login clears any accumulated failures -- covers both the
+    # no-2FA path and 2fa/verify's successful-code path in one place.
+    clear_failures(db, user)
     record_event(db, event_type=EVENT_LOGIN_SUCCESS, actor=user, request=request)
     db.commit()
 
@@ -165,8 +174,28 @@ def login(
         record_event(
             db, event_type=EVENT_LOGIN_FAILED, outcome="failure", actor_email=body.email, request=request
         )
+        # A wrong password against a real account counts towards that
+        # account's lockout -- an unknown email has no row to count
+        # against, so this is a no-op there (and doesn't reveal which
+        # case it was; the response is identical either way).
+        if user is not None and register_failure(db, user):
+            record_event(db, event_type=EVENT_ACCOUNT_LOCKED, outcome="failure", actor=user, request=request)
         db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=GENERIC_LOGIN_ERROR)
+
+    # Only reachable with a *correct* password, so naming the lock here
+    # doesn't leak anything an attacker without the password could use --
+    # same reasoning as must_reset_password/client_inactive below. Checked
+    # first, before either of those, so a locked account never reaches
+    # the 2FA gate and can no longer mint a fresh challenge to grind
+    # through (see core/login_lockout.py).
+    if is_locked(user):
+        record_event(
+            db, event_type=EVENT_LOGIN_BLOCKED, outcome="failure", actor=user, request=request,
+            detail="account_locked",
+        )
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ACCOUNT_LOCKED_ERROR)
 
     # Checked after the password itself, not before: telling someone who
     # just proved they know the correct password *why* they're being
@@ -231,9 +260,13 @@ def verify_2fa(
     # endpoint in the app where rate limiting is load-bearing, not
     # defence in depth. The per-IP limit above stops one attacker from
     # grinding through codes quickly; the per-challenge attempts counter
-    # below (MAX_ATTEMPTS) is what stops a *distributed* attacker who
-    # already holds a valid challenge_token from routing around the IP
-    # limit by spreading guesses across many IPs.
+    # below (MAX_ATTEMPTS) stops one held challenge_token from being
+    # brute-forced past 5 guesses. Neither of those alone stops a
+    # distributed attacker who already knows the password from just
+    # calling /login again for a fresh challenge with a clean attempts
+    # counter -- register_failure()'s account-wide lockout below
+    # (core/login_lockout.py) is what closes that gap, since it persists
+    # across however many challenges get minted.
     challenge = db.get(LoginChallenge, body.challenge_token)
     if challenge is None or challenge.expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=EXPIRED_CHALLENGE_ERROR)
@@ -243,6 +276,14 @@ def verify_2fa(
         db.delete(challenge)
         db.commit()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=EXPIRED_CHALLENGE_ERROR)
+
+    # The account could have been locked (by an admin, or by a parallel
+    # /login attempt registering the failure that tips it over) in the
+    # gap between this challenge being issued and this request arriving.
+    if is_locked(user):
+        db.delete(challenge)
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ACCOUNT_LOCKED_ERROR)
 
     if challenge.kind == LoginChallengeKind.enroll:
         secret = decrypt_secret(challenge.pending_secret_encrypted)
@@ -262,6 +303,17 @@ def verify_2fa(
     matched_step = totp.verify_code(secret, body.code, last_used_step)
     if matched_step is None:
         challenge.attempts += 1
+        # Counts towards the account-wide lockout too, not just this
+        # challenge's own MAX_ATTEMPTS -- see the comment above on why
+        # that's what stops a distributed attacker from just minting a
+        # fresh challenge per 5 guesses. Checked first: a failure severe
+        # enough to lock the account supersedes the ordinary
+        # "too many attempts on this challenge" outcome below.
+        if register_failure(db, user):
+            record_event(db, event_type=EVENT_ACCOUNT_LOCKED, outcome="failure", actor=user, request=request)
+            db.delete(challenge)
+            db.commit()
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ACCOUNT_LOCKED_ERROR)
         if challenge.attempts >= MAX_ATTEMPTS:
             record_event(db, event_type=EVENT_2FA_LOCKED, outcome="failure", actor=user, request=request)
             db.delete(challenge)
@@ -310,13 +362,37 @@ def me(current_user: User = Depends(get_current_user), db: Session = Depends(get
     return _current_user_out(db, current_user)
 
 
+def _send_password_reset_email(to_address: str, reset_link: str) -> None:
+    # Run via BackgroundTasks, after the response has already gone out --
+    # see request_password_reset's comment on why. Its own try/except
+    # since a route's exception handling can no longer catch anything
+    # raised after the response is sent.
+    try:
+        send_email(
+            to_address=to_address,
+            subject="GapFlush RSS password reset",
+            body=f"Reset your password using this link (valid for 1 hour):\n\n{reset_link}",
+        )
+    except OSError:
+        logger.exception("Failed to send password reset email")
+
+
 @router.post("/password-reset/request")
 @limiter.limit("3/hour")
 def request_password_reset(
     request: Request,  # required by slowapi to identify the caller
     body: PasswordResetRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
+    # send_email is a blocking network call (core/email.py) -- up to
+    # EMAIL_TIMEOUT_SECONDS. Done only when the account exists, that
+    # turned this endpoint's response time itself into an account-
+    # enumeration channel despite the generic message below, unlike
+    # login() which deliberately equalizes (_TIMING_EQUALIZER_HASH
+    # above). Deferring the send to run after the response is returned
+    # closes that gap -- both branches now return in about the time of
+    # one DB query, whether or not the address exists.
     user = db.query(User).filter(User.email == body.email).first()
     if user is not None:
         reset_token = PasswordResetToken(token=generate_token(), user_id=user.user_id)
@@ -325,16 +401,7 @@ def request_password_reset(
         db.commit()
 
         reset_link = f"{settings.frontend_origin}/reset-password?token={reset_token.token}"
-        try:
-            send_email(
-                to_address=user.email,
-                subject="GapFlush RSS password reset",
-                body=f"Reset your password using this link (valid for 1 hour):\n\n{reset_link}",
-            )
-        except OSError:
-            # Don't let an email-delivery problem leak whether the
-            # address exists, or crash the request -- just log it.
-            logger.exception("Failed to send password reset email")
+        background_tasks.add_task(_send_password_reset_email, user.email, reset_link)
 
     return {"message": GENERIC_RESET_REQUESTED_MESSAGE}
 
@@ -362,6 +429,10 @@ def confirm_password_reset(body: PasswordResetConfirm, request: Request, db: Ses
     # enforcing -- either way, this password now works.
     user.must_reset_password = False
     reset_token.used = True
+    # Self-service recovery from a lockout: completing a reset proves
+    # control of the mailbox, which is exactly what the attacker who
+    # triggered the lock doesn't have (core/login_lockout.py).
+    clear_failures(db, user)
 
     # Log the user out everywhere -- a password reset should invalidate
     # any session that might have been started by whoever had the old password.

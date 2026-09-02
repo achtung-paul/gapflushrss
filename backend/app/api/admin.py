@@ -6,16 +6,18 @@
 # now: root admin has no route that can reach them (see CLAUDE.md's
 # tenancy-boundary gotcha).
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_root_admin
 from app.core.invites import build_invited_user, send_account_invite
+from app.core.login_lockout import clear_failures
 from app.core.security_events import (
     EVENT_USER_2FA_RESET,
     EVENT_USER_CREATED,
     EVENT_USER_DELETED,
     EVENT_USER_INVITE_RESENT,
+    EVENT_USER_UNLOCKED,
     record_event,
 )
 from app.db.session import get_db
@@ -88,6 +90,7 @@ def list_root_admins(
 def create_root_admin(
     request: Request,
     body: RootAdminCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_root_admin),
 ):
@@ -120,13 +123,7 @@ def create_root_admin(
     db.commit()
     db.refresh(user)
 
-    try:
-        send_account_invite(db, user)
-    except OSError as error:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"User created, but the invite email failed to send: {error}",
-        )
+    send_account_invite(db, user, background_tasks)
     return user
 
 
@@ -212,18 +209,14 @@ def delete_root_admin(
 def resend_root_admin_invite(
     request: Request,
     user_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_root_admin),
 ):
     user = db.query(User).filter(User.user_id == user_id, User.client_id.is_(None)).first()
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    try:
-        send_account_invite(db, user)
-    except OSError as error:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to send invite email: {error}"
-        )
+    send_account_invite(db, user, background_tasks)
     record_event(
         db,
         event_type=EVENT_USER_INVITE_RESENT,
@@ -258,6 +251,33 @@ def reset_root_admin_2fa(
     record_event(
         db,
         event_type=EVENT_USER_2FA_RESET,
+        actor=current_user,
+        request=request,
+        target_type="user",
+        target_id=user.user_id,
+        target_name=user.email,
+    )
+    db.commit()
+
+
+@router.post("/root-admins/{user_id}/unlock", status_code=status.HTTP_204_NO_CONTENT)
+def unlock_root_admin(
+    request: Request,
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_root_admin),
+):
+    """Recovery path for a root admin locked out by
+    core/login_lockout.py's failed-attempt counter -- mirrors
+    api/client_admin.py's unlock_client_user.
+    """
+    user = db.query(User).filter(User.user_id == user_id, User.client_id.is_(None)).first()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    clear_failures(db, user)
+    record_event(
+        db,
+        event_type=EVENT_USER_UNLOCKED,
         actor=current_user,
         request=request,
         target_type="user",

@@ -6,6 +6,7 @@ import {
   listRootAdmins,
   resendRootAdminInvite,
   resetRootAdmin2fa,
+  unlockRootAdmin,
   updateRootAdmin,
 } from '../api/client.js'
 import { useAuth } from '../auth/AuthContext.jsx'
@@ -32,6 +33,7 @@ function AdminPage() {
   const [pendingDeleteUserId, setPendingDeleteUserId] = useState(null)
   const [inviteSentUserId, setInviteSentUserId] = useState(null)
   const [reset2faUserId, setReset2faUserId] = useState(null)
+  const [unlockedUserId, setUnlockedUserId] = useState(null)
   const [error, setError] = useState(null)
 
   // Editing an existing user's details (not password -- that's the
@@ -97,6 +99,18 @@ function AdminPage() {
       await resetRootAdmin2fa(userId)
       setReset2faUserId(userId)
       setTimeout(() => setReset2faUserId(null), 4000)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function handleUnlock(userId) {
+    setError(null)
+    try {
+      await unlockRootAdmin(userId)
+      setUnlockedUserId(userId)
+      setTimeout(() => setUnlockedUserId(null), 4000)
+      refreshUsers()
     } catch (err) {
       setError(err.message)
     }
@@ -203,7 +217,10 @@ function AdminPage() {
               <tr key={u.user_id}>
                 <td>{u.first_name}</td>
                 <td>{u.last_name}</td>
-                <td>{u.email}</td>
+                <td>
+                  {u.email}
+                  {u.locked_at && <span className="badge-locked"> Locked</span>}
+                </td>
                 <td>
                   {pendingDeleteUserId === u.user_id ? (
                     <>
@@ -226,6 +243,13 @@ function AdminPage() {
                       <button type="button" className="link-button" onClick={() => handleReset2fa(u.user_id)}>
                         {reset2faUserId === u.user_id ? '2FA reset' : 'Reset 2FA'}
                       </button>{' '}
+                      {u.locked_at && (
+                        <>
+                          <button type="button" className="link-button" onClick={() => handleUnlock(u.user_id)}>
+                            {unlockedUserId === u.user_id ? 'Unlocked' : 'Unlock'}
+                          </button>{' '}
+                        </>
+                      )}
                       {u.user_id !== user?.user_id && (
                         <button
                           type="button"
