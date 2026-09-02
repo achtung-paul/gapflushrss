@@ -370,7 +370,7 @@ def _send_password_reset_email(to_address: str, reset_link: str) -> None:
     try:
         send_email(
             to_address=to_address,
-            subject="GapFlush RSS password reset",
+            subject="StackFit Pro password reset",
             body=f"Reset your password using this link (valid for 1 hour):\n\n{reset_link}",
         )
     except OSError:

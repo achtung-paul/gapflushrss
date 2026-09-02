@@ -37,7 +37,7 @@ MINIO_LOG_FILENAME = "minio.jsonl"
 # api/internal_logs.py). Kept separate from the app's own logger so its
 # records land in their own file and can't feed back into the handler
 # that produced them.
-MINIO_LOGGER_NAME = "gapflush.minio"
+MINIO_LOGGER_NAME = "stackfitpro.minio"
 
 REDACTED = "[REDACTED]"
 
@@ -166,12 +166,12 @@ def configure_logging() -> None:
     # Drop any handlers a previous call added, identified by the marker
     # attribute set below.
     for existing in list(root.handlers):
-        if getattr(existing, "_gapflush_handler", False):
+        if getattr(existing, "_stackfitpro_handler", False):
             root.removeHandler(existing)
             existing.close()
 
     file_handler = _build_file_handler(log_dir / BACKEND_LOG_FILENAME, logging.INFO)
-    file_handler._gapflush_handler = True
+    file_handler._stackfitpro_handler = True
     root.addHandler(file_handler)
 
     # Keep writing to stdout as well, so `docker compose logs backend`
@@ -180,7 +180,7 @@ def configure_logging() -> None:
     console = logging.StreamHandler()
     console.setFormatter(logging.Formatter("%(levelname)s [%(name)s] %(message)s"))
     console.addFilter(SecretRedactingFilter())
-    console._gapflush_handler = True
+    console._stackfitpro_handler = True
     root.addHandler(console)
 
     # MinIO's forwarded entries go to their own file. propagate=False
@@ -194,7 +194,7 @@ def configure_logging() -> None:
         minio_logger.removeHandler(existing)
         existing.close()
     minio_handler = _build_file_handler(log_dir / MINIO_LOG_FILENAME, logging.INFO)
-    minio_handler._gapflush_handler = True
+    minio_handler._stackfitpro_handler = True
     minio_logger.addHandler(minio_handler)
 
 

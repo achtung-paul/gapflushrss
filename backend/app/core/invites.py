@@ -59,7 +59,7 @@ def _send_invite_email(to_address: str, invite_link: str) -> None:
     try:
         send_email(
             to_address=to_address,
-            subject="Set up your GapFlush RSS account",
+            subject="Set up your StackFit Pro account",
             body=(
                 "An account has been created for you.\n\n"
                 f"Set your password using this link (valid for {INVITE_TOKEN_LIFETIME.days} days):\n\n"

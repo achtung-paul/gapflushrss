@@ -87,8 +87,8 @@ def provision_postgres_service(db: Session, server: PostgresServer, client_name:
     last_error: Exception | None = None
     for attempt in range(1, MAX_NAME_ATTEMPTS + 1):
         slug = base_slug if attempt == 1 else f"{base_slug}_{attempt}"
-        role_name = f"gf_{slug}"
-        database_name = f"gapflush_{slug}"
+        role_name = f"sfp_{slug}"
+        database_name = f"stackfitpro_{slug}"
 
         # Postgres won't run CREATE DATABASE inside a transaction block,
         # so this connection has to be in autocommit mode -- there's no
@@ -249,7 +249,7 @@ def provision_minio_service(db: Session, server: MinioServer, client_name: str) 
     base_slug = _minio_bucket_slug(client_name)
     scheme = "https" if server.secure else "http"
 
-    with tempfile.TemporaryDirectory(prefix="gapflush-mc-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="stackfitpro-mc-") as tmp:
         config_dir = Path(tmp)
         alias = "target"
         _run_mc(
@@ -278,7 +278,7 @@ def provision_minio_service(db: Session, server: MinioServer, client_name: str) 
         secret_key = _generate_password()
         _run_mc(["admin", "user", "add", alias, access_key, secret_key], config_dir)
 
-        policy_name = f"gf-{bucket_name}"
+        policy_name = f"sfp-{bucket_name}"
         policy_path = config_dir / "policy.json"
         policy_path.write_text(json.dumps(_bucket_scoped_policy(bucket_name)))
         _run_mc(["admin", "policy", "create", alias, policy_name, str(policy_path)], config_dir)

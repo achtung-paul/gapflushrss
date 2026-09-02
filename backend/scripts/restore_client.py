@@ -7,7 +7,7 @@ Usage (from the LXC):
 <snapshot_dir> is the path *inside the container* (matches settings.backup_dir,
 mounted as the `backups` volume -- see docker-compose.yml), e.g.:
     docker compose exec backend python scripts/restore_client.py \\
-        /var/backups/gapflushrss/acme-7-20260811T020000Z
+        /var/backups/stackfitpro/acme-7-20260811T020000Z
 
 Requirements, checked before anything is written:
   - No client currently has this snapshot's client_id (the usual case

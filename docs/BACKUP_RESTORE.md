@@ -21,7 +21,7 @@ Dedicated infrastructure per client (see `models/client.py`) makes this clean:
 a client's data is exactly its own Postgres database, its own MinIO bucket,
 and a scoped set of central-DB rows. `scripts/backup_client.py` writes one
 timestamped directory per client under `BACKUP_DIR`
-(`/var/backups/gapflushrss` by default -- the `backups` volume in
+(`/var/backups/stackfitpro` by default -- the `backups` volume in
 `docker-compose.yml`):
 
 | File | Contents |
@@ -103,7 +103,7 @@ docker compose exec backend python scripts/restore_client.py <snapshot_dir>
 
 `<snapshot_dir>` is the path *inside the container* (the `backups` volume
 mount point), e.g.
-`/var/backups/gapflushrss/acme-7-20260811T020000Z`.
+`/var/backups/stackfitpro/acme-7-20260811T020000Z`.
 
 **Before running this:**
 

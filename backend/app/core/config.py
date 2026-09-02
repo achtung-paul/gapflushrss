@@ -12,9 +12,9 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # Individual Postgres connection pieces (used to build DATABASE_URL below).
-    postgres_user: str = "gapflush"
-    postgres_password: str = "gapflush"
-    postgres_db: str = "gapflush"
+    postgres_user: str = "stackfitpro"
+    postgres_password: str = "stackfitpro"
+    postgres_db: str = "stackfitpro"
     postgres_host: str = "postgres"
     postgres_port: int = 5432
     # "prefer" matches libpq's own default (i.e. today's behaviour, which
@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     # Session cookie. `cookie_secure` should be True once the app is only
     # ever served over HTTPS (Phase 9) -- until then, False lets the
     # cookie work over plain http on the test LXC.
-    session_cookie_name: str = "gapflush_session"
+    session_cookie_name: str = "stackfitpro_session"
     cookie_secure: bool = False
 
     # Email sending (password-reset and account-invite links, see
@@ -78,10 +78,10 @@ class Settings(BaseSettings):
     # instead (app/core/service_storage.py). Defaults match the "minio"
     # service in docker-compose.yml.
     minio_endpoint: str = "minio:9000"
-    minio_access_key: str = "gapflush"
-    minio_secret_key: str = "gapflush"
+    minio_access_key: str = "stackfitpro"
+    minio_secret_key: str = "stackfitpro"
     minio_secure: bool = False
-    minio_bucket: str = "gapflushrss-images"
+    minio_bucket: str = "stackfitpro-images"
 
     # Key used to encrypt Postgres/MinIO service credentials before they're
     # stored in the DB (see core/crypto.py) -- a Fernet key, generate one
@@ -94,7 +94,7 @@ class Settings(BaseSettings):
     # api/logs.py). Must be a Docker volume in any real deployment --
     # anything written to the container's own filesystem is lost on the
     # next rebuild, which is every deploy.
-    log_dir: str = "/var/log/gapflushrss"
+    log_dir: str = "/var/log/stackfitpro"
 
     # Where Postgres's CSV logs are readable from. Postgres writes them
     # inside its own data directory (the one path it's guaranteed to own),
@@ -112,7 +112,7 @@ class Settings(BaseSettings):
     # Docker volume in any real deployment -- same reasoning as log_dir
     # above -- and see docs/BACKUP_RESTORE.md for what a snapshot
     # contains and why it can't be a plain pg_dump of the whole database.
-    backup_dir: str = "/var/backups/gapflushrss"
+    backup_dir: str = "/var/backups/stackfitpro"
 
     @property
     def database_url(self) -> str:

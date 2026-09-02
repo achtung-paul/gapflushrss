@@ -12,7 +12,7 @@ Usage (from the LXC):
     docker compose exec backend python scripts/backup_client.py <client_id>
 
 Writes one timestamped snapshot directory under settings.backup_dir
-(BACKUP_DIR, /var/backups/gapflushrss by default -- a Docker volume, see
+(BACKUP_DIR, /var/backups/stackfitpro by default -- a Docker volume, see
 docker-compose.yml). See docs/BACKUP_RESTORE.md for the full format and
 the restore procedure -- notably, why a snapshot is not "just run
 pg_restore" and needs its central rows re-inserted with their original

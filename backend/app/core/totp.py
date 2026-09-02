@@ -26,7 +26,7 @@ TOTP_STEP_SECONDS = 30
 # than this starts trading security for convenience.
 VALID_WINDOW = 1
 
-ISSUER = "GapFlush RSS"
+ISSUER = "StackFit Pro"
 
 
 def generate_secret() -> str:

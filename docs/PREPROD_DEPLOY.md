@@ -43,7 +43,7 @@ Nothing generates these automatically -- run once, on the host, before the
 first `docker compose up`:
 
 ```bash
-cd /opt/gapflushrss   # or wherever this repo lives on the host
+cd /opt/stackfitpro   # or wherever this repo lives on the host
 mkdir -p postgres/certs minio/certs
 
 openssl req -new -x509 -days 825 -nodes \

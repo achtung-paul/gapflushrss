@@ -126,17 +126,17 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       MINIO_SECURE: ${MINIO_SECURE:-false}
-      MINIO_BUCKET: gapflushrss-images
+      MINIO_BUCKET: stackfitpro-images
       SERVICE_CREDENTIAL_KEY: ${SERVICE_CREDENTIAL_KEY}
-      LOG_DIR: /var/log/gapflushrss
+      LOG_DIR: /var/log/stackfitpro
       POSTGRES_LOG_DIR: /pgdata/log
       MINIO_LOG_WEBHOOK_TOKEN: ${MINIO_LOG_WEBHOOK_TOKEN}
-      BACKUP_DIR: /var/backups/gapflushrss
+      BACKUP_DIR: /var/backups/stackfitpro
     volumes:
       # Log files have to outlive the container: the image is rebuilt on
       # every deploy, which would otherwise discard the whole history the
       # admin viewer exists to show.
-      - logs:/var/log/gapflushrss
+      - logs:/var/log/stackfitpro
       # Read-only so the backend can read Postgres's CSV logs, which
       # Postgres writes inside its own data directory (see the postgres
       # service above for why they live there). This does expose the
@@ -149,7 +149,7 @@ services:
       # the same reason logs does, and holds a full tenant's data per
       # snapshot, so it needs the same access control as the database
       # itself (see CLAUDE.md's production checklist).
-      - backups:/var/backups/gapflushrss
+      - backups:/var/backups/stackfitpro
     depends_on:
       postgres:
         condition: service_healthy

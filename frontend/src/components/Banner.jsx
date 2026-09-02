@@ -11,7 +11,7 @@ import { useAuth } from '../auth/AuthContext.jsx'
 // matches and the banner reappears for everyone who had closed the old
 // one. The trade-off is that dismissal is per browser, so the same person
 // sees it again on another device -- acceptable for a notice.
-const DISMISSED_KEY = 'gapflush_banner_dismissed'
+const DISMISSED_KEY = 'stackfitpro_banner_dismissed'
 
 function Banner() {
   const { user } = useAuth()

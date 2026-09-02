@@ -1,6 +1,6 @@
-# GapFlushRSS — Project Brief
+# StackFit Pro — Project Brief
 
-Consolidated from `Specs/GapFlushRSS.pdf` plus scoping decisions made 2026-08-05. This is written to be handed to Claude Code as the starting brief for implementation.
+Consolidated from `Specs/GapFlushRSS.pdf` (the spec's original working title) plus scoping decisions made 2026-08-05. This is written to be handed to Claude Code as the starting brief for implementation.
 
 ## What it is
 
