@@ -35,6 +35,15 @@ def get_client(service: MinioService) -> Minio:
             access_key=service.access_key,
             secret_key=decrypt_secret(service.encrypted_secret_key),
             secure=service.secure,
+            # minio-py verifies the server's TLS cert against the system
+            # CA trust store by default -- always fails for the
+            # self-signed certs this project's own docs (PREPROD_DEPLOY.md)
+            # have every deployment generate for the bundled MinIO, since
+            # there's no CA behind them. Same accepted gap as Postgres's
+            # sslmode=require (core/config.py, core/service_db.py):
+            # encrypted, not verified, project-wide, until real CA
+            # management exists (see CLAUDE.md's production checklist).
+            cert_check=False,
         )
     return _client_cache[service.minio_service_id]
 

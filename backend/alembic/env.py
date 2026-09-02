@@ -18,7 +18,15 @@ from app.db.base import Base
 import app.models  # noqa: F401
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# settings.database_url quote_plus()'s the password (core/config.py) --
+# a password containing a character quote_plus escapes (",", "&", etc.)
+# produces a literal "%" in the URL, and ConfigParser (which
+# set_main_option writes into) treats "%" as its own interpolation
+# syntax, raising "invalid interpolation syntax" unless it's doubled.
+# Same fix needed everywhere a URL reaches set_main_option -- see
+# alembic_project/env.py and core/service_db.py's
+# _project_alembic_config.
+config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
 # Guarded for the same reason as alembic_project/env.py -- see the longer
 # note there. This chain only runs from the command line today (the

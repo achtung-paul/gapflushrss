@@ -43,7 +43,15 @@ if not url:
         "alembic_project has no target database -- pass -x db_url=... "
         "or set it on the Config object before running migrations."
     )
-config.set_main_option("sqlalchemy.url", url)
+# ConfigParser (which set_main_option writes into) treats "%" as its own
+# interpolation syntax -- a URL whose quote_plus'd password contains one
+# (e.g. from a "," or "&") raises "invalid interpolation syntax" unless
+# doubled here. `url` itself (used unescaped below, and by
+# run_migrations_offline) must stay the real value -- only the copy
+# handed to set_main_option gets escaped. Same fix needed at every
+# set_main_option call site -- see alembic/env.py and
+# core/service_db.py's _project_alembic_config.
+config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
 
 # Only configure logging from the .ini when Alembic is being run as a
 # command-line tool. fileConfig() defaults to disable_existing_loggers=True

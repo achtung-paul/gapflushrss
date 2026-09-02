@@ -171,6 +171,16 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      # Vite's server.allowedHosts rejects any Host header it doesn't
+      # recognize (DNS-rebinding protection) -- on a domain-fronted host
+      # (preprod, behind the Cloudflare Tunnel) that means every request,
+      # since nginx forwards the tunnel's real public hostname straight
+      # through. FRONTEND_ORIGIN is already this host's one source of
+      # truth for its public domain; vite.config.js reads it back out to
+      # allow exactly that host. Harmless on the test LXC, where it's
+      # "http://localhost" -- "localhost" is already allowed by default.
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
     expose:
       - "5173"
 

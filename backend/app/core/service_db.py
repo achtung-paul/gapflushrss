@@ -133,7 +133,15 @@ def check_status(service: PostgresService) -> ServiceStatus:
 def _project_alembic_config(url: str) -> Config:
     cfg = Config(str(_BACKEND_DIR / "alembic_project.ini"))
     cfg.set_main_option("script_location", str(_BACKEND_DIR / "alembic_project"))
-    cfg.set_main_option("sqlalchemy.url", url)
+    # ConfigParser (which set_main_option writes into) treats "%" as its
+    # own interpolation syntax -- a registered service's quote_plus'd
+    # password containing a "," or "&" etc. produces a literal "%" here,
+    # which raises "invalid interpolation syntax" unless doubled.
+    # ConfigParser un-escapes it symmetrically on read, so
+    # alembic_project/env.py's config.get_main_option(...) gets the real
+    # value back -- see that file for the matching fix on its own
+    # set_main_option call.
+    cfg.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
     # Stops alembic_project/env.py calling fileConfig(), which would
     # reconfigure logging for the whole process: it disables every
     # existing logger and replaces the root handlers with the ones from
