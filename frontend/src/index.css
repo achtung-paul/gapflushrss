@@ -918,8 +918,40 @@ td {
 .rss-chart { max-width: 600px; display: block; }
 .rss-chart-band { fill: var(--color-heading); opacity: 0.15; }
 .rss-chart-curve { fill: none; stroke: var(--color-heading); stroke-width: 2; }
+.rss-chart-nominal-line { stroke: var(--color-text); stroke-width: 1.5; stroke-dasharray: 2 2; }
 .rss-chart-axis { stroke: var(--color-divider); stroke-width: 1; }
 .rss-chart-label { font-size: 11px; fill: var(--color-muted); }
+
+.rss-chart-legend {
+  max-width: 600px;
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+.rss-chart-legend li { display: flex; align-items: center; gap: 0.35rem; }
+
+.rss-chart-legend-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.rss-chart-legend-swatch.swatch-band { background: var(--color-heading); opacity: 0.3; }
+.rss-chart-legend-swatch.swatch-nominal {
+  background: none;
+  border-top: 2px dashed var(--color-text);
+  height: 0;
+  align-self: center;
+}
+.rss-chart-legend-swatch.swatch-curve { background: none; border-top: 2px solid var(--color-heading); height: 0; align-self: center; }
 
 .form-hint { color: var(--color-muted); font-size: 0.85rem; }
 

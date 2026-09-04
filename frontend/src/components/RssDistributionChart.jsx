@@ -35,6 +35,19 @@ function normalPdf(x, sigma) {
   return Math.exp(-(x * x) / (2 * sigma * sigma)) / (sigma * Math.sqrt(2 * Math.PI))
 }
 
+// Legend entries shown under the chart, in the order they should read.
+// The RAG/info-only swatches use the same colours as the sigma-level
+// lines above (RAG_COLORS/INFO_ONLY_COLOR), not .rag-badge's pill
+// colours, so the legend always matches what's actually drawn.
+const LEGEND_ITEMS = [
+  { key: 'band', label: 'Tolerance band (LL-UL)', swatch: 'swatch-band' },
+  { key: 'nominal', label: 'Nominal', swatch: 'swatch-nominal' },
+  { key: 'curve', label: 'Predicted distribution', swatch: 'swatch-curve' },
+  { key: 'green', label: 'Within band', color: RAG_COLORS.green },
+  { key: 'amber', label: 'Minor breach (≤5% over limit)', color: RAG_COLORS.amber },
+  { key: 'red', label: 'Major breach (>5% over limit)', color: RAG_COLORS.red },
+]
+
 function RssDistributionChart({ nominal, upperLimit, lowerLimit, sigma1, results }) {
   const largestSpread = results.length > 0 ? results[results.length - 1].spread : 0
   const halfWidth = Math.max(largestSpread, upperLimit, lowerLimit, 0.1) * 1.2
@@ -49,6 +62,7 @@ function RssDistributionChart({ nominal, upperLimit, lowerLimit, sigma1, results
   const bandUpper = nominal + upperLimit
 
   const hasChainData = sigma1 > 0
+  const hasInfoOnly = results.some((result) => result.info_only)
 
   let curvePoints = ''
   if (hasChainData) {
@@ -63,73 +77,102 @@ function RssDistributionChart({ nominal, upperLimit, lowerLimit, sigma1, results
   }
 
   return (
-    <svg
-      viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-      width="100%"
-      className="rss-chart"
-      role="img"
-      aria-label="Predicted distribution against the tolerance band"
-    >
-      {/* Tolerance band: the "safe zone" the predicted spread should stay inside. */}
-      <rect
-        x={xToPixel(bandLower)}
-        y={CURVE_TOP}
-        width={xToPixel(bandUpper) - xToPixel(bandLower)}
-        height={CURVE_HEIGHT}
-        className="rss-chart-band"
-      />
+    <>
+      <svg
+        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+        width="100%"
+        className="rss-chart"
+        role="img"
+        aria-label="Predicted distribution against the tolerance band"
+      >
+        {/* Tolerance band: the "safe zone" the predicted spread should stay inside. */}
+        <rect
+          x={xToPixel(bandLower)}
+          y={CURVE_TOP}
+          width={xToPixel(bandUpper) - xToPixel(bandLower)}
+          height={CURVE_HEIGHT}
+          className="rss-chart-band"
+        />
 
-      {hasChainData ? (
-        <polyline points={curvePoints} className="rss-chart-curve" />
-      ) : (
+        {hasChainData ? (
+          <polyline points={curvePoints} className="rss-chart-curve" />
+        ) : (
+          <line
+            x1={xToPixel(nominal)}
+            x2={xToPixel(nominal)}
+            y1={BASELINE_Y}
+            y2={CURVE_TOP}
+            className="rss-chart-curve"
+          />
+        )}
+
+        {/* Nominal: the target value the band and curve are both centred on. */}
         <line
           x1={xToPixel(nominal)}
           x2={xToPixel(nominal)}
           y1={BASELINE_Y}
           y2={CURVE_TOP}
-          className="rss-chart-curve"
+          className="rss-chart-nominal-line"
         />
-      )}
 
-      {results.map((result, index) => (
-        <g key={result.sigma_level} stroke={result.info_only ? INFO_ONLY_COLOR : RAG_COLORS[result.rag]}>
-          <line
-            x1={xToPixel(nominal - result.spread)}
-            x2={xToPixel(nominal - result.spread)}
-            y1={BASELINE_Y}
-            y2={CURVE_TOP}
-            strokeDasharray="4 3"
-          />
-          <line
-            x1={xToPixel(nominal + result.spread)}
-            x2={xToPixel(nominal + result.spread)}
-            y1={BASELINE_Y}
-            y2={CURVE_TOP}
-            strokeDasharray="4 3"
-          />
-          {/* Staggered vertically by sigma level -- otherwise the 3/4/5
-              sigma labels overlap when their bounds land close together. */}
-          <text
-            x={xToPixel(nominal + result.spread) + 3}
-            y={CURVE_TOP + 10 + index * 13}
-            fill={result.info_only ? INFO_ONLY_COLOR : RAG_COLORS[result.rag]}
-          >
-            {result.sigma_level}σ
-          </text>
-        </g>
-      ))}
+        {results.map((result, index) => (
+          <g key={result.sigma_level} stroke={result.info_only ? INFO_ONLY_COLOR : RAG_COLORS[result.rag]}>
+            <line
+              x1={xToPixel(nominal - result.spread)}
+              x2={xToPixel(nominal - result.spread)}
+              y1={BASELINE_Y}
+              y2={CURVE_TOP}
+              strokeDasharray="4 3"
+            />
+            <line
+              x1={xToPixel(nominal + result.spread)}
+              x2={xToPixel(nominal + result.spread)}
+              y1={BASELINE_Y}
+              y2={CURVE_TOP}
+              strokeDasharray="4 3"
+            />
+            {/* Staggered vertically by sigma level -- otherwise the 3/4/5
+                sigma labels overlap when their bounds land close together. */}
+            <text
+              x={xToPixel(nominal + result.spread) + 3}
+              y={CURVE_TOP + 10 + index * 13}
+              fill={result.info_only ? INFO_ONLY_COLOR : RAG_COLORS[result.rag]}
+            >
+              {result.sigma_level}σ
+            </text>
+          </g>
+        ))}
 
-      <line x1={0} x2={WIDTH} y1={BASELINE_Y} y2={BASELINE_Y} className="rss-chart-axis" />
-      <text x={xToPixel(nominal)} y={HEIGHT - 20} textAnchor="middle" className="rss-chart-label">
-        nominal {nominal}
-      </text>
-      <text x={xToPixel(bandLower)} y={HEIGHT - 5} textAnchor="middle" className="rss-chart-label">
-        {bandLower.toFixed(2)}
-      </text>
-      <text x={xToPixel(bandUpper)} y={HEIGHT - 5} textAnchor="middle" className="rss-chart-label">
-        {bandUpper.toFixed(2)}
-      </text>
-    </svg>
+        <line x1={0} x2={WIDTH} y1={BASELINE_Y} y2={BASELINE_Y} className="rss-chart-axis" />
+        <text x={xToPixel(nominal)} y={HEIGHT - 20} textAnchor="middle" className="rss-chart-label">
+          nominal {nominal}
+        </text>
+        <text x={xToPixel(bandLower)} y={HEIGHT - 5} textAnchor="middle" className="rss-chart-label">
+          LL {bandLower.toFixed(2)}
+        </text>
+        <text x={xToPixel(bandUpper)} y={HEIGHT - 5} textAnchor="middle" className="rss-chart-label">
+          UL {bandUpper.toFixed(2)}
+        </text>
+      </svg>
+
+      <ul className="rss-chart-legend">
+        {LEGEND_ITEMS.map((item) => (
+          <li key={item.key}>
+            <span
+              className={`rss-chart-legend-swatch${item.swatch ? ` ${item.swatch}` : ''}`}
+              style={item.color ? { background: item.color } : undefined}
+            />
+            {item.label}
+          </li>
+        ))}
+        {hasInfoOnly && (
+          <li>
+            <span className="rss-chart-legend-swatch" style={{ background: INFO_ONLY_COLOR }} />
+            Shown for reference only (not a pass/fail level)
+          </li>
+        )}
+      </ul>
+    </>
   )
 }
 
